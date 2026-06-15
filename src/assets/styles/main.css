@@ -1,0 +1,17 @@
+html {
+  scroll-behavior: smooth;
+}
+
+.v-application {
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+}
+
+.v-application .text-h1,
+.v-application .text-h2,
+.v-application .text-h3,
+.v-application .text-h4,
+.v-application .text-h5,
+.v-application .text-h6,
+.font-heading {
+  font-family: 'Poppins', 'Inter', sans-serif !important;
+}
