@@ -1,12 +1,12 @@
 import { ref } from 'vue'
-import type { AxiosError, AxiosResponse } from 'axios'
+import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
 
 interface CrudService<T, P> {
-  list: () => Promise<AxiosResponse<T[]>>
-  get: (id: number | string) => Promise<AxiosResponse<T>>
-  create: (payload: P) => Promise<AxiosResponse<T>>
-  update: (id: number | string, payload: P) => Promise<AxiosResponse<T>>
+  list: () => Promise<T[]>
+  get: (id: number | string) => Promise<T>
+  create: (payload: P) => Promise<T>
+  update: (id: number | string, payload: P) => Promise<T>
   remove: (id: number | string) => Promise<unknown>
 }
 
@@ -33,8 +33,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await service.list()
-      items.value = data
+      items.value = await service.list()
     } catch (err) {
       errorMessage.value = extractMessage(err)
     } finally {
@@ -46,8 +45,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await service.get(id)
-      return data
+      return await service.get(id)
     } catch (err) {
       errorMessage.value = extractMessage(err)
       return null
@@ -61,8 +59,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     errorMessage.value = null
     fieldErrors.value = {}
     try {
-      const { data } = id ? await service.update(id, payload) : await service.create(payload)
-      return data
+      return id ? await service.update(id, payload) : await service.create(payload)
     } catch (err) {
       handleError(err)
       return null

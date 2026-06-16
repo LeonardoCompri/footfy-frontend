@@ -22,6 +22,24 @@ const navItems: NavItem[] = [
     to: { name: 'admin-championships-list' },
     permission: 'tournament:read',
   },
+  {
+    title: 'Times',
+    icon: 'mdi-shield',
+    to: { name: 'admin-teams-list' },
+    permission: 'team:read',
+  },
+  {
+    title: 'Jogadores',
+    icon: 'mdi-account-group',
+    to: { name: 'admin-players-list' },
+    permission: 'player:read',
+  },
+  {
+    title: 'Estádios',
+    icon: 'mdi-stadium',
+    to: { name: 'admin-stadiums-list' },
+    permission: 'stadium:read',
+  },
 ]
 
 const visibleNavItems = navItems.filter(
