@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { teamsService } from '@/services/api/teams.service'
 import type { Team, TeamPayload } from '@/types/team'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ id?: string }>()
 
@@ -16,6 +17,7 @@ const snackbar = useSnackbar()
 
 const isEditing = computed(() => !!props.id)
 const pageTitle = computed(() => (isEditing.value ? 'Editar Time' : 'Novo Time'))
+const initializing = ref(isEditing.value)
 
 const form = reactive<TeamPayload>({
   name: '',
@@ -25,11 +27,15 @@ const form = reactive<TeamPayload>({
 
 onMounted(async () => {
   if (!props.id) return
-  const team = await fetchOne(props.id)
-  if (team) {
-    form.name = team.name
-    form.nickname = team.nickname
-    form.logo = team.logo
+  try {
+    const team = await fetchOne(props.id)
+    if (team) {
+      form.name = team.name
+      form.nickname = team.nickname
+      form.logo = team.logo
+    }
+  } finally {
+    initializing.value = false
   }
 })
 
@@ -44,12 +50,15 @@ async function handleSubmit() {
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-4">{{ pageTitle }}</h1>
+    <PageHeader :title="pageTitle" />
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 
     <v-card>
-      <v-card-text>
+      <v-card-text v-if="initializing" class="d-flex justify-center py-8">
+        <v-progress-circular indeterminate color="primary" />
+      </v-card-text>
+      <v-card-text v-else>
         <v-form @submit.prevent="handleSubmit">
           <v-text-field
             v-model="form.name"

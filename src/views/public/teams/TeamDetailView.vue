@@ -3,8 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { teamsService } from '@/services/api/teams.service'
 import { playersService } from '@/services/api/players.service'
+import { coachesService } from '@/services/api/coaches.service'
 import type { Team, TeamPayload } from '@/types/team'
 import type { Player, PlayerPayload } from '@/types/player'
+import type { Coach, CoachPayload } from '@/types/coach'
 
 const props = defineProps<{ id: string }>()
 
@@ -18,12 +20,16 @@ const {
   fetchAll: fetchAllPlayers,
   loading: playersLoading,
 } = useCrud<Player, PlayerPayload>(playersService)
+const { items: allCoaches, fetchAll: fetchAllCoaches } = useCrud<Coach, CoachPayload>(
+  coachesService,
+)
 
 const team = ref<Team | null>(null)
 
 const loading = computed(() => teamLoading.value || playersLoading.value)
 
 const roster = computed(() => allPlayers.value.filter((p) => p.team_id === Number(props.id)))
+const coach = computed(() => allCoaches.value.find((c) => c.team_id === Number(props.id)) ?? null)
 
 function formatNumber(number: number | null): string {
   return number !== null ? String(number) : '—'
@@ -35,7 +41,7 @@ function formatPosition(position: string | null): string {
 
 onMounted(async () => {
   team.value = await fetchOne(props.id)
-  await fetchAllPlayers()
+  await Promise.all([fetchAllPlayers(), fetchAllCoaches()])
 })
 </script>
 
@@ -59,6 +65,9 @@ onMounted(async () => {
         </v-card-item>
         <v-card-text v-if="team.logo">
           <v-img :src="team.logo" height="160" contain />
+        </v-card-text>
+        <v-card-text v-if="coach">
+          <strong>Técnico:</strong> {{ coach.name }}
         </v-card-text>
       </v-card>
 
