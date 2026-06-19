@@ -5,6 +5,7 @@ import { useSnackbar } from '@/composables/useSnackbar'
 import { championshipsService } from '@/services/api/championships.service'
 import type { Championship, ChampionshipPayload } from '@/types/championship'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<
   Championship,
@@ -50,12 +51,13 @@ onMounted(fetchAll)
 
 <template>
   <div>
-    <div class="d-flex align-center justify-space-between mb-4">
-      <h1 class="text-h4 font-weight-bold">Campeonatos</h1>
-      <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-championships-create' }">
-        Novo Campeonato
-      </v-btn>
-    </div>
+    <PageHeader title="Campeonatos">
+      <template #action>
+        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-championships-create' }">
+          Novo Campeonato
+        </v-btn>
+      </template>
+    </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { championshipsService } from '@/services/api/championships.service'
 import type { Championship, ChampionshipPayload } from '@/types/championship'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ id?: string }>()
 
@@ -17,6 +18,7 @@ const snackbar = useSnackbar()
 
 const isEditing = computed(() => !!props.id)
 const pageTitle = computed(() => (isEditing.value ? 'Editar Campeonato' : 'Novo Campeonato'))
+const initializing = ref(isEditing.value)
 
 const form = reactive<ChampionshipPayload>({
   name: '',
@@ -27,12 +29,16 @@ const form = reactive<ChampionshipPayload>({
 
 onMounted(async () => {
   if (!props.id) return
-  const championship = await fetchOne(props.id)
-  if (championship) {
-    form.name = championship.name
-    form.organizer = championship.organizer
-    form.start_date = championship.start_date
-    form.end_date = championship.end_date
+  try {
+    const championship = await fetchOne(props.id)
+    if (championship) {
+      form.name = championship.name
+      form.organizer = championship.organizer
+      form.start_date = championship.start_date
+      form.end_date = championship.end_date
+    }
+  } finally {
+    initializing.value = false
   }
 })
 
@@ -49,12 +55,15 @@ async function handleSubmit() {
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-4">{{ pageTitle }}</h1>
+    <PageHeader :title="pageTitle" />
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 
     <v-card>
-      <v-card-text>
+      <v-card-text v-if="initializing" class="d-flex justify-center py-8">
+        <v-progress-circular indeterminate color="primary" />
+      </v-card-text>
+      <v-card-text v-else>
         <v-form @submit.prevent="handleSubmit">
           <v-text-field
             v-model="form.name"
