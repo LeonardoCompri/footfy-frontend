@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
@@ -7,6 +7,7 @@ import { playersService } from '@/services/api/players.service'
 import { teamsService } from '@/services/api/teams.service'
 import type { Player, PlayerPayload } from '@/types/player'
 import type { Team, TeamPayload } from '@/types/team'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ id?: string }>()
 
@@ -19,6 +20,7 @@ const snackbar = useSnackbar()
 
 const isEditing = computed(() => !!props.id)
 const pageTitle = computed(() => (isEditing.value ? 'Editar Jogador' : 'Novo Jogador'))
+const initializing = ref(isEditing.value)
 
 const form = reactive<PlayerPayload>({
   team_id: null,
@@ -38,14 +40,18 @@ function toNullableNumber(value: unknown): number | null {
 onMounted(async () => {
   fetchAllTeams()
   if (!props.id) return
-  const player = await fetchOne(props.id)
-  if (player) {
-    form.team_id = player.team_id
-    form.name = player.name
-    form.position = player.position
-    form.number = player.number
-    form.birth_date = player.birth_date
-    form.document = player.document
+  try {
+    const player = await fetchOne(props.id)
+    if (player) {
+      form.team_id = player.team_id
+      form.name = player.name
+      form.position = player.position
+      form.number = player.number
+      form.birth_date = player.birth_date
+      form.document = player.document
+    }
+  } finally {
+    initializing.value = false
   }
 })
 
@@ -61,12 +67,15 @@ async function handleSubmit() {
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-4">{{ pageTitle }}</h1>
+    <PageHeader :title="pageTitle" />
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 
     <v-card>
-      <v-card-text>
+      <v-card-text v-if="initializing" class="d-flex justify-center py-8">
+        <v-progress-circular indeterminate color="primary" />
+      </v-card-text>
+      <v-card-text v-else>
         <v-form @submit.prevent="handleSubmit">
           <v-text-field
             v-model="form.name"

@@ -5,6 +5,7 @@ import { useSnackbar } from '@/composables/useSnackbar'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import type { Stadium, StadiumPayload } from '@/types/stadium'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Stadium, StadiumPayload>(
   stadiumsService,
@@ -43,12 +44,13 @@ onMounted(fetchAll)
 
 <template>
   <div>
-    <div class="d-flex align-center justify-space-between mb-4">
-      <h1 class="text-h4 font-weight-bold">Estádios</h1>
-      <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-stadiums-create' }">
-        Novo Estádio
-      </v-btn>
-    </div>
+    <PageHeader title="Estádios">
+      <template #action>
+        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-stadiums-create' }">
+          Novo Estádio
+        </v-btn>
+      </template>
+    </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 

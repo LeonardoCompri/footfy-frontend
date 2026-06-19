@@ -7,6 +7,7 @@ import { teamsService } from '@/services/api/teams.service'
 import type { Player, PlayerPayload } from '@/types/player'
 import type { Team, TeamPayload } from '@/types/team'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Player, PlayerPayload>(
   playersService,
@@ -61,12 +62,13 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="d-flex align-center justify-space-between mb-4">
-      <h1 class="text-h4 font-weight-bold">Jogadores</h1>
-      <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-players-create' }">
-        Novo Jogador
-      </v-btn>
-    </div>
+    <PageHeader title="Jogadores">
+      <template #action>
+        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-players-create' }">
+          Novo Jogador
+        </v-btn>
+      </template>
+    </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 

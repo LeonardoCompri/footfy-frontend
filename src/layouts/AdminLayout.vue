@@ -2,10 +2,12 @@
 import { ref } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAppTheme } from '@/composables/useAppTheme'
 
 const authStore = useAuthStore()
 const router = useRouter()
-const drawer = ref(true)
+const { themeName, isDark, toggleTheme } = useAppTheme()
+const rail = ref(false)
 
 interface NavItem {
   title: string
@@ -40,6 +42,24 @@ const navItems: NavItem[] = [
     to: { name: 'admin-stadiums-list' },
     permission: 'stadium:read',
   },
+  {
+    title: 'Técnicos',
+    icon: 'mdi-whistle',
+    to: { name: 'admin-coaches-list' },
+    permission: 'coach:read',
+  },
+  {
+    title: 'Partidas',
+    icon: 'mdi-soccer-field',
+    to: { name: 'admin-games-list' },
+    permission: 'game:read',
+  },
+  {
+    title: 'Usuários',
+    icon: 'mdi-account-cog',
+    to: { name: 'admin-users-list' },
+    permission: 'user:read',
+  },
 ]
 
 const visibleNavItems = navItems.filter(
@@ -53,9 +73,17 @@ async function handleLogout() {
 </script>
 
 <template>
-  <v-app>
-    <v-navigation-drawer v-model="drawer" color="primary" theme="dark">
-      <v-list-item title="Footfy" subtitle="Painel Administrativo" class="py-4" />
+  <v-app :theme="themeName">
+    <v-navigation-drawer :rail="rail" permanent color="surface">
+      <v-list-item class="py-3">
+        <template #prepend>
+          <v-avatar color="primary" variant="flat">
+            <v-icon icon="mdi-soccer" />
+          </v-avatar>
+        </template>
+        <v-list-item-title class="font-weight-bold">Footfy</v-list-item-title>
+        <v-list-item-subtitle>Painel Administrativo</v-list-item-subtitle>
+      </v-list-item>
       <v-divider />
       <v-list density="compact" nav>
         <v-list-item
@@ -64,20 +92,38 @@ async function handleLogout() {
           :prepend-icon="item.icon"
           :title="item.title"
           :to="item.to"
+          color="primary"
+          rounded="lg"
         />
       </v-list>
+
+      <template #append>
+        <v-divider />
+        <v-list density="compact" nav>
+          <v-list-item
+            :prepend-icon="rail ? 'mdi-chevron-right' : 'mdi-chevron-left'"
+            :title="rail ? '' : 'Recolher'"
+            rounded="lg"
+            @click="rail = !rail"
+          />
+        </v-list>
+      </template>
     </v-navigation-drawer>
 
-    <v-app-bar elevation="1">
-      <v-app-bar-nav-icon @click="drawer = !drawer" />
+    <v-app-bar>
       <v-toolbar-title>Footfy Admin</v-toolbar-title>
       <v-spacer />
-      <span class="mr-4">{{ authStore.user?.name }}</span>
+      <v-btn
+        :icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
+        variant="text"
+        @click="toggleTheme"
+      />
+      <span class="mx-4">{{ authStore.user?.name }}</span>
       <v-btn variant="text" prepend-icon="mdi-logout" @click="handleLogout">Sair</v-btn>
     </v-app-bar>
 
     <v-main>
-      <v-container fluid>
+      <v-container fluid class="pa-6">
         <RouterView />
       </v-container>
     </v-main>
