@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useCrud } from '@/composables/useCrud'
-import { championshipsService } from '@/services/api/championships.service'
-import type { Championship, ChampionshipPayload } from '@/types/championship'
+import { onMounted, ref } from 'vue'
+import { publicChampionshipsService } from '@/services/api/publicChampionships.service'
+import type { Championship } from '@/types/championship'
 import ChampionshipCard from '@/components/championships/ChampionshipCard.vue'
 
-const { items, loading, fetchAll } = useCrud<Championship, ChampionshipPayload>(
-  championshipsService,
-)
+const items = ref<Championship[]>([])
+const loading = ref(false)
+
+async function fetchAll() {
+  loading.value = true
+  try {
+    items.value = await publicChampionshipsService.list()
+  } catch {
+    items.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 const highlights = [
   {
