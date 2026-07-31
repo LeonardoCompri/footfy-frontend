@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useCrud } from '@/composables/useCrud'
-import { championshipsService } from '@/services/api/championships.service'
-import type { Championship, ChampionshipPayload } from '@/types/championship'
+import { usePublicList } from '@/composables/usePublicList'
+import { publicChampionshipsService } from '@/services/api/publicChampionships.service'
+import type { Championship } from '@/types/championship'
 import ChampionshipCard from '@/components/championships/ChampionshipCard.vue'
 
-const { items, loading, errorMessage, fetchAll } = useCrud<Championship, ChampionshipPayload>(
-  championshipsService,
+const { items, loading, errorMessage, fetchAll } = usePublicList<Championship>(
+  publicChampionshipsService,
 )
 
 onMounted(fetchAll)
