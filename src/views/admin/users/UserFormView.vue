@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
@@ -54,6 +54,15 @@ onMounted(async () => {
   }
 })
 
+watch(
+  () => form.role,
+  (role) => {
+    if (role === 'master') {
+      selectedLeagueIds.value = []
+    }
+  },
+)
+
 async function syncLeagueChanges(userId: number) {
   const toRemove = originalLeagueIds.value.filter(
     (id) => !selectedLeagueIds.value.includes(id),
@@ -78,7 +87,7 @@ async function handleSubmit() {
   }
   const result = await save(payload, props.id)
   if (result) {
-    if (isEditing.value) {
+    if (form.role !== 'master') {
       await syncLeagueChanges(result.id)
     }
     snackbar.success(isEditing.value ? 'Usuário atualizado com sucesso.' : 'Usuário criado com sucesso.')
@@ -136,7 +145,7 @@ async function handleSubmit() {
             class="mb-2"
           />
           <v-autocomplete
-            v-if="isEditing"
+            v-if="form.role !== 'master'"
             v-model="selectedLeagueIds"
             :items="leagues"
             item-title="name"
