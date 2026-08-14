@@ -61,16 +61,10 @@ onMounted(async () => {
     <v-alert v-else-if="errorMessage" type="error" variant="tonal">{{ errorMessage }}</v-alert>
 
     <v-card v-else-if="championship">
+      <v-img v-if="championship.image" :src="championship.image" height="200" cover />
       <v-card-item>
         <v-card-title class="text-h4">{{ championship.name }}</v-card-title>
-        <v-card-subtitle v-if="championship.organizer">
-          Organização: {{ championship.organizer }}
-        </v-card-subtitle>
       </v-card-item>
-      <v-card-text>
-        <p><strong>Início:</strong> {{ formatDate(championship.start_date) }}</p>
-        <p><strong>Término:</strong> {{ formatDate(championship.end_date) }}</p>
-      </v-card-text>
     </v-card>
 
     <h2 v-if="championship" class="text-h5 font-weight-bold mb-4 mt-6">Jogos</h2>
