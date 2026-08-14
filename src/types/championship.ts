@@ -1,11 +1,21 @@
-export interface Championship {
+export interface League {
   id: number
   name: string
   start_date: string | null
   end_date: string | null
   organizer: string | null
-  created_at: string
-  updated_at: string
+  season: string | null
+  championship_id: number
 }
 
-export type ChampionshipPayload = Pick<Championship, 'name' | 'start_date' | 'end_date' | 'organizer'>
+export interface Championship {
+  id: number
+  name: string
+  image: string | null
+  leagues?: League[]
+}
+
+export interface ChampionshipPayload {
+  name: string
+  image: File | null
+}

@@ -18,17 +18,10 @@ const confirmDialog = ref(false)
 const championshipToDelete = ref<Championship | null>(null)
 
 const headers = [
+  { title: 'Imagem', key: 'image', sortable: false },
   { title: 'Nome', key: 'name' },
-  { title: 'Organizador', key: 'organizer' },
-  { title: 'Início', key: 'start_date' },
-  { title: 'Término', key: 'end_date' },
   { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
 ]
-
-function formatDate(date: string | null): string {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('pt-BR')
-}
 
 function askDelete(championship: Championship) {
   championshipToDelete.value = championship
@@ -72,8 +65,14 @@ onMounted(fetchAll)
           class="mb-4"
         />
         <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
-          <template v-slot:[`item.start_date`]="{ item }">{{ formatDate(item.start_date) }}</template>
-          <template v-slot:[`item.end_date`]="{ item }">{{ formatDate(item.end_date) }}</template>
+          <template v-slot:[`item.image`]="{ item }">
+            <v-avatar v-if="item.image" size="40" rounded="lg">
+              <v-img :src="item.image" cover />
+            </v-avatar>
+            <v-avatar v-else size="40" rounded="lg" color="grey-lighten-3">
+              <v-icon icon="mdi-trophy-outline" />
+            </v-avatar>
+          </template>
           <template v-slot:[`item.actions`]="{ item }">
             <v-btn
               icon="mdi-pencil"
