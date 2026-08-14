@@ -6,7 +6,7 @@ export interface User {
   email: string | null
   document: string
   roles: string[]
-  championships: { id: number; name: string }[]
+  leagues: { id: number; name: string }[]
   created_at: string
   updated_at: string
 }
