@@ -4,10 +4,10 @@ import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { usersService } from '@/services/api/users.service'
-import { championshipsService } from '@/services/api/championships.service'
+import { leaguesService } from '@/services/api/leagues.service'
 import { USER_ROLE_OPTIONS } from '@/types/user'
 import type { User, UserPayload } from '@/types/user'
-import type { Championship, ChampionshipPayload } from '@/types/championship'
+import type { League, LeaguePayload } from '@/types/championship'
 import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ id?: string }>()
@@ -16,10 +16,9 @@ const router = useRouter()
 const { loading, errorMessage, fieldErrors, fetchOne, save } = useCrud<User, UserPayload>(
   usersService,
 )
-const { items: championships, fetchAll: fetchAllChampionships } = useCrud<
-  Championship,
-  ChampionshipPayload
->(championshipsService)
+const { items: leagues, fetchAll: fetchAllLeagues } = useCrud<League, LeaguePayload>(
+  leaguesService,
+)
 const snackbar = useSnackbar()
 
 const isEditing = computed(() => !!props.id)
@@ -34,11 +33,11 @@ const form = reactive({
   role: 'admin' as UserPayload['role'],
 })
 
-const originalChampionshipIds = ref<number[]>([])
-const selectedChampionshipIds = ref<number[]>([])
+const originalLeagueIds = ref<number[]>([])
+const selectedLeagueIds = ref<number[]>([])
 
 onMounted(async () => {
-  fetchAllChampionships()
+  fetchAllLeagues()
   if (!props.id) return
   try {
     const user = await fetchOne(props.id)
@@ -47,23 +46,23 @@ onMounted(async () => {
       form.email = user.email
       form.document = user.document
       form.role = (user.roles[0] as UserPayload['role']) ?? 'admin'
-      selectedChampionshipIds.value = user.championships.map((c) => c.id)
-      originalChampionshipIds.value = [...selectedChampionshipIds.value]
+      selectedLeagueIds.value = user.leagues.map((l) => l.id)
+      originalLeagueIds.value = [...selectedLeagueIds.value]
     }
   } finally {
     initializing.value = false
   }
 })
 
-async function syncChampionshipChanges(userId: number) {
-  const toRemove = originalChampionshipIds.value.filter(
-    (id) => !selectedChampionshipIds.value.includes(id),
+async function syncLeagueChanges(userId: number) {
+  const toRemove = originalLeagueIds.value.filter(
+    (id) => !selectedLeagueIds.value.includes(id),
   )
-  if (selectedChampionshipIds.value.length > 0) {
-    await usersService.syncChampionships(userId, selectedChampionshipIds.value)
+  if (selectedLeagueIds.value.length > 0) {
+    await usersService.syncLeagues(userId, selectedLeagueIds.value)
   }
-  for (const championshipId of toRemove) {
-    await usersService.removeChampionship(userId, championshipId)
+  for (const leagueId of toRemove) {
+    await usersService.removeLeague(userId, leagueId)
   }
 }
 
@@ -80,7 +79,7 @@ async function handleSubmit() {
   const result = await save(payload, props.id)
   if (result) {
     if (isEditing.value) {
-      await syncChampionshipChanges(result.id)
+      await syncLeagueChanges(result.id)
     }
     snackbar.success(isEditing.value ? 'Usuário atualizado com sucesso.' : 'Usuário criado com sucesso.')
     router.push({ name: 'admin-users-list' })
@@ -138,11 +137,11 @@ async function handleSubmit() {
           />
           <v-autocomplete
             v-if="isEditing"
-            v-model="selectedChampionshipIds"
-            :items="championships"
+            v-model="selectedLeagueIds"
+            :items="leagues"
             item-title="name"
             item-value="id"
-            label="Campeonatos vinculados"
+            label="Ligas vinculadas"
             multiple
             chips
             closable-chips

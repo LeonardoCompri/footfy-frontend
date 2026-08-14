@@ -8,6 +8,15 @@ export interface League {
   championship_id: number
 }
 
+export interface LeaguePayload {
+  name: string
+  start_date: string | null
+  end_date: string | null
+  organizer: string | null
+  season: string | null
+  championship_id: number
+}
+
 export interface Championship {
   id: number
   name: string
