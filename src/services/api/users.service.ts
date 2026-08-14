@@ -8,12 +8,12 @@ interface Envelope<T> {
 
 export const usersService = {
   ...createResourceService<User, UserPayload>('/users'),
-  syncChampionships: (id: number | string, championshipIds: number[]) =>
+  syncLeagues: (id: number | string, leagueIds: number[]) =>
     http
-      .post<Envelope<User>>(`/users/${id}/championships`, { championship_ids: championshipIds })
+      .post<Envelope<User>>(`/users/${id}/leagues`, { league_ids: leagueIds })
       .then((res) => res.data.data),
-  removeChampionship: (id: number | string, championshipId: number | string) =>
+  removeLeague: (id: number | string, leagueId: number | string) =>
     http
-      .delete<Envelope<User>>(`/users/${id}/championships/${championshipId}`)
+      .delete<Envelope<User>>(`/users/${id}/leagues/${leagueId}`)
       .then((res) => res.data.data),
 }

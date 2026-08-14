@@ -21,7 +21,7 @@ const headers = [
   { title: 'Documento', key: 'document' },
   { title: 'Email', key: 'email' },
   { title: 'Papel', key: 'roles' },
-  { title: 'Campeonatos', key: 'championships' },
+  { title: 'Ligas', key: 'leagues' },
   { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
 ]
 
@@ -69,7 +69,7 @@ onMounted(fetchAll)
         <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
           <template v-slot:[`item.email`]="{ item }">{{ item.email ?? '—' }}</template>
           <template v-slot:[`item.roles`]="{ item }">{{ item.roles.join(', ') || '—' }}</template>
-          <template v-slot:[`item.championships`]="{ item }">{{ item.championships.length }}</template>
+          <template v-slot:[`item.leagues`]="{ item }">{{ item.leagues.length }}</template>
           <template v-slot:[`item.actions`]="{ item }">
             <v-btn
               icon="mdi-pencil"
