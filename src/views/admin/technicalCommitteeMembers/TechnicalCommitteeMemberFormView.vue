@@ -3,28 +3,33 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
-import { coachesService } from '@/services/api/coaches.service'
+import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { teamsService } from '@/services/api/teams.service'
-import type { Coach, CoachPayload } from '@/types/coach'
+import type {
+  TechnicalCommitteeMember,
+  TechnicalCommitteeMemberPayload,
+} from '@/types/technicalCommitteeMember'
 import type { Team, TeamPayload } from '@/types/team'
 import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ id?: string }>()
 
 const router = useRouter()
-const { loading, errorMessage, fieldErrors, fetchOne, save } = useCrud<Coach, CoachPayload>(
-  coachesService,
-)
+const { loading, errorMessage, fieldErrors, fetchOne, save } = useCrud<
+  TechnicalCommitteeMember,
+  TechnicalCommitteeMemberPayload
+>(technicalCommitteeMembersService)
 const { items: teams, fetchAll: fetchAllTeams } = useCrud<Team, TeamPayload>(teamsService)
 const snackbar = useSnackbar()
 
 const isEditing = computed(() => !!props.id)
-const pageTitle = computed(() => (isEditing.value ? 'Editar Técnico' : 'Novo Técnico'))
+const pageTitle = computed(() => (isEditing.value ? 'Editar Membro' : 'Novo Membro'))
 const initializing = ref(isEditing.value)
 
-const form = reactive<CoachPayload>({
+const form = reactive<TechnicalCommitteeMemberPayload>({
   team_id: null,
   name: '',
+  role: '',
   birth_date: null,
 })
 
@@ -32,11 +37,12 @@ onMounted(async () => {
   fetchAllTeams()
   if (!props.id) return
   try {
-    const coach = await fetchOne(props.id)
-    if (coach) {
-      form.team_id = coach.team_id
-      form.name = coach.name
-      form.birth_date = coach.birth_date
+    const member = await fetchOne(props.id)
+    if (member) {
+      form.team_id = member.team_id
+      form.name = member.name
+      form.role = member.role
+      form.birth_date = member.birth_date
     }
   } finally {
     initializing.value = false
@@ -46,8 +52,10 @@ onMounted(async () => {
 async function handleSubmit() {
   const result = await save(form, props.id)
   if (result) {
-    snackbar.success(isEditing.value ? 'Técnico atualizado com sucesso.' : 'Técnico criado com sucesso.')
-    router.push({ name: 'admin-coaches-list' })
+    snackbar.success(
+      isEditing.value ? 'Membro atualizado com sucesso.' : 'Membro criado com sucesso.',
+    )
+    router.push({ name: 'admin-technical-committee-members-list' })
   }
 }
 </script>
@@ -70,6 +78,12 @@ async function handleSubmit() {
             :error-messages="fieldErrors.name"
             class="mb-2"
           />
+          <v-text-field
+            v-model="form.role"
+            label="Função"
+            :error-messages="fieldErrors.role"
+            class="mb-2"
+          />
           <v-autocomplete
             v-model="form.team_id"
             :items="teams"
@@ -89,7 +103,9 @@ async function handleSubmit() {
           />
 
           <div class="d-flex justify-end ga-2 mt-4">
-            <v-btn variant="text" :to="{ name: 'admin-coaches-list' }">Cancelar</v-btn>
+            <v-btn variant="text" :to="{ name: 'admin-technical-committee-members-list' }">
+              Cancelar
+            </v-btn>
             <v-btn type="submit" color="primary" :loading="loading">Salvar</v-btn>
           </div>
         </v-form>
