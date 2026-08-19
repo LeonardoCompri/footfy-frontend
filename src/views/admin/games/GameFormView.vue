@@ -13,6 +13,7 @@ import type { Championship, ChampionshipPayload } from '@/types/championship'
 import type { Team, TeamPayload } from '@/types/team'
 import type { Stadium, StadiumPayload } from '@/types/stadium'
 import PageHeader from '@/components/common/PageHeader.vue'
+import GameEventsPanel from '@/components/games/GameEventsPanel.vue'
 
 const props = defineProps<{ id?: string }>()
 
@@ -33,6 +34,7 @@ const snackbar = useSnackbar()
 const isEditing = computed(() => !!props.id)
 const pageTitle = computed(() => (isEditing.value ? 'Editar Partida' : 'Nova Partida'))
 const initializing = ref(isEditing.value)
+const savedGame = ref<Game | null>(null)
 
 const form = reactive<GamePayload>({
   championship_id: 0,
@@ -46,6 +48,10 @@ const form = reactive<GamePayload>({
   status: 'scheduled',
 })
 
+function teamName(teamId: number): string {
+  return teams.value.find((team) => team.id === teamId)?.name ?? '—'
+}
+
 const sameTeamError = computed(
   () => form.home_team_id !== 0 && form.home_team_id === form.away_team_id,
 )
@@ -58,12 +64,17 @@ function toNullableNumber(value: unknown): number | null {
 
 onMounted(async () => {
   fetchAllChampionships()
-  fetchAllTeams()
   fetchAllStadiums()
-  if (!props.id) return
+  if (!props.id) {
+    fetchAllTeams()
+    return
+  }
   try {
-    const game = await fetchOne(props.id)
+    // Aguarda times junto da partida: o painel de eventos depende dos nomes
+    // dos times já resolvidos e do time efetivamente salvo (não do form).
+    const [game] = await Promise.all([fetchOne(props.id), fetchAllTeams()])
     if (game) {
+      savedGame.value = game
       form.championship_id = game.championship_id
       form.home_team_id = game.home_team_id
       form.away_team_id = game.away_team_id
@@ -191,5 +202,14 @@ async function handleSubmit() {
         </v-form>
       </v-card-text>
     </v-card>
+
+    <GameEventsPanel
+      v-if="isEditing && !initializing && props.id && savedGame"
+      :game-id="props.id"
+      :home-team-id="savedGame.home_team_id"
+      :away-team-id="savedGame.away_team_id"
+      :home-team-name="teamName(savedGame.home_team_id)"
+      :away-team-name="teamName(savedGame.away_team_id)"
+    />
   </div>
 </template>
