@@ -126,23 +126,28 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { permission: 'stadium:update' },
       },
       {
-        path: 'tecnicos',
-        name: 'admin-coaches-list',
-        component: () => import('@/views/admin/coaches/CoachAdminListView.vue'),
-        meta: { permission: 'coach:read' },
+        path: 'comissao-tecnica',
+        name: 'admin-technical-committee-members-list',
+        component: () =>
+          import(
+            '@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberAdminListView.vue'
+          ),
+        meta: { permission: 'technical_committee_member:read' },
       },
       {
-        path: 'tecnicos/novo',
-        name: 'admin-coaches-create',
-        component: () => import('@/views/admin/coaches/CoachFormView.vue'),
-        meta: { permission: 'coach:create' },
+        path: 'comissao-tecnica/novo',
+        name: 'admin-technical-committee-members-create',
+        component: () =>
+          import('@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberFormView.vue'),
+        meta: { permission: 'technical_committee_member:create' },
       },
       {
-        path: 'tecnicos/:id/editar',
-        name: 'admin-coaches-edit',
-        component: () => import('@/views/admin/coaches/CoachFormView.vue'),
+        path: 'comissao-tecnica/:id/editar',
+        name: 'admin-technical-committee-members-edit',
+        component: () =>
+          import('@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberFormView.vue'),
         props: true,
-        meta: { permission: 'coach:update' },
+        meta: { permission: 'technical_committee_member:update' },
       },
       {
         path: 'partidas',

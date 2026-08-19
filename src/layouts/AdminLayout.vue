@@ -43,10 +43,10 @@ const navItems: NavItem[] = [
     permission: 'stadium:read',
   },
   {
-    title: 'Técnicos',
-    icon: 'mdi-whistle',
-    to: { name: 'admin-coaches-list' },
-    permission: 'coach:read',
+    title: 'Comissão Técnica',
+    icon: 'mdi-account-tie',
+    to: { name: 'admin-technical-committee-members-list' },
+    permission: 'technical_committee_member:read',
   },
   {
     title: 'Partidas',
