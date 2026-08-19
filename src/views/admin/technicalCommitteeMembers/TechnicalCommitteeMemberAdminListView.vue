@@ -2,25 +2,30 @@
 import { onMounted, ref } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
-import { coachesService } from '@/services/api/coaches.service'
+import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { teamsService } from '@/services/api/teams.service'
-import type { Coach, CoachPayload } from '@/types/coach'
+import type {
+  TechnicalCommitteeMember,
+  TechnicalCommitteeMemberPayload,
+} from '@/types/technicalCommitteeMember'
 import type { Team, TeamPayload } from '@/types/team'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Coach, CoachPayload>(
-  coachesService,
-)
+const { items, loading, errorMessage, fetchAll, destroy } = useCrud<
+  TechnicalCommitteeMember,
+  TechnicalCommitteeMemberPayload
+>(technicalCommitteeMembersService)
 const { items: teams, fetchAll: fetchAllTeams } = useCrud<Team, TeamPayload>(teamsService)
 const snackbar = useSnackbar()
 
 const search = ref('')
 const confirmDialog = ref(false)
-const coachToDelete = ref<Coach | null>(null)
+const memberToDelete = ref<TechnicalCommitteeMember | null>(null)
 
 const headers = [
   { title: 'Nome', key: 'name' },
+  { title: 'Função', key: 'role' },
   { title: 'Time', key: 'team_id' },
   { title: 'Data de Nascimento', key: 'birth_date' },
   { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
@@ -35,20 +40,20 @@ function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString('pt-BR')
 }
 
-function askDelete(coach: Coach) {
-  coachToDelete.value = coach
+function askDelete(member: TechnicalCommitteeMember) {
+  memberToDelete.value = member
   confirmDialog.value = true
 }
 
 async function handleDelete() {
-  if (!coachToDelete.value) return
-  const ok = await destroy(coachToDelete.value.id)
+  if (!memberToDelete.value) return
+  const ok = await destroy(memberToDelete.value.id)
   if (ok) {
-    snackbar.success('Técnico excluído com sucesso.')
+    snackbar.success('Membro da comissão técnica excluído com sucesso.')
   } else {
-    snackbar.error('Não foi possível excluir o técnico.')
+    snackbar.error('Não foi possível excluir o membro da comissão técnica.')
   }
-  coachToDelete.value = null
+  memberToDelete.value = null
 }
 
 onMounted(() => {
@@ -59,10 +64,14 @@ onMounted(() => {
 
 <template>
   <div>
-    <PageHeader title="Técnicos">
+    <PageHeader title="Comissão Técnica">
       <template #action>
-        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-coaches-create' }">
-          Novo Técnico
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          :to="{ name: 'admin-technical-committee-members-create' }"
+        >
+          Novo Membro
         </v-btn>
       </template>
     </PageHeader>
@@ -87,7 +96,7 @@ onMounted(() => {
               icon="mdi-pencil"
               variant="text"
               size="small"
-              :to="{ name: 'admin-coaches-edit', params: { id: item.id } }"
+              :to="{ name: 'admin-technical-committee-members-edit', params: { id: item.id } }"
             />
             <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="askDelete(item)" />
           </template>
@@ -97,8 +106,8 @@ onMounted(() => {
 
     <ConfirmDialog
       v-model="confirmDialog"
-      title="Excluir técnico"
-      :message="`Tem certeza que deseja excluir '${coachToDelete?.name}'?`"
+      title="Excluir membro"
+      :message="`Tem certeza que deseja excluir '${memberToDelete?.name}'?`"
       @confirm="handleDelete"
     />
   </div>
