@@ -24,6 +24,12 @@ export const publicRoutes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'ligas/:id',
+        name: 'leagues-detail',
+        component: () => import('@/views/public/leagues/LeagueDetailView.vue'),
+        props: true,
+      },
+      {
         path: 'times',
         name: 'teams-list',
         component: () => import('@/views/public/teams/TeamListView.vue'),
@@ -32,6 +38,12 @@ export const publicRoutes: RouteRecordRaw[] = [
         path: 'times/:id',
         name: 'teams-detail',
         component: () => import('@/views/public/teams/TeamDetailView.vue'),
+        props: true,
+      },
+      {
+        path: 'partidas/:id',
+        name: 'games-detail',
+        component: () => import('@/views/public/games/GameDetailView.vue'),
         props: true,
       },
     ],
