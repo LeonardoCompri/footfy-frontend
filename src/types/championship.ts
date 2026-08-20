@@ -1,3 +1,7 @@
+import type { Game } from './game'
+import type { Stadium } from './stadium'
+import type { Team } from './team'
+
 export interface League {
   id: number
   name: string
@@ -6,6 +10,11 @@ export interface League {
   organizer: string | null
   season: string | null
   championship_id: number
+  // Campos abaixo só vêm preenchidos em GET /public/leagues/{id} (eager loaded no backend).
+  championship?: Championship
+  teams?: Team[]
+  games?: Game[]
+  stadiums?: Stadium[]
 }
 
 export interface LeaguePayload {
