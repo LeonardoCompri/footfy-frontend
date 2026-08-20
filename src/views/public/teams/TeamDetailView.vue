@@ -1,46 +1,38 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useCrud } from '@/composables/useCrud'
-import { teamsService } from '@/services/api/teams.service'
-import { playersService } from '@/services/api/players.service'
-import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
-import type { Team, TeamPayload } from '@/types/team'
-import type { Player, PlayerPayload } from '@/types/player'
-import type {
-  TechnicalCommitteeMember,
-  TechnicalCommitteeMemberPayload,
-} from '@/types/technicalCommitteeMember'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { usePublicItem } from '@/composables/usePublicItem'
+import { useQueryTab } from '@/composables/useQueryTab'
+import { publicTeamsService } from '@/services/api/publicTeams.service'
+import type { Team } from '@/types/team'
+import StatTiles from '@/components/common/StatTiles.vue'
 
 const props = defineProps<{ id: string }>()
+const route = useRoute()
 
-const {
-  fetchOne,
-  loading: teamLoading,
-  errorMessage: teamError,
-} = useCrud<Team, TeamPayload>(teamsService)
-const {
-  items: allPlayers,
-  fetchAll: fetchAllPlayers,
-  loading: playersLoading,
-} = useCrud<Player, PlayerPayload>(playersService)
-const {
-  items: allMembers,
-  fetchAll: fetchAllMembers,
-  loading: membersLoading,
-} = useCrud<TechnicalCommitteeMember, TechnicalCommitteeMemberPayload>(
-  technicalCommitteeMembersService,
+const { item: team, loading, errorMessage, fetchOne } = usePublicItem<Team>(publicTeamsService)
+const { tab } = useQueryTab('elenco')
+
+const roster = computed(() => team.value?.players ?? [])
+
+// TODO(FOOT-0024): GET /public/teams/{id} ainda não retorna a comissão técnica do time.
+// Depende de TeamService::publicShow() passar a incluir `technicalCommitteeMembers`
+// no eager load da rota pública. Até lá, exibimos vazio.
+const technicalCommittee: { id: number; name: string; role: string; birth_date: string | null }[] = []
+
+const backLeagueId = computed(() =>
+  typeof route.query.back === 'string' ? route.query.back : null,
+)
+const backTo = computed(() =>
+  backLeagueId.value
+    ? { name: 'leagues-detail', params: { id: backLeagueId.value } }
+    : { name: 'teams-list' },
 )
 
-const team = ref<Team | null>(null)
-
-const loading = computed(
-  () => teamLoading.value || playersLoading.value || membersLoading.value,
-)
-
-const roster = computed(() => allPlayers.value.filter((p) => p.team_id === Number(props.id)))
-const technicalCommittee = computed(() =>
-  allMembers.value.filter((member) => member.team_id === Number(props.id)),
-)
+const statTiles = computed(() => [
+  { label: 'Elenco', value: roster.value.length },
+  { label: 'Comissão Técnica', value: technicalCommittee.length },
+])
 
 function formatNumber(number: number | null): string {
   return number !== null ? String(number) : '—'
@@ -55,23 +47,18 @@ function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString('pt-BR')
 }
 
-onMounted(async () => {
-  team.value = await fetchOne(props.id)
-  await Promise.all([fetchAllPlayers(), fetchAllMembers()])
-})
+onMounted(() => fetchOne(props.id))
 </script>
 
 <template>
   <v-container class="py-8">
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-4" :to="{ name: 'teams-list' }">
-      Voltar
-    </v-btn>
+    <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-4" :to="backTo"> Voltar </v-btn>
 
     <v-row v-if="loading" justify="center">
       <v-progress-circular indeterminate color="primary" />
     </v-row>
 
-    <v-alert v-else-if="teamError" type="error" variant="tonal">{{ teamError }}</v-alert>
+    <v-alert v-else-if="errorMessage" type="error" variant="tonal">{{ errorMessage }}</v-alert>
 
     <template v-else-if="team">
       <v-card class="mb-6">
@@ -84,51 +71,64 @@ onMounted(async () => {
         </v-card-text>
       </v-card>
 
-      <h2 class="text-h5 font-weight-bold mb-4">Elenco</h2>
+      <StatTiles :items="statTiles" class="mb-6" />
 
-      <v-alert v-if="roster.length === 0" type="info" variant="tonal">
-        Nenhum jogador cadastrado para este time ainda.
-      </v-alert>
+      <v-tabs v-model="tab" color="primary" class="mb-4">
+        <v-tab value="elenco">Elenco</v-tab>
+        <v-tab value="comissao">Comissão Técnica</v-tab>
+        <v-tab value="estatisticas">Estatísticas</v-tab>
+      </v-tabs>
 
-      <v-table v-else>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Posição</th>
-            <th>Número</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="player in roster" :key="player.id">
-            <td>{{ player.name }}</td>
-            <td>{{ formatPosition(player.position) }}</td>
-            <td>{{ formatNumber(player.number) }}</td>
-          </tr>
-        </tbody>
-      </v-table>
+      <v-window v-model="tab">
+        <v-window-item value="elenco">
+          <v-alert v-if="roster.length === 0" type="info" variant="tonal">
+            Nenhum jogador cadastrado para este time ainda.
+          </v-alert>
+          <v-table v-else>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Posição</th>
+                <th>Número</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="player in roster" :key="player.id">
+                <td>{{ player.name }}</td>
+                <td>{{ formatPosition(player.position) }}</td>
+                <td>{{ formatNumber(player.number) }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-window-item>
 
-      <h2 class="text-h5 font-weight-bold mb-4 mt-8">Comissão Técnica</h2>
+        <v-window-item value="comissao">
+          <v-alert v-if="technicalCommittee.length === 0" type="info" variant="tonal">
+            Nenhum membro da comissão técnica cadastrado para este time ainda.
+          </v-alert>
+          <v-table v-else>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Função</th>
+                <th>Data de Nascimento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="member in technicalCommittee" :key="member.id">
+                <td>{{ member.name }}</td>
+                <td>{{ member.role }}</td>
+                <td>{{ formatDate(member.birth_date) }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-window-item>
 
-      <v-alert v-if="technicalCommittee.length === 0" type="info" variant="tonal">
-        Nenhum membro da comissão técnica cadastrado para este time ainda.
-      </v-alert>
-
-      <v-table v-else>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Função</th>
-            <th>Data de Nascimento</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="member in technicalCommittee" :key="member.id">
-            <td>{{ member.name }}</td>
-            <td>{{ member.role }}</td>
-            <td>{{ formatDate(member.birth_date) }}</td>
-          </tr>
-        </tbody>
-      </v-table>
+        <!-- TODO(FOOT-0027): depende da rota pública de estatísticas do time. -->
+        <v-window-item value="estatisticas">
+          <v-alert type="info" variant="tonal">Estatísticas em breve.</v-alert>
+        </v-window-item>
+      </v-window>
     </template>
   </v-container>
 </template>
