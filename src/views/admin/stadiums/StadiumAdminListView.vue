@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useCrud } from '@/composables/useCrud'
+import { useLeagueContextStore } from '@/stores/leagueContext'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import type { Stadium, StadiumPayload } from '@/types/stadium'
@@ -39,7 +40,10 @@ async function handleDelete() {
   stadiumToDelete.value = null
 }
 
-onMounted(fetchAll)
+// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
+const leagueContext = useLeagueContextStore()
+
+onMounted(() => fetchAll({ league_id: leagueContext.activeLeagueId ?? undefined }))
 </script>
 
 <template>

@@ -7,9 +7,11 @@ export interface Envelope<T> {
 
 export const unwrap = <D>(p: Promise<AxiosResponse<Envelope<D>>>) => p.then((res) => res.data.data)
 
+export type ListParams = Record<string, string | number | undefined>
+
 export function createResourceService<T extends { id: number }, P>(baseUrl: string) {
   return {
-    list: () => unwrap<T[]>(http.get(baseUrl)),
+    list: (params?: ListParams) => unwrap<T[]>(http.get(baseUrl, { params })),
     get: (id: number | string) => unwrap<T>(http.get(`${baseUrl}/${id}`)),
     create: (payload: P) => unwrap<T>(http.post(baseUrl, payload)),
     update: (id: number | string, payload: P) => unwrap<T>(http.put(`${baseUrl}/${id}`, payload)),
