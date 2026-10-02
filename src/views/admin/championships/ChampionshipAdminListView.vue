@@ -44,6 +44,16 @@ onMounted(fetchAll)
 
 <template>
   <div>
+    <!-- Gestão de campeonatos fica fora do contexto de liga (sem nav rail): volta para a seleção. -->
+    <v-btn
+      variant="text"
+      prepend-icon="mdi-arrow-left"
+      class="mb-2"
+      :to="{ name: 'admin-select-championship' }"
+    >
+      Seleção de liga
+    </v-btn>
+
     <PageHeader title="Campeonatos">
       <template #action>
         <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-championships-create' }">
