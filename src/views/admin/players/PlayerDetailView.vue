@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
-import { useQueryTab } from '@/composables/useQueryTab'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
@@ -12,6 +11,7 @@ import { optionTitle, type SelectOption } from '@/types/api'
 import type { Player, PlayerPayload } from '@/types/player'
 import type { Team } from '@/types/team'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import QueryTabs from '@/components/common/QueryTabs.vue'
 import PlayerFormDialog from '@/components/players/PlayerFormDialog.vue'
 import PlayerStatsPanel from '@/components/players/PlayerStatsPanel.vue'
 import { formatBirthDate } from '@/components/common/format'
@@ -22,7 +22,10 @@ const router = useRouter()
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 const snackbar = useSnackbar()
-const { tab } = useQueryTab('perfil')
+const tabs = [
+  { value: 'perfil', title: 'Perfil' },
+  { value: 'estatisticas', title: 'Estatísticas' },
+]
 const { errorMessage, fetchOne, destroy } = useCrud<Player, PlayerPayload>(playersService)
 
 const leagueId = leagueContext.activeLeagueId as number
@@ -124,13 +127,8 @@ onMounted(async () => {
         </v-card-text>
       </v-card>
 
-      <v-tabs v-model="tab" color="primary" class="mb-4">
-        <v-tab value="perfil" data-test="tab-perfil">Perfil</v-tab>
-        <v-tab value="estatisticas" data-test="tab-estatisticas">Estatísticas</v-tab>
-      </v-tabs>
-
-      <v-window v-model="tab">
-        <v-window-item value="perfil">
+      <QueryTabs :tabs="tabs">
+        <template #perfil>
           <v-card>
             <v-list lines="two" data-test="player-profile">
               <v-list-item
@@ -142,11 +140,11 @@ onMounted(async () => {
               />
             </v-list>
           </v-card>
-        </v-window-item>
-        <v-window-item value="estatisticas">
+        </template>
+        <template #estatisticas>
           <PlayerStatsPanel :player-id="player.id" :league-id="leagueId" />
-        </v-window-item>
-      </v-window>
+        </template>
+      </QueryTabs>
 
       <PlayerFormDialog
         v-model="editDialog"

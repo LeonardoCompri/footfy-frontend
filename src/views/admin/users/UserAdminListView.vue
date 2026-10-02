@@ -1,55 +1,104 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useDisplay } from 'vuetify'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
+import { useAuthStore } from '@/stores/auth'
 import { usersService } from '@/services/api/users.service'
+import { userRoleOption } from '@/types/user'
 import type { User, UserPayload } from '@/types/user'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import UserFormDialog from '@/components/users/UserFormDialog.vue'
+import UserLeaguesDialog from '@/components/users/UserLeaguesDialog.vue'
 
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<User, UserPayload>(
-  usersService,
-)
+const authStore = useAuthStore()
 const snackbar = useSnackbar()
+const { xs, smAndDown } = useDisplay()
+const { items, loading, errorMessage, fetchAll, destroy } = useCrud<User, UserPayload>(usersService)
+
+// Regra do backend (routes/backoffice.php): master|admin listam e editam; criar, excluir e
+// vincular ligas é só master. Admin também não edita master (evita alterar senha de quem
+// tem mais privilégio — ver BUG-012).
+const isMaster = authStore.hasRole('master')
+const currentUserId = authStore.user?.id
+
+const can = {
+  create: isMaster,
+  edit: (user: User) => isMaster || !user.roles.includes('master'),
+  leagues: (user: User) => isMaster && !user.roles.includes('master'),
+  delete: (user: User) => isMaster && user.id !== currentUserId,
+}
 
 const search = ref('')
-const confirmDialog = ref(false)
-const userToDelete = ref<User | null>(null)
+const formDialog = ref(false)
+const userToEdit = ref<User | null>(null)
+const leaguesDialog = ref(false)
+const leaguesUser = ref<User | null>(null)
+const { open: confirmOpen, target: userToDelete, ask: askDelete } = useConfirmDialog<User>()
 
-const headers = [
+const filteredUsers = computed(() => {
+  const term = search.value?.trim().toLocaleLowerCase('pt-BR') ?? ''
+  if (!term) return items.value
+  return items.value.filter((user) =>
+    [user.name, user.document, user.email ?? ''].some((text) => text.toLocaleLowerCase('pt-BR').includes(term)),
+  )
+})
+
+// No mobile CPF/Papel/Ligas viram legenda sob o nome, para caber sem rolagem horizontal.
+const headers = computed(() => [
   { title: 'Nome', key: 'name' },
-  { title: 'Documento', key: 'document' },
-  { title: 'Email', key: 'email' },
-  { title: 'Papel', key: 'roles' },
-  { title: 'Ligas', key: 'leagues' },
-  { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
-]
+  ...(xs.value ? [] : [{ title: 'CPF', key: 'document' }]),
+  ...(xs.value ? [] : [{ title: 'Papel', key: 'roles', sortable: false }]),
+  ...(smAndDown.value ? [] : [{ title: 'Ligas', key: 'leagues', sortable: false }]),
+  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+])
 
-function askDelete(user: User) {
-  userToDelete.value = user
-  confirmDialog.value = true
+function leaguesLabel(user: User): string {
+  if (user.roles.includes('master')) return 'Todas as ligas'
+  if (user.leagues.length === 0) return 'Nenhuma liga'
+  return user.leagues.map((league) => league.name).join(', ')
+}
+
+function replaceUser(user: User) {
+  const index = items.value.findIndex((item) => item.id === user.id)
+  if (index === -1) items.value.push(user)
+  else items.value[index] = user
+  if (leaguesUser.value?.id === user.id) leaguesUser.value = user
+}
+
+function openForm(user: User | null) {
+  userToEdit.value = user
+  formDialog.value = true
+}
+
+function openLeagues(user: User) {
+  leaguesUser.value = user
+  leaguesDialog.value = true
 }
 
 async function handleDelete() {
   if (!userToDelete.value) return
-  const ok = await destroy(userToDelete.value.id)
-  if (ok) {
+  if (await destroy(userToDelete.value.id)) {
     snackbar.success('Usuário excluído com sucesso.')
   } else {
-    snackbar.error('Não foi possível excluir o usuário.')
+    snackbar.error(errorMessage.value ?? 'Não foi possível excluir o usuário.')
+    errorMessage.value = null
   }
   userToDelete.value = null
 }
 
-onMounted(fetchAll)
+onMounted(() => fetchAll())
 </script>
 
 <template>
   <div>
     <PageHeader title="Usuários">
       <template #action>
-        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-users-create' }">
-          Novo Usuário
+        <v-btn v-if="can.create" color="primary" prepend-icon="mdi-plus" data-test="user-create" @click="openForm(null)">
+          <span class="d-none d-sm-inline">Novo usuário</span>
+          <span class="d-sm-none">Novo</span>
         </v-btn>
       </template>
     </PageHeader>
@@ -61,32 +110,80 @@ onMounted(fetchAll)
         <v-text-field
           v-model="search"
           prepend-inner-icon="mdi-magnify"
-          label="Buscar"
+          label="Buscar por nome, CPF ou e-mail"
           single-line
           hide-details
+          clearable
           class="mb-4"
         />
-        <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
-          <template v-slot:[`item.email`]="{ item }">{{ item.email ?? '—' }}</template>
-          <template v-slot:[`item.roles`]="{ item }">{{ item.roles.join(', ') || '—' }}</template>
-          <template v-slot:[`item.leagues`]="{ item }">{{ item.leagues.length }}</template>
+        <v-data-table
+          :headers="headers"
+          :items="filteredUsers"
+          :loading="loading"
+          item-value="id"
+          no-data-text="Nenhum usuário encontrado."
+          data-test="users-table"
+        >
+          <template v-slot:[`item.name`]="{ item }">
+            <div class="py-2">
+              <div class="font-weight-medium">{{ item.name }}</div>
+              <div v-if="xs" class="text-caption text-medium-emphasis">
+                {{ userRoleOption(item.roles[0]).title }} · {{ item.document }}
+              </div>
+              <div v-else class="text-caption text-medium-emphasis">{{ item.email ?? '' }}</div>
+              <div v-if="smAndDown" class="text-caption text-medium-emphasis">{{ leaguesLabel(item) }}</div>
+            </div>
+          </template>
+          <template v-slot:[`item.roles`]="{ item }">
+            <v-chip :color="userRoleOption(item.roles[0]).color" size="small" variant="tonal">
+              {{ userRoleOption(item.roles[0]).title }}
+            </v-chip>
+          </template>
+          <template v-slot:[`item.leagues`]="{ item }">
+            <span class="text-body-2">{{ leaguesLabel(item) }}</span>
+          </template>
           <template v-slot:[`item.actions`]="{ item }">
-            <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              size="small"
-              :to="{ name: 'admin-users-edit', params: { id: item.id } }"
-            />
-            <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="askDelete(item)" />
+            <div class="d-flex justify-end">
+              <v-btn
+                v-if="can.leagues(item)"
+                icon="mdi-link-variant"
+                variant="text"
+                size="small"
+                aria-label="Ligas do usuário"
+                data-test="user-leagues-open"
+                @click="openLeagues(item)"
+              />
+              <v-btn
+                v-if="can.edit(item)"
+                icon="mdi-pencil"
+                variant="text"
+                size="small"
+                aria-label="Editar usuário"
+                data-test="user-edit"
+                @click="openForm(item)"
+              />
+              <v-btn
+                v-if="can.delete(item)"
+                icon="mdi-delete"
+                variant="text"
+                size="small"
+                color="error"
+                aria-label="Excluir usuário"
+                data-test="user-delete"
+                @click="askDelete(item)"
+              />
+            </div>
           </template>
         </v-data-table>
       </v-card-text>
     </v-card>
 
+    <UserFormDialog v-model="formDialog" :user="userToEdit" :can-change-role="isMaster" @saved="replaceUser" />
+    <UserLeaguesDialog v-if="leaguesUser" v-model="leaguesDialog" :user="leaguesUser" @updated="replaceUser" />
     <ConfirmDialog
-      v-model="confirmDialog"
+      v-model="confirmOpen"
       title="Excluir usuário"
-      :message="`Tem certeza que deseja excluir '${userToDelete?.name}'?`"
+      :message="`Tem certeza que deseja excluir '${userToDelete?.name}'? O acesso ao painel é removido na hora.`"
       @confirm="handleDelete"
     />
   </div>

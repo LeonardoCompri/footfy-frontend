@@ -46,6 +46,8 @@ export interface LeagueDashboard {
   upcoming_games: DashboardGame[]
   goals_by_bucket: GoalsBucket[]
   results_split: ResultsSplit
+  // Total de cartões amarelos/vermelhos da liga inteira (FOOT-0031 no backend).
+  cards_split: CardsSplit
 }
 
 export interface CardsSplit {

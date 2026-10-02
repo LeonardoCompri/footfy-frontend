@@ -25,7 +25,10 @@ export function createTestRouter() {
       { path: '/admin/campeonatos', name: 'admin-championships-list', component: Stub },
       { path: '/admin/liga/:leagueId', name: 'admin-dashboard', component: Stub },
       { path: '/admin/liga/:leagueId/tabela', name: 'admin-league-table', component: Stub },
-      { path: '/admin/liga/:leagueId/partidas/:id/editar', name: 'admin-games-edit', component: Stub },
+      { path: '/admin/liga/:leagueId/partidas', name: 'admin-games-list', component: Stub },
+      { path: '/admin/liga/:leagueId/partidas/:id', name: 'admin-games-detail', component: Stub },
+      { path: '/admin/liga/:leagueId/estatisticas', name: 'admin-league-statistics', component: Stub },
+      { path: '/admin/liga/:leagueId/usuarios', name: 'admin-users-list', component: Stub },
       { path: '/admin/liga/:leagueId/times', name: 'admin-teams-list', component: Stub },
       { path: '/admin/liga/:leagueId/times/:teamId', name: 'admin-teams-detail', component: Stub },
       {

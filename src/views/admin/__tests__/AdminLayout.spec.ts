@@ -34,6 +34,7 @@ function createLayoutRouter() {
               leagueChild('times/:teamId/jogadores/:id', 'admin-players-detail'),
               leagueChild('estadios', 'admin-stadiums-list'),
               leagueChild('partidas', 'admin-games-list'),
+              leagueChild('partidas/:id', 'admin-games-detail'),
               leagueChild('tabela', 'admin-league-table'),
               leagueChild('estatisticas', 'admin-league-statistics'),
               leagueChild('usuarios', 'admin-users-list'),
@@ -45,10 +46,10 @@ function createLayoutRouter() {
   })
 }
 
-async function mountAt(path: string, role = 'admin') {
+async function mountAt(path: string, role = 'admin', permissions: string[] = ['game:read']) {
   const auth = useAuthStore()
   auth.token = 'token'
-  auth.user = makeUser(role)
+  auth.user = makeUser(role, permissions)
   const context = useLeagueContextStore()
   context.leagues = [makeLeague(1, championshipA, { name: 'Série A' })]
   context.loaded = true
@@ -96,6 +97,19 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     const wrapper = await mountAt('/admin/liga/1', 'coach')
     const titles = wrapper.findAll('.v-navigation-drawer .v-list-item-title').map((t) => t.text())
     expect(titles).not.toContain('Usuários')
+  })
+
+  it('esconde Partidas para quem não tem game:read (ex.: coach do seeder)', async () => {
+    const wrapper = await mountAt('/admin/liga/1', 'coach', ['team:read', 'stadium:read', 'player:read'])
+    const titles = wrapper.findAll('.v-navigation-drawer .v-list-item-title').map((t) => t.text())
+    expect(titles).not.toContain('Partidas')
+    expect(titles).toContain('Tabela')
+  })
+
+  it('mantém "Partidas" destacado no detalhe da partida', async () => {
+    const wrapper = await mountAt('/admin/liga/1/partidas/3')
+    const active = wrapper.findAll('.v-navigation-drawer .v-list-item--active').map((i) => i.text())
+    expect(active).toEqual(['Partidas'])
   })
 
   it('mantém "Times" destacado nas telas internas de time/jogador/comissão', async () => {

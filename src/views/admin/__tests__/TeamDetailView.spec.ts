@@ -19,7 +19,7 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { apiError, makeMember, makePlayer, makeTeam, POSITIONS, ROLES } from '@/test/factories'
+import { apiError, makeGame, makeMember, makePlayer, makeTeam, POSITIONS, ROLES } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/teams.service', () => ({
@@ -63,20 +63,7 @@ const ALL_WRITE = [
 ]
 
 function game(id: number, home: number, away: number, hs: number, as: number): Game {
-  return {
-    id,
-    championship_id: 1,
-    home_team_id: home,
-    away_team_id: away,
-    stadium_id: null,
-    match_date: null,
-    home_score: hs,
-    away_score: as,
-    round: 1,
-    status: 'finished',
-    created_at: '',
-    updated_at: '',
-  }
+  return makeGame(id, { home_team_id: home, away_team_id: away, home_score: hs, away_score: as, status: 'finished' })
 }
 
 function goal(id: number, leagueId: number, playerId: number, assist: number | null = null): GameEvent {
@@ -219,8 +206,8 @@ describe('TeamDetailView', () => {
     await wrapper.find('[data-test="team-leagues"]').trigger('click')
     await flushPromises()
 
-    const toggle = () => document.querySelector('[data-test="team-league-toggle"]') as HTMLButtonElement
-    expect(document.querySelectorAll('[data-test="team-league-row"]')).toHaveLength(2)
+    const toggle = () => document.querySelector('[data-test="league-link-toggle"]') as HTMLButtonElement
+    expect(document.querySelectorAll('[data-test="league-link-row"]')).toHaveLength(2)
     expect(document.body.textContent).toContain('Liga atual')
     expect(toggle().textContent).toContain('Vincular')
 

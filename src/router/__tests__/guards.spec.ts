@@ -27,10 +27,10 @@ function leagueRoute(leagueId: number, meta: RouteLocationNormalized['meta'] = {
   })
 }
 
-function login(role: string) {
+function login(role: string, permissions: string[] = []) {
   const auth = useAuthStore()
   auth.token = 'token'
-  auth.user = makeUser(role)
+  auth.user = makeUser(role, permissions)
 }
 
 describe('adminGuard — contexto de Liga ativa', () => {
@@ -95,6 +95,28 @@ describe('adminGuard — contexto de Liga ativa', () => {
 
     login('admin')
     expect(await adminGuard(leagueRoute(1, usersMeta))).toBeUndefined()
+  })
+
+  it('Partidas exige game:read (meta.permission das rotas reais)', async () => {
+    const leagueChildren = adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
+    for (const name of ['admin-games-list', 'admin-games-detail']) {
+      const meta = leagueChildren.find((r) => r.name === name)?.meta ?? {}
+      expect(meta.permission).toBe('game:read')
+
+      login('coach', ['team:read', 'stadium:read'])
+      expect(await adminGuard(leagueRoute(1, meta))).toEqual({ name: 'admin-home' })
+
+      login('admin', ['game:read'])
+      expect(await adminGuard(leagueRoute(1, meta))).toBeUndefined()
+    }
+  })
+
+  it('não existem mais as rotas de formulário de partida/usuário', () => {
+    const leagueChildren = adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
+    const names = leagueChildren.map((r) => r.name)
+    for (const removed of ['admin-games-create', 'admin-games-edit', 'admin-users-create', 'admin-users-edit']) {
+      expect(names).not.toContain(removed)
+    }
   })
 
   it('usuário logado na tela de login vai para a entrada do painel', async () => {

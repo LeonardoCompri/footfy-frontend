@@ -1,3 +1,5 @@
+import type { Player } from './player'
+
 export type GameEventType = 'goal' | 'yellow_card' | 'red_card'
 
 export interface GameEvent {
@@ -20,6 +22,13 @@ export type GameEventPayload = Pick<
 
 export const GAME_EVENT_TYPE_OPTIONS: { value: GameEventType; title: string }[] = [
   { value: 'goal', title: 'Gol' },
-  { value: 'yellow_card', title: 'Cartão Amarelo' },
-  { value: 'red_card', title: 'Cartão Vermelho' },
+  { value: 'yellow_card', title: 'Amarelo' },
+  { value: 'red_card', title: 'Vermelho' },
 ]
+
+// Time da partida com o elenco elegível para a súmula.
+export interface SummaryTeam {
+  id: number
+  name: string
+  players: Player[]
+}
