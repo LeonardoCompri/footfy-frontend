@@ -43,7 +43,7 @@ const segments = computed(() =>
       </template>
     </div>
 
-    <div class="d-flex flex-wrap ga-4 mt-3 text-body-2">
+    <div class="legend d-flex flex-wrap mt-3 text-body-2">
       <span v-for="segment in segments" :key="segment.key" class="d-inline-flex align-center ga-1">
         <span class="swatch" :style="{ background: segment.color }" />
         <span class="text-medium-emphasis">{{ segment.short }}</span>
@@ -78,6 +78,9 @@ const segments = computed(() =>
 .segment:hover,
 .segment:focus-visible {
   opacity: 0.75;
+}
+.legend {
+  gap: 4px 16px;
 }
 .swatch {
   width: 10px;

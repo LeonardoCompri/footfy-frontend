@@ -15,6 +15,15 @@ const { themeName, isDark, toggleTheme } = useAppTheme()
 const rail = ref(false)
 const mobileDrawer = ref(false)
 
+// No desktop o drawer é permanente e precisa ficar sempre ativo; `mobileDrawer` só controla
+// a abertura temporária no mobile (um drawer `permanent` com v-model false fica escondido).
+const drawerOpen = computed({
+  get: () => mdAndUp.value || mobileDrawer.value,
+  set: (value: boolean) => {
+    mobileDrawer.value = value
+  },
+})
+
 interface NavItem {
   title: string
   icon: string
@@ -62,7 +71,7 @@ async function handleLogout() {
   <v-app :theme="themeName">
     <v-navigation-drawer
       v-if="inLeague"
-      v-model="mobileDrawer"
+      v-model="drawerOpen"
       :rail="mdAndUp && rail"
       :permanent="mdAndUp"
       :temporary="!mdAndUp"
@@ -106,7 +115,8 @@ async function handleLogout() {
 
     <v-app-bar>
       <v-app-bar-nav-icon v-if="inLeague && !mdAndUp" @click="mobileDrawer = !mobileDrawer" />
-      <v-toolbar-title v-if="!inLeague || mdAndUp" class="flex-grow-0 mr-4">Footfy Admin</v-toolbar-title>
+      <!-- Dentro de uma liga a marca já aparece no drawer; o app bar mostra o pill de contexto. -->
+      <v-toolbar-title v-if="!inLeague" class="toolbar-title">Footfy Admin</v-toolbar-title>
 
       <div v-if="inLeague && leagueContext.activeLeague" class="context-pill d-flex align-center ga-2 pl-3 pr-1 py-1">
         <v-icon icon="mdi-trophy-outline" size="18" color="primary" />
@@ -145,6 +155,9 @@ async function handleLogout() {
 </template>
 
 <style scoped>
+.toolbar-title {
+  flex: none;
+}
 .context-pill {
   min-width: 0;
   max-width: 100%;

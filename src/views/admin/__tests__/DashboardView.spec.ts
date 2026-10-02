@@ -105,8 +105,18 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('Gols por rodada/fase')
     const bars = wrapper.findAll('[data-test="goals-bar"]')
     expect(bars).toHaveLength(3)
-    expect(bars.map((b) => b.findAll('text')[1].text())).toEqual(['R1', 'R2', 'Final'])
-    expect(bars[0].element.namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(bars.map((b) => b.attributes('aria-label'))).toEqual([
+      'Rodada 1: 3 gols',
+      'Rodada 2: 5 gols',
+      'Final: 2 gols',
+    ])
+    // Ativador do tooltip precisa ser HTML: a partir de um elemento SVG o v-tooltip não aparece.
+    expect(bars[0].element.namespaceURI).toBe('http://www.w3.org/1999/xhtml')
+    expect(wrapper.findAll('[data-test="goals-chart"] .bar-label').map((t) => t.text())).toEqual([
+      'R1',
+      'R2',
+      'Final',
+    ])
 
     // Resultados: mandante × empate × visitante com valores e percentuais visíveis.
     const split = wrapper.find('[data-test="results-split"]')
