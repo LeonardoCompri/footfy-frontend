@@ -4,6 +4,8 @@ import * as directives from 'vuetify/directives'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Championship, League } from '@/types/championship'
 import type { AuthUser } from '@/types/auth'
+import { useAuthStore } from '@/stores/auth'
+import { useLeagueContextStore } from '@/stores/leagueContext'
 
 export function createTestVuetify() {
   return createVuetify({ components, directives })
@@ -24,6 +26,19 @@ export function createTestRouter() {
       { path: '/admin/liga/:leagueId', name: 'admin-dashboard', component: Stub },
       { path: '/admin/liga/:leagueId/tabela', name: 'admin-league-table', component: Stub },
       { path: '/admin/liga/:leagueId/partidas/:id/editar', name: 'admin-games-edit', component: Stub },
+      { path: '/admin/liga/:leagueId/times', name: 'admin-teams-list', component: Stub },
+      { path: '/admin/liga/:leagueId/times/:teamId', name: 'admin-teams-detail', component: Stub },
+      {
+        path: '/admin/liga/:leagueId/times/:teamId/jogadores/:id',
+        name: 'admin-players-detail',
+        component: Stub,
+      },
+      {
+        path: '/admin/liga/:leagueId/times/:teamId/comissao-tecnica/:id',
+        name: 'admin-technical-committee-members-detail',
+        component: Stub,
+      },
+      { path: '/admin/liga/:leagueId/estadios', name: 'admin-stadiums-list', component: Stub },
     ],
   })
 }
@@ -45,13 +60,26 @@ export function makeLeague(id: number, championship: Championship, extra: Partia
   }
 }
 
-export function makeUser(role: string): AuthUser {
+// `permissions` simula o retorno do login com as permissões efetivas (FOOT-0030).
+export function makeUser(role: string, permissions: string[] = []): AuthUser {
   return {
     id: 1,
     name: 'Usuário Teste',
     email: null,
     document: '00000000000',
     roles: [{ id: 1, name: role, guard_name: 'sanctum' }],
-    permissions: [],
+    permissions: permissions.map((name, index) => ({ id: index + 1, name, guard_name: 'sanctum' })),
   }
+}
+
+// Sessão autenticada dentro de uma liga ativa (padrão: liga 1), como o guard deixaria.
+export function setupLeagueSession(user: AuthUser, leagues: League[] = [makeLeague(1, championshipA)]) {
+  const auth = useAuthStore()
+  auth.token = 'token'
+  auth.user = user
+  const context = useLeagueContextStore()
+  context.leagues = leagues
+  context.loaded = true
+  context.setActiveLeague(leagues[0].id)
+  return { auth, context }
 }

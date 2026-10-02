@@ -1,10 +1,21 @@
-import { createResourceService } from './resource'
+import http from './http'
+import { createResourceService, unwrap } from './resource'
+import type { SelectOption } from '@/types/api'
 import type {
   TechnicalCommitteeMember,
   TechnicalCommitteeMemberPayload,
 } from '@/types/technicalCommitteeMember'
 
-export const technicalCommitteeMembersService = createResourceService<
-  TechnicalCommitteeMember,
-  TechnicalCommitteeMemberPayload
->('/technical-committee-members')
+let rolesCache: Promise<SelectOption[]> | null = null
+
+const baseUrl = '/technical-committee-members'
+
+export const technicalCommitteeMembersService = {
+  ...createResourceService<TechnicalCommitteeMember, TechnicalCommitteeMemberPayload>(baseUrl),
+  // Lista estática do backend: busca uma vez por sessão (descarta o cache se falhar).
+  roles: () =>
+    (rolesCache ??= unwrap<SelectOption[]>(http.get(`${baseUrl}/roles`)).catch((err) => {
+      rolesCache = null
+      throw err
+    })),
+}

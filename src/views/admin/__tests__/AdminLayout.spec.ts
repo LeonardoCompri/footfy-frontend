@@ -31,6 +31,7 @@ function createLayoutRouter() {
             children: [
               leagueChild('', 'admin-dashboard'),
               leagueChild('times', 'admin-teams-list'),
+              leagueChild('times/:teamId/jogadores/:id', 'admin-players-detail'),
               leagueChild('estadios', 'admin-stadiums-list'),
               leagueChild('partidas', 'admin-games-list'),
               leagueChild('tabela', 'admin-league-table'),
@@ -95,6 +96,12 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     const wrapper = await mountAt('/admin/liga/1', 'coach')
     const titles = wrapper.findAll('.v-navigation-drawer .v-list-item-title').map((t) => t.text())
     expect(titles).not.toContain('Usuários')
+  })
+
+  it('mantém "Times" destacado nas telas internas de time/jogador/comissão', async () => {
+    const wrapper = await mountAt('/admin/liga/1/times/5/jogadores/10')
+    const active = wrapper.findAll('.v-navigation-drawer .v-list-item--active').map((i) => i.text())
+    expect(active).toEqual(['Times'])
   })
 
   it('fora de uma liga (seleção) não mostra menu nem pill', async () => {
