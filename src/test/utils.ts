@@ -13,12 +13,15 @@ export function createTestVuetify() {
 
 const Stub = { render: () => null }
 
-// Router mínimo com os nomes de rota que as telas do contexto de liga referenciam.
+// Router mínimo com os nomes de rota que as telas públicas e do contexto de liga referenciam.
 export function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/', name: 'home', component: Stub },
+      { path: '/login', name: 'login', component: Stub },
+      { path: '/campeonatos', name: 'championships-list', component: Stub },
+      { path: '/campeonatos/:id', name: 'championships-detail', component: Stub },
       { path: '/admin', name: 'admin-home', component: Stub },
       { path: '/admin/selecionar', name: 'admin-select-championship', component: Stub },
       { path: '/admin/selecionar/:championshipId', name: 'admin-select-league', component: Stub },
