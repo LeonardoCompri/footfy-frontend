@@ -29,12 +29,19 @@ interface NavItem {
   icon: string
   routeName: string
   roles?: string[]
+  // Telas internas (sem rota aninhada) que mantêm o item destacado no menu.
+  activeOn?: string[]
 }
 
 // Ordem definida no FOOT-0022: Dashboard é a tela inicial ao entrar na liga.
 const navItems: NavItem[] = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', routeName: 'admin-dashboard' },
-  { title: 'Times', icon: 'mdi-shield', routeName: 'admin-teams-list' },
+  {
+    title: 'Times',
+    icon: 'mdi-shield',
+    routeName: 'admin-teams-list',
+    activeOn: ['admin-teams-detail', 'admin-players-detail', 'admin-technical-committee-members-detail'],
+  },
   { title: 'Estádios', icon: 'mdi-stadium', routeName: 'admin-stadiums-list' },
   { title: 'Partidas', icon: 'mdi-soccer-field', routeName: 'admin-games-list' },
   { title: 'Tabela', icon: 'mdi-format-list-numbered', routeName: 'admin-league-table' },
@@ -95,6 +102,7 @@ async function handleLogout() {
           :title="item.title"
           :to="item.to"
           :exact="item.routeName === 'admin-dashboard'"
+          :active="item.activeOn?.includes(String(route.name)) || undefined"
           color="primary"
           rounded="lg"
         />

@@ -11,23 +11,23 @@ interface CrudService<T, P> {
   remove: (id: number | string) => Promise<unknown>
 }
 
+export function extractErrorMessage(err: unknown): string {
+  const axiosErr = err as AxiosError<ApiErrorResponse>
+  return axiosErr.response?.data?.message ?? 'Ocorreu um erro inesperado.'
+}
+
 export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>) {
   const items = ref<T[]>([])
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
   const fieldErrors = ref<Record<string, string[]>>({})
 
-  function extractMessage(err: unknown): string {
-    const axiosErr = err as AxiosError<ApiErrorResponse>
-    return axiosErr.response?.data?.message ?? 'Ocorreu um erro inesperado.'
-  }
-
   function handleError(err: unknown) {
     const axiosErr = err as AxiosError<ApiErrorResponse>
     if (axiosErr.response?.status === 422) {
       fieldErrors.value = axiosErr.response.data?.errors ?? {}
     }
-    errorMessage.value = extractMessage(err)
+    errorMessage.value = extractErrorMessage(err)
   }
 
   async function fetchAll(params?: ListParams) {
@@ -36,7 +36,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     try {
       items.value = await service.list(params)
     } catch (err) {
-      errorMessage.value = extractMessage(err)
+      errorMessage.value = extractErrorMessage(err)
     } finally {
       loading.value = false
     }
@@ -48,7 +48,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     try {
       return await service.get(id)
     } catch (err) {
-      errorMessage.value = extractMessage(err)
+      errorMessage.value = extractErrorMessage(err)
       return null
     } finally {
       loading.value = false
@@ -77,7 +77,7 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
       items.value = items.value.filter((item) => item.id !== id)
       return true
     } catch (err) {
-      errorMessage.value = extractMessage(err)
+      errorMessage.value = extractErrorMessage(err)
       return false
     } finally {
       loading.value = false

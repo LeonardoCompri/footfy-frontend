@@ -1,9 +1,14 @@
 import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 
-// Rotas dentro de `liga/:leagueId` só repassam `id` às telas de edição (o `leagueId`
+// Rotas dentro de `liga/:leagueId` só repassam os ids da própria tela (o `leagueId`
 // vem do store de contexto, não de prop).
 const idProp = (route: RouteLocationNormalized) => ({ id: route.params.id })
+const teamProp = (route: RouteLocationNormalized) => ({ teamId: route.params.teamId })
+const teamMemberProps = (route: RouteLocationNormalized) => ({
+  teamId: route.params.teamId,
+  id: route.params.id,
+})
 
 export const publicRoutes: RouteRecordRaw[] = [
   {
@@ -119,68 +124,28 @@ export const adminRoutes: RouteRecordRaw[] = [
             component: () => import('@/views/admin/teams/TeamAdminListView.vue'),
           },
           {
-            path: 'times/novo',
-            name: 'admin-teams-create',
-            component: () => import('@/views/admin/teams/TeamFormView.vue'),
+            path: 'times/:teamId',
+            name: 'admin-teams-detail',
+            component: () => import('@/views/admin/teams/TeamDetailView.vue'),
+            props: teamProp,
           },
           {
-            path: 'times/:id/editar',
-            name: 'admin-teams-edit',
-            component: () => import('@/views/admin/teams/TeamFormView.vue'),
-            props: idProp,
+            path: 'times/:teamId/jogadores/:id',
+            name: 'admin-players-detail',
+            component: () => import('@/views/admin/players/PlayerDetailView.vue'),
+            props: teamMemberProps,
           },
           {
-            path: 'jogadores',
-            name: 'admin-players-list',
-            component: () => import('@/views/admin/players/PlayerAdminListView.vue'),
-          },
-          {
-            path: 'jogadores/novo',
-            name: 'admin-players-create',
-            component: () => import('@/views/admin/players/PlayerFormView.vue'),
-          },
-          {
-            path: 'jogadores/:id/editar',
-            name: 'admin-players-edit',
-            component: () => import('@/views/admin/players/PlayerFormView.vue'),
-            props: idProp,
+            path: 'times/:teamId/comissao-tecnica/:id',
+            name: 'admin-technical-committee-members-detail',
+            component: () =>
+              import('@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberDetailView.vue'),
+            props: teamMemberProps,
           },
           {
             path: 'estadios',
             name: 'admin-stadiums-list',
             component: () => import('@/views/admin/stadiums/StadiumAdminListView.vue'),
-          },
-          {
-            path: 'estadios/novo',
-            name: 'admin-stadiums-create',
-            component: () => import('@/views/admin/stadiums/StadiumFormView.vue'),
-          },
-          {
-            path: 'estadios/:id/editar',
-            name: 'admin-stadiums-edit',
-            component: () => import('@/views/admin/stadiums/StadiumFormView.vue'),
-            props: idProp,
-          },
-          {
-            path: 'comissao-tecnica',
-            name: 'admin-technical-committee-members-list',
-            component: () =>
-              import(
-                '@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberAdminListView.vue'
-              ),
-          },
-          {
-            path: 'comissao-tecnica/novo',
-            name: 'admin-technical-committee-members-create',
-            component: () =>
-              import('@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberFormView.vue'),
-          },
-          {
-            path: 'comissao-tecnica/:id/editar',
-            name: 'admin-technical-committee-members-edit',
-            component: () =>
-              import('@/views/admin/technicalCommitteeMembers/TechnicalCommitteeMemberFormView.vue'),
-            props: idProp,
           },
           {
             path: 'partidas',
