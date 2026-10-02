@@ -23,7 +23,7 @@ const authStore = useAuthStore()
           v-if="authStore.isAuthenticated"
           variant="elevated"
           class="text-primary ml-2"
-          :to="{ name: 'admin-dashboard' }"
+          :to="{ name: 'admin-home' }"
         >
           Painel Admin
         </v-btn>

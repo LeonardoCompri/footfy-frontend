@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authService } from '@/services/api/auth.service'
 import type { AuthUser, LoginPayload } from '@/types/auth'
+import { useLeagueContextStore } from './leagueContext'
 
 const STORAGE_KEY = 'footfy_auth'
 
@@ -42,10 +43,13 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     localStorage.removeItem(STORAGE_KEY)
+    useLeagueContextStore().reset()
   }
 
   async function login(payload: LoginPayload) {
     const { data } = await authService.login(payload)
+    // Contexto de liga é por usuário: nunca reaproveita a liga/lista da sessão anterior.
+    useLeagueContextStore().reset()
     token.value = data.token
     user.value = data.user
     persist()

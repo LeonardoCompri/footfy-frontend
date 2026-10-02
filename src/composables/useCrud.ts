@@ -1,9 +1,10 @@
 import { ref } from 'vue'
 import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
+import type { ListParams } from '@/services/api/resource'
 
 interface CrudService<T, P> {
-  list: () => Promise<T[]>
+  list: (params?: ListParams) => Promise<T[]>
   get: (id: number | string) => Promise<T>
   create: (payload: P) => Promise<T>
   update: (id: number | string, payload: P) => Promise<T>
@@ -29,11 +30,11 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     errorMessage.value = extractMessage(err)
   }
 
-  async function fetchAll() {
+  async function fetchAll(params?: ListParams) {
     loading.value = true
     errorMessage.value = null
     try {
-      items.value = await service.list()
+      items.value = await service.list(params)
     } catch (err) {
       errorMessage.value = extractMessage(err)
     } finally {
