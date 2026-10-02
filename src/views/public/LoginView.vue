@@ -22,8 +22,9 @@ async function handleSubmit() {
   errorMessage.value = null
   try {
     await authStore.login({ document: document.value, password: password.value })
-    const redirect = (route.query.redirect as string) || '/admin'
-    router.push(redirect)
+    // Sem redirect explícito, o fluxo pós-login começa na seleção Campeonato → Liga.
+    const redirect = route.query.redirect as string | undefined
+    router.push(redirect || { name: 'admin-select-championship' })
   } catch (err) {
     const axiosErr = err as AxiosError<ApiErrorResponse>
     if (axiosErr.response?.status === 401) {
