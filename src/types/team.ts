@@ -1,4 +1,10 @@
 import type { Player } from './player'
+import type { TechnicalCommitteeMember } from './technicalCommitteeMember'
+
+export interface TeamLeague {
+  id: number
+  name: string
+}
 
 export interface Team {
   id: number
@@ -7,10 +13,16 @@ export interface Team {
   logo: string | null
   created_at: string
   updated_at: string
-  // Só vem preenchido em GET /public/teams/{id} (eager loaded no backend).
+  // Só vêm preenchidos em GET /teams/{id} e GET /public/teams/{id} (eager loaded no backend).
   players?: Player[]
-  // TODO: GET /public/teams/{id} ainda não retorna a comissão técnica do time;
-  // depende de ajuste no backend (ver card correspondente no board Backend).
+  technicalCommitteeMembers?: TechnicalCommitteeMember[]
+  // Só vem preenchido nas respostas de POST/DELETE /teams/{id}/leagues.
+  leagues?: TeamLeague[]
 }
 
-export type TeamPayload = Pick<Team, 'name' | 'nickname' | 'logo'>
+// `logo` é upload de imagem (multipart); `null` mantém o escudo atual na edição.
+export interface TeamPayload {
+  name: string
+  nickname: string | null
+  logo: File | null
+}

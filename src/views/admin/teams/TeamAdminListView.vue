@@ -1,94 +1,99 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
+import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
-import { useSnackbar } from '@/composables/useSnackbar'
 import { teamsService } from '@/services/api/teams.service'
 import type { Team, TeamPayload } from '@/types/team'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import TeamFormDialog from '@/components/teams/TeamFormDialog.vue'
 
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Team, TeamPayload>(
-  teamsService,
-)
-const snackbar = useSnackbar()
+const authStore = useAuthStore()
+const leagueContext = useLeagueContextStore()
+const router = useRouter()
+const { items, loading, errorMessage, fetchAll } = useCrud<Team, TeamPayload>(teamsService)
 
+const leagueId = leagueContext.activeLeagueId as number
 const search = ref('')
-const confirmDialog = ref(false)
-const teamToDelete = ref<Team | null>(null)
+const formDialog = ref(false)
 
-const headers = [
-  { title: 'Nome', key: 'name' },
-  { title: 'Apelido', key: 'nickname' },
-  { title: 'Logo', key: 'logo' },
-  { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
-]
+const filteredTeams = computed(() => {
+  const term = search.value.trim().toLocaleLowerCase('pt-BR')
+  if (!term) return items.value
+  return items.value.filter((team) =>
+    [team.name, team.nickname ?? ''].some((text) => text.toLocaleLowerCase('pt-BR').includes(term)),
+  )
+})
 
-function askDelete(team: Team) {
-  teamToDelete.value = team
-  confirmDialog.value = true
+function initials(team: Team): string {
+  return (team.nickname || team.name).slice(0, 2).toUpperCase()
 }
 
-async function handleDelete() {
-  if (!teamToDelete.value) return
-  const ok = await destroy(teamToDelete.value.id)
-  if (ok) {
-    snackbar.success('Time excluído com sucesso.')
-  } else {
-    snackbar.error('Não foi possível excluir o time.')
-  }
-  teamToDelete.value = null
+function openTeam(team: Team) {
+  router.push({ name: 'admin-teams-detail', params: { teamId: team.id } })
 }
 
 // Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
-const leagueContext = useLeagueContextStore()
-
-onMounted(() => fetchAll({ league_id: leagueContext.activeLeagueId ?? undefined }))
+onMounted(() => fetchAll({ league_id: leagueId }))
 </script>
 
 <template>
   <div>
-    <PageHeader title="Times">
+    <PageHeader title="Times" :subtitle="leagueContext.activeLeague?.name">
       <template #action>
-        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-teams-create' }">
-          Novo Time
+        <v-btn
+          v-if="authStore.hasPermission('team:create')"
+          color="primary"
+          prepend-icon="mdi-plus"
+          data-test="team-create"
+          @click="formDialog = true"
+        >
+          <span class="d-none d-sm-inline">Novo time</span>
+          <span class="d-sm-none">Novo</span>
         </v-btn>
       </template>
     </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 
-    <v-card>
-      <v-card-text>
-        <v-text-field
-          v-model="search"
-          prepend-inner-icon="mdi-magnify"
-          label="Buscar"
-          single-line
-          hide-details
-          class="mb-4"
-        />
-        <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
-          <template v-slot:[`item.nickname`]="{ item }">{{ item.nickname ?? '—' }}</template>
-          <template v-slot:[`item.logo`]="{ item }">{{ item.logo ?? '—' }}</template>
-          <template v-slot:[`item.actions`]="{ item }">
-            <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              size="small"
-              :to="{ name: 'admin-teams-edit', params: { id: item.id } }"
-            />
-            <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="askDelete(item)" />
-          </template>
-        </v-data-table>
-      </v-card-text>
-    </v-card>
-
-    <ConfirmDialog
-      v-model="confirmDialog"
-      title="Excluir time"
-      :message="`Tem certeza que deseja excluir '${teamToDelete?.name}'?`"
-      @confirm="handleDelete"
+    <v-text-field
+      v-model="search"
+      prepend-inner-icon="mdi-magnify"
+      label="Buscar time"
+      single-line
+      hide-details
+      clearable
+      class="mb-4"
     />
+
+    <div v-if="loading" class="d-flex justify-center py-8">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+
+    <v-alert v-else-if="filteredTeams.length === 0" type="info" variant="tonal" data-test="teams-empty">
+      {{ search ? 'Nenhum time encontrado para a busca.' : 'Nenhum time vinculado a esta liga ainda.' }}
+    </v-alert>
+
+    <v-row v-else>
+      <v-col v-for="team in filteredTeams" :key="team.id" cols="12" sm="6" md="4" xl="3">
+        <v-card :to="{ name: 'admin-teams-detail', params: { teamId: team.id } }" data-test="team-card">
+          <v-card-item>
+            <template #prepend>
+              <v-avatar size="48" rounded="lg" color="primary" variant="tonal" :image="team.logo ?? undefined">
+                <span v-if="!team.logo" class="font-weight-bold">{{ initials(team) }}</span>
+              </v-avatar>
+            </template>
+            <v-card-title>{{ team.name }}</v-card-title>
+            <v-card-subtitle>{{ team.nickname ?? '—' }}</v-card-subtitle>
+            <template #append>
+              <v-icon icon="mdi-chevron-right" class="text-medium-emphasis" />
+            </template>
+          </v-card-item>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <TeamFormDialog v-model="formDialog" :league-id="leagueId" @saved="openTeam" />
   </div>
 </template>

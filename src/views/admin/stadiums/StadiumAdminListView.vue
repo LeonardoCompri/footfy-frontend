@@ -1,28 +1,50 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useDisplay } from 'vuetify'
 import { useCrud } from '@/composables/useCrud'
-import { useLeagueContextStore } from '@/stores/leagueContext'
 import { useSnackbar } from '@/composables/useSnackbar'
+import { useAuthStore } from '@/stores/auth'
+import { useLeagueContextStore } from '@/stores/leagueContext'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import type { Stadium, StadiumPayload } from '@/types/stadium'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import StadiumFormDialog from '@/components/stadiums/StadiumFormDialog.vue'
 
+const authStore = useAuthStore()
+const leagueContext = useLeagueContextStore()
+const snackbar = useSnackbar()
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Stadium, StadiumPayload>(
   stadiumsService,
 )
-const snackbar = useSnackbar()
+
+const { xs } = useDisplay()
+
+const leagueId = leagueContext.activeLeagueId as number
+const canCreate = authStore.hasPermission('stadium:create')
+const canUpdate = authStore.hasPermission('stadium:update')
+const canDelete = authStore.hasPermission('stadium:delete')
 
 const search = ref('')
+const formDialog = ref(false)
+const stadiumToEdit = ref<Stadium | null>(null)
 const confirmDialog = ref(false)
 const stadiumToDelete = ref<Stadium | null>(null)
 
-const headers = [
+// No mobile a Cidade vira legenda sob o nome, para a tabela caber sem scroll horizontal.
+const headers = computed(() => [
   { title: 'Nome', key: 'name' },
-  { title: 'Cidade', key: 'city' },
+  ...(xs.value ? [] : [{ title: 'Cidade', key: 'city' }]),
   { title: 'Capacidade', key: 'capacity' },
-  { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
-]
+  ...(canUpdate || canDelete
+    ? [{ title: xs.value ? '' : 'Ações', key: 'actions', sortable: false, align: 'end' as const }]
+    : []),
+])
+
+function openForm(stadium: Stadium | null) {
+  stadiumToEdit.value = stadium
+  formDialog.value = true
+}
 
 function askDelete(stadium: Stadium) {
   stadiumToDelete.value = stadium
@@ -31,27 +53,36 @@ function askDelete(stadium: Stadium) {
 
 async function handleDelete() {
   if (!stadiumToDelete.value) return
-  const ok = await destroy(stadiumToDelete.value.id)
-  if (ok) {
+  if (await destroy(stadiumToDelete.value.id)) {
     snackbar.success('Estádio excluído com sucesso.')
   } else {
-    snackbar.error('Não foi possível excluir o estádio.')
+    snackbar.error(errorMessage.value ?? 'Não foi possível excluir o estádio.')
+    errorMessage.value = null
   }
   stadiumToDelete.value = null
 }
 
-// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
-const leagueContext = useLeagueContextStore()
+function loadStadiums() {
+  return fetchAll({ league_id: leagueId })
+}
 
-onMounted(() => fetchAll({ league_id: leagueContext.activeLeagueId ?? undefined }))
+// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
+onMounted(loadStadiums)
 </script>
 
 <template>
   <div>
-    <PageHeader title="Estádios">
+    <PageHeader title="Estádios" :subtitle="leagueContext.activeLeague?.name">
       <template #action>
-        <v-btn color="primary" prepend-icon="mdi-plus" :to="{ name: 'admin-stadiums-create' }">
-          Novo Estádio
+        <v-btn
+          v-if="canCreate"
+          color="primary"
+          prepend-icon="mdi-plus"
+          data-test="stadium-create"
+          @click="openForm(null)"
+        >
+          <span class="d-none d-sm-inline">Novo estádio</span>
+          <span class="d-sm-none">Novo</span>
         </v-btn>
       </template>
     </PageHeader>
@@ -68,20 +99,51 @@ onMounted(() => fetchAll({ league_id: leagueContext.activeLeagueId ?? undefined 
           hide-details
           class="mb-4"
         />
-        <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
+        <v-data-table
+          :headers="headers"
+          :items="items"
+          :search="search"
+          :loading="loading"
+          item-value="id"
+          no-data-text="Nenhum estádio cadastrado nesta liga."
+          data-test="stadiums-table"
+        >
+          <template v-slot:[`item.name`]="{ item }">
+            <div>{{ item.name }}</div>
+            <div v-if="xs" class="text-caption text-medium-emphasis">{{ item.city }}</div>
+          </template>
+          <template v-slot:[`item.capacity`]="{ item }">{{ item.capacity.toLocaleString('pt-BR') }}</template>
           <template v-slot:[`item.actions`]="{ item }">
-            <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              size="small"
-              :to="{ name: 'admin-stadiums-edit', params: { id: item.id } }"
-            />
-            <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="askDelete(item)" />
+            <div class="d-flex justify-end">
+              <v-btn
+                v-if="canUpdate"
+                icon="mdi-pencil"
+                variant="text"
+                size="small"
+                data-test="stadium-edit"
+                @click="openForm(item)"
+              />
+              <v-btn
+                v-if="canDelete"
+                icon="mdi-delete"
+                variant="text"
+                size="small"
+                color="error"
+                data-test="stadium-delete"
+                @click="askDelete(item)"
+              />
+            </div>
           </template>
         </v-data-table>
       </v-card-text>
     </v-card>
 
+    <StadiumFormDialog
+      v-model="formDialog"
+      :league-id="leagueId"
+      :stadium="stadiumToEdit"
+      @saved="loadStadiums"
+    />
     <ConfirmDialog
       v-model="confirmDialog"
       title="Excluir estádio"
