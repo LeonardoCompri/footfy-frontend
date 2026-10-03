@@ -1,299 +1,223 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useCrud } from '@/composables/useCrud'
+import { computed, onMounted, ref } from 'vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { extractErrorMessage, useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { gameEventsService } from '@/services/api/gameEvents.service'
-import { playersService } from '@/services/api/players.service'
-import { GAME_EVENT_TYPE_OPTIONS } from '@/types/gameEvent'
-import type { GameEvent, GameEventPayload } from '@/types/gameEvent'
-import type { Player, PlayerPayload } from '@/types/player'
+import { teamsService } from '@/services/api/teams.service'
+import type { Game } from '@/types/game'
+import type { GameEvent, GameEventPayload, SummaryTeam } from '@/types/gameEvent'
+import { useChartPalette } from '@/components/charts/chartPalette'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import GameEventFormDialog from './GameEventFormDialog.vue'
 
-const props = defineProps<{
-  gameId: string
-  homeTeamId: number
-  awayTeamId: number
-  homeTeamName: string
-  awayTeamName: string
-}>()
+const props = defineProps<{ game: Game }>()
 
-const { items: events, loading, errorMessage, fieldErrors, fetchAll, save, destroy } = useCrud<
-  GameEvent,
-  GameEventPayload
->(gameEventsService)
-const { items: allPlayers, fetchAll: fetchAllPlayers } = useCrud<Player, PlayerPayload>(
-  playersService,
-)
 const authStore = useAuthStore()
 const snackbar = useSnackbar()
-
-const gameEvents = computed(() =>
-  events.value.filter((event) => event.game_id === Number(props.gameId)),
+const palette = useChartPalette()
+const { items: events, loading, errorMessage, fetchAll, destroy } = useCrud<GameEvent, GameEventPayload>(
+  gameEventsService,
 )
 
-const teamOptions = computed(() => [
-  { id: props.homeTeamId, name: props.homeTeamName },
-  { id: props.awayTeamId, name: props.awayTeamName },
-])
+const can = {
+  create: authStore.hasPermission('game_event:create'),
+  update: authStore.hasPermission('game_event:update'),
+  delete: authStore.hasPermission('game_event:delete'),
+}
 
-const headers = [
-  { title: 'Time', key: 'team_id' },
-  { title: 'Jogador', key: 'player_id' },
-  { title: 'Tipo', key: 'type' },
-  { title: 'Minuto', key: 'minute' },
-  { title: 'Assistência', key: 'related_player_id' },
-  { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
-]
+const teams = ref<SummaryTeam[]>([])
+const playersError = ref<string | null>(null)
+const formDialog = ref(false)
+const eventToEdit = ref<GameEvent | null>(null)
+const { open: confirmOpen, target: eventToDelete, ask: askDelete } = useConfirmDialog<GameEvent>()
 
-const dialog = ref(false)
-const editingId = ref<number | null>(null)
-const confirmDialog = ref(false)
-const eventToDelete = ref<GameEvent | null>(null)
+// Minuto em ordem crescente; eventos sem minuto vão para o fim, na ordem de registro.
+const timeline = computed(() =>
+  [...events.value].sort((a, b) => (a.minute ?? Infinity) - (b.minute ?? Infinity) || a.id - b.id),
+)
 
-const form = reactive<GameEventPayload>({
-  game_id: Number(props.gameId),
-  team_id: 0,
-  player_id: 0,
-  related_player_id: null,
-  type: 'goal',
-  minute: null,
+const goalsByTeam = computed(() => {
+  const goals = events.value.filter((event) => event.type === 'goal')
+  return {
+    home: goals.filter((event) => event.team_id === props.game.home_team_id).length,
+    away: goals.filter((event) => event.team_id === props.game.away_team_id).length,
+  }
 })
 
-const eligiblePlayers = computed(() =>
-  allPlayers.value.filter((player) => player.team_id === form.team_id),
+// Aviso (não bloqueia): placar finalizado diferente dos gols lançados na súmula.
+const scoreMismatch = computed(
+  () =>
+    props.game.status === 'finished' &&
+    props.game.home_score !== null &&
+    props.game.away_score !== null &&
+    (goalsByTeam.value.home !== props.game.home_score || goalsByTeam.value.away !== props.game.away_score),
 )
 
-const eligibleAssistPlayers = computed(() =>
-  eligiblePlayers.value.filter((player) => player.id !== form.player_id),
-)
-
-const eventFormInvalid = computed(() => !form.team_id || !form.player_id)
-
-// Evita registrar o mesmo jogador como autor e como assistência: se um dos
-// dois campos passar a repetir o valor do outro, o que ficou desatualizado é limpo.
-watch(
-  () => form.player_id,
-  (playerId) => {
-    if (form.related_player_id === playerId) {
-      form.related_player_id = null
-    }
-  },
-)
+const eventMeta = computed(() => ({
+  goal: { icon: 'mdi-soccer', color: undefined, label: 'Gol' },
+  yellow_card: { icon: 'mdi-card', color: palette.value.yellowCard, label: 'Cartão amarelo' },
+  red_card: { icon: 'mdi-card', color: palette.value.redCard, label: 'Cartão vermelho' },
+}))
 
 function teamName(teamId: number): string {
-  return teamOptions.value.find((team) => team.id === teamId)?.name ?? '—'
+  return teams.value.find((team) => team.id === teamId)?.name ?? '—'
 }
 
 function playerName(playerId: number | null): string {
   if (!playerId) return '—'
-  return allPlayers.value.find((player) => player.id === playerId)?.name ?? '—'
+  for (const team of teams.value) {
+    const player = team.players.find((p) => p.id === playerId)
+    if (player) return player.name
+  }
+  return 'Jogador fora do elenco'
 }
 
-function typeTitle(type: GameEvent['type']): string {
-  return GAME_EVENT_TYPE_OPTIONS.find((option) => option.value === type)?.title ?? type
+function eventSubtitle(event: GameEvent): string {
+  const parts = [eventMeta.value[event.type].label, teamName(event.team_id)]
+  if (event.related_player_id) parts.push(`Assistência: ${playerName(event.related_player_id)}`)
+  return parts.join(' · ')
 }
 
-function resetForm() {
-  form.game_id = Number(props.gameId)
-  form.team_id = 0
-  form.player_id = 0
-  form.related_player_id = null
-  form.type = 'goal'
-  form.minute = null
+function openForm(event: GameEvent | null) {
+  eventToEdit.value = event
+  formDialog.value = true
 }
 
-function openCreateDialog() {
-  editingId.value = null
-  resetForm()
-  dialog.value = true
-}
-
-function onTeamChange() {
-  form.player_id = 0
-  form.related_player_id = null
-}
-
-function openEditDialog(event: GameEvent) {
-  editingId.value = event.id
-  form.game_id = event.game_id
-  form.team_id = event.team_id
-  form.player_id = event.player_id
-  form.related_player_id = event.related_player_id
-  form.type = event.type
-  form.minute = event.minute
-  dialog.value = true
-}
-
-function askDelete(event: GameEvent) {
-  eventToDelete.value = event
-  confirmDialog.value = true
+// Atualiza a lista local com a resposta do backend, sem refazer o GET.
+function onSaved(saved: GameEvent) {
+  const index = events.value.findIndex((event) => event.id === saved.id)
+  if (index === -1) events.value.push(saved)
+  else events.value[index] = saved
 }
 
 async function handleDelete() {
   if (!eventToDelete.value) return
-  const ok = await destroy(eventToDelete.value.id)
-  if (ok) {
+  if (await destroy(eventToDelete.value.id)) {
     snackbar.success('Evento excluído com sucesso.')
   } else {
-    snackbar.error('Não foi possível excluir o evento.')
+    snackbar.error(errorMessage.value ?? 'Não foi possível excluir o evento.')
+    errorMessage.value = null
   }
   eventToDelete.value = null
 }
 
-function toNullableNumber(value: unknown): number | null {
-  if (value === '' || value === null || value === undefined) return null
-  const parsed = Number(value)
-  return Number.isNaN(parsed) ? null : parsed
-}
-
-async function handleSubmit() {
-  form.minute = toNullableNumber(form.minute)
-  const wasEditing = editingId.value
-  const result = await save(form, wasEditing ?? undefined)
-  if (result) {
-    // Atualiza a lista local em vez de refazer fetchAll(): o endpoint não
-    // filtra por game_id, então um refetch buscaria todos os eventos do sistema.
-    if (wasEditing) {
-      const index = events.value.findIndex((event) => event.id === result.id)
-      if (index !== -1) events.value[index] = result
-    } else {
-      events.value.push(result)
-    }
-    snackbar.success(wasEditing ? 'Evento atualizado com sucesso.' : 'Evento criado com sucesso.')
-    dialog.value = false
+// Elenco elegível = só os dois times da partida (GET /teams/{id} já traz os jogadores).
+async function loadTeams() {
+  try {
+    const [home, away] = await Promise.all([
+      teamsService.get(props.game.home_team_id),
+      teamsService.get(props.game.away_team_id),
+    ])
+    teams.value = [home, away].map((team) => ({
+      id: team.id,
+      name: team.nickname || team.name,
+      players: [...(team.players ?? [])].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)),
+    }))
+  } catch (err) {
+    playersError.value = extractErrorMessage(err)
   }
 }
 
 onMounted(() => {
-  fetchAll()
-  fetchAllPlayers()
+  fetchAll({ game_id: props.game.id })
+  loadTeams()
 })
 </script>
 
 <template>
-  <v-card class="mt-6">
-    <v-card-item>
-      <v-card-title class="d-flex align-center justify-space-between">
-        <span>Eventos da Partida</span>
-        <v-btn
-          v-if="authStore.hasPermission('game_event:create')"
-          color="primary"
-          prepend-icon="mdi-plus"
-          size="small"
-          @click="openCreateDialog"
-        >
-          Adicionar evento
-        </v-btn>
-      </v-card-title>
-    </v-card-item>
+  <v-card>
+    <v-card-title class="d-flex align-center">
+      <span class="text-subtitle-1 font-weight-bold">Súmula</span>
+      <v-spacer />
+      <v-btn
+        v-if="can.create"
+        color="primary"
+        size="small"
+        prepend-icon="mdi-plus"
+        :disabled="teams.length === 0"
+        data-test="event-create"
+        @click="openForm(null)"
+      >
+        Evento
+      </v-btn>
+    </v-card-title>
 
     <v-card-text>
       <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
+      <v-alert v-if="playersError" type="warning" variant="tonal" class="mb-4">
+        Não foi possível carregar os elencos: {{ playersError }}
+      </v-alert>
+      <v-alert v-if="scoreMismatch" type="info" variant="tonal" density="compact" class="mb-4" data-test="score-mismatch">
+        Gols na súmula ({{ goalsByTeam.home }} × {{ goalsByTeam.away }}) diferem do placar da partida
+        ({{ game.home_score }} × {{ game.away_score }}).
+      </v-alert>
 
-      <v-data-table :headers="headers" :items="gameEvents" :loading="loading" item-value="id">
-        <template v-slot:[`item.team_id`]="{ item }">{{ teamName(item.team_id) }}</template>
-        <template v-slot:[`item.player_id`]="{ item }">{{ playerName(item.player_id) }}</template>
-        <template v-slot:[`item.type`]="{ item }">{{ typeTitle(item.type) }}</template>
-        <template v-slot:[`item.minute`]="{ item }">{{ item.minute ?? '—' }}</template>
-        <template v-slot:[`item.related_player_id`]="{ item }">
-          {{ playerName(item.related_player_id) }}
-        </template>
-        <template v-slot:[`item.actions`]="{ item }">
-          <v-btn
-            v-if="authStore.hasPermission('game_event:update')"
-            icon="mdi-pencil"
-            variant="text"
-            size="small"
-            @click="openEditDialog(item)"
-          />
-          <v-btn
-            v-if="authStore.hasPermission('game_event:delete')"
-            icon="mdi-delete"
-            variant="text"
-            size="small"
-            color="error"
-            @click="askDelete(item)"
-          />
-        </template>
-      </v-data-table>
+      <div v-if="loading && events.length === 0" class="d-flex justify-center py-6">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
+      <div v-else-if="timeline.length === 0" class="text-medium-emphasis text-center py-6" data-test="events-empty">
+        Nenhum evento registrado nesta partida.
+      </div>
+      <v-list v-else lines="two" class="pa-0" data-test="events-list">
+        <v-list-item v-for="event in timeline" :key="event.id" class="px-0" data-test="event-row">
+          <template #prepend>
+            <div class="minute text-medium-emphasis tabular">{{ event.minute != null ? `${event.minute}'` : '—' }}</div>
+            <v-icon
+              :icon="eventMeta[event.type].icon"
+              :color="eventMeta[event.type].color"
+              :aria-label="eventMeta[event.type].label"
+              class="mr-3"
+            />
+          </template>
+          <v-list-item-title>{{ playerName(event.player_id) }}</v-list-item-title>
+          <v-list-item-subtitle>{{ eventSubtitle(event) }}</v-list-item-subtitle>
+          <template v-if="can.update || can.delete" #append>
+            <v-btn
+              v-if="can.update"
+              icon="mdi-pencil"
+              variant="text"
+              size="small"
+              :disabled="teams.length === 0"
+              data-test="event-edit"
+              @click="openForm(event)"
+            />
+            <v-btn
+              v-if="can.delete"
+              icon="mdi-delete"
+              variant="text"
+              size="small"
+              color="error"
+              data-test="event-delete"
+              @click="askDelete(event)"
+            />
+          </template>
+        </v-list-item>
+      </v-list>
     </v-card-text>
 
-    <v-dialog v-model="dialog" max-width="480">
-      <v-card>
-        <v-card-title>{{ editingId ? 'Editar Evento' : 'Novo Evento' }}</v-card-title>
-        <v-card-text>
-          <v-form @submit.prevent="handleSubmit">
-            <v-select
-              v-model="form.team_id"
-              :items="teamOptions"
-              item-title="name"
-              item-value="id"
-              label="Time"
-              :error-messages="fieldErrors.team_id"
-              class="mb-2"
-              @update:model-value="onTeamChange"
-            />
-            <v-autocomplete
-              v-model="form.player_id"
-              :items="eligiblePlayers"
-              item-title="name"
-              item-value="id"
-              label="Jogador"
-              :disabled="!form.team_id"
-              :error-messages="fieldErrors.player_id"
-              class="mb-2"
-            />
-            <v-select
-              v-model="form.type"
-              :items="GAME_EVENT_TYPE_OPTIONS"
-              item-title="title"
-              item-value="value"
-              label="Tipo"
-              :error-messages="fieldErrors.type"
-              class="mb-2"
-            />
-            <v-autocomplete
-              v-model="form.related_player_id"
-              :items="eligibleAssistPlayers"
-              item-title="name"
-              item-value="id"
-              label="Assistência"
-              clearable
-              :disabled="!form.team_id"
-              :error-messages="fieldErrors.related_player_id"
-              class="mb-2"
-            />
-            <v-text-field
-              v-model.number="form.minute"
-              label="Minuto"
-              type="number"
-              min="0"
-              :error-messages="fieldErrors.minute"
-              class="mb-2"
-            />
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancelar</v-btn>
-          <v-btn
-            color="primary"
-            :loading="loading"
-            :disabled="eventFormInvalid"
-            @click="handleSubmit"
-          >
-            Salvar
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
+    <GameEventFormDialog
+      v-model="formDialog"
+      :game-id="game.id"
+      :teams="teams"
+      :event="eventToEdit"
+      @saved="onSaved"
+    />
     <ConfirmDialog
-      v-model="confirmDialog"
+      v-model="confirmOpen"
       title="Excluir evento"
-      message="Tem certeza que deseja excluir este evento?"
+      message="Tem certeza que deseja excluir este evento da súmula?"
       @confirm="handleDelete"
     />
   </v-card>
 </template>
+
+<style scoped>
+.minute {
+  width: 36px;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+</style>

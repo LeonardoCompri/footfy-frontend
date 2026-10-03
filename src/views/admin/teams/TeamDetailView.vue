@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useCrud } from '@/composables/useCrud'
-import { useQueryTab } from '@/composables/useQueryTab'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
@@ -18,6 +17,7 @@ import type {
   TechnicalCommitteeMemberPayload,
 } from '@/types/technicalCommitteeMember'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import QueryTabs from '@/components/common/QueryTabs.vue'
 import StatTiles from '@/components/common/StatTiles.vue'
 import PlayerFormDialog from '@/components/players/PlayerFormDialog.vue'
 import TeamFormDialog from '@/components/teams/TeamFormDialog.vue'
@@ -31,7 +31,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 const snackbar = useSnackbar()
-const { tab } = useQueryTab('elenco')
 const { xs } = useDisplay()
 
 const teamCrud = useCrud<Team, TeamPayload>(teamsService)
@@ -74,6 +73,12 @@ const memberHeaders = computed(() => [
   ...(xs.value ? [] : [{ title: 'Função', key: 'role' }]),
   { title: '', key: 'actions', sortable: false, align: 'end' as const },
 ])
+
+const tabs = [
+  { value: 'elenco', title: 'Elenco' },
+  { value: 'comissao', title: 'Comissão Técnica' },
+  { value: 'estatisticas', title: 'Estatísticas' },
+]
 
 const tiles = computed(() => [
   { label: 'Jogadores', value: players.value.length },
@@ -242,14 +247,8 @@ onMounted(async () => {
 
       <StatTiles :items="tiles" class="mb-4" />
 
-      <v-tabs v-model="tab" color="primary" class="mb-4" show-arrows>
-        <v-tab value="elenco" data-test="tab-elenco">Elenco</v-tab>
-        <v-tab value="comissao" data-test="tab-comissao">Comissão Técnica</v-tab>
-        <v-tab value="estatisticas" data-test="tab-estatisticas">Estatísticas</v-tab>
-      </v-tabs>
-
-      <v-window v-model="tab">
-        <v-window-item value="elenco">
+      <QueryTabs :tabs="tabs">
+        <template #elenco>
           <v-card>
             <v-card-title class="d-flex align-center">
               <span class="text-subtitle-1 font-weight-bold">Elenco</span>
@@ -307,9 +306,9 @@ onMounted(async () => {
               </template>
             </v-data-table>
           </v-card>
-        </v-window-item>
+        </template>
 
-        <v-window-item value="comissao">
+        <template #comissao>
           <v-card>
             <v-card-title class="d-flex align-center">
               <span class="text-subtitle-1 font-weight-bold">Comissão técnica</span>
@@ -364,12 +363,12 @@ onMounted(async () => {
               </template>
             </v-data-table>
           </v-card>
-        </v-window-item>
+        </template>
 
-        <v-window-item value="estatisticas">
+        <template #estatisticas>
           <TeamStatsPanel :team-id="team.id" :league-id="leagueId" :players="players" />
-        </v-window-item>
-      </v-window>
+        </template>
+      </QueryTabs>
 
       <TeamFormDialog v-model="teamDialog" :league-id="leagueId" :team="team" @saved="loadTeam" />
       <TeamLeaguesDialog v-model="leaguesDialog" :team="team" />

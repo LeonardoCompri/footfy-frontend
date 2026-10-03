@@ -29,6 +29,7 @@ interface NavItem {
   icon: string
   routeName: string
   roles?: string[]
+  permission?: string
   // Telas internas (sem rota aninhada) que mantêm o item destacado no menu.
   activeOn?: string[]
 }
@@ -43,7 +44,13 @@ const navItems: NavItem[] = [
     activeOn: ['admin-teams-detail', 'admin-players-detail', 'admin-technical-committee-members-detail'],
   },
   { title: 'Estádios', icon: 'mdi-stadium', routeName: 'admin-stadiums-list' },
-  { title: 'Partidas', icon: 'mdi-soccer-field', routeName: 'admin-games-list' },
+  {
+    title: 'Partidas',
+    icon: 'mdi-soccer-field',
+    routeName: 'admin-games-list',
+    permission: 'game:read',
+    activeOn: ['admin-games-detail'],
+  },
   { title: 'Tabela', icon: 'mdi-format-list-numbered', routeName: 'admin-league-table' },
   { title: 'Estatísticas', icon: 'mdi-chart-bar', routeName: 'admin-league-statistics' },
   {
@@ -61,6 +68,7 @@ const inLeague = computed(() => !!leagueId.value && !!leagueContext.activeLeague
 const visibleNavItems = computed(() =>
   navItems
     .filter((item) => !item.roles || item.roles.some((role) => authStore.hasRole(role)))
+    .filter((item) => !item.permission || authStore.hasPermission(item.permission))
     .map((item) => ({ ...item, to: { name: item.routeName, params: { leagueId: leagueId.value } } })),
 )
 

@@ -5,9 +5,9 @@ import DashboardView from '@/views/admin/DashboardView.vue'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { leaguesService } from '@/services/api/leagues.service'
 import { gameEventsService } from '@/services/api/gameEvents.service'
-import type { GameEvent } from '@/types/gameEvent'
 import type { LeagueDashboard } from '@/types/dashboard'
-import { championshipA, createTestRouter, createTestVuetify, makeLeague } from '@/test/utils'
+import { championshipA, createTestRouter, createTestVuetify, makeLeague, makeUser } from '@/test/utils'
+import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/leagues.service', () => ({
@@ -41,24 +41,13 @@ const dashboardData: LeagueDashboard = {
     { type: 'phase', round: null, phase: 'Final', phase_order: 1, goals: 2 },
   ],
   results_split: { home_wins: 4, draws: 2, away_wins: 1 },
+  cards_split: { yellow: 2, red: 1 },
 }
 
-function cardEvent(id: number, leagueId: number, type: GameEvent['type']): GameEvent {
-  return {
-    id,
-    game_id: 1,
-    team_id: 1,
-    player_id: 1,
-    related_player_id: null,
-    league_id: leagueId,
-    type,
-    minute: 10,
-    created_at: '',
-    updated_at: '',
-  }
-}
-
-async function mountDashboard() {
+async function mountDashboard(permissions: string[] = ['game:read']) {
+  const auth = useAuthStore()
+  auth.token = 'token'
+  auth.user = makeUser('admin', permissions)
   const context = useLeagueContextStore()
   context.leagues = [makeLeague(1, championshipA, { name: 'Série A', organizer: 'CBF' })]
   context.loaded = true
@@ -76,13 +65,6 @@ describe('DashboardView', () => {
     localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(leaguesService.dashboard).mockReset().mockResolvedValue(dashboardData)
-    vi.mocked(gameEventsService.list)
-      .mockReset()
-      .mockImplementation(async (params) =>
-        params?.type === 'yellow_card'
-          ? [cardEvent(1, 1, 'yellow_card'), cardEvent(2, 1, 'yellow_card'), cardEvent(3, 9, 'yellow_card')]
-          : [cardEvent(4, 1, 'red_card'), cardEvent(5, 9, 'red_card'), cardEvent(6, 9, 'red_card')],
-      )
   })
 
   it('busca o Dashboard da liga ativa e mostra cabeçalho e contadores', async () => {
@@ -125,12 +107,13 @@ describe('DashboardView', () => {
     expect(split.text()).toContain('Empate2(29%)')
     expect(split.text()).toContain('Visitante1(14%)')
 
-    // Cartões: só os eventos da liga ativa contam (league_id 9 é de outra liga).
+    // Cartões: total da liga vindo de `cards_split` do próprio Dashboard (sem /game-events).
     const cardRows = wrapper.findAll('[data-test="cards-row"]').map((r) => r.text())
     expect(cardRows[0]).toContain('Amarelos')
     expect(cardRows[0]).toMatch(/2$/)
     expect(cardRows[1]).toContain('Vermelhos')
     expect(cardRows[1]).toMatch(/1$/)
+    expect(gameEventsService.list).not.toHaveBeenCalled()
   })
 
   it('lista últimos resultados e o estado vazio das próximas partidas', async () => {
@@ -146,8 +129,28 @@ describe('DashboardView', () => {
   it('reaproveita o último Dashboard da liga e revalida em segundo plano', async () => {
     await mountDashboard()
     const cached = useLeagueContextStore().dashboardCache.get(1)
-    expect(cached?.dashboard.counters.teams).toBe(6)
-    expect(cached?.cards).toEqual({ yellow: 2, red: 1 })
+    expect(cached?.counters.teams).toBe(6)
+    expect(cached?.cards_split).toEqual({ yellow: 2, red: 1 })
+  })
+
+  it('sem cards_split na resposta mostra o aviso no lugar do gráfico de cartões', async () => {
+    const withoutCards: Partial<LeagueDashboard> = { ...dashboardData }
+    delete withoutCards.cards_split
+    vi.mocked(leaguesService.dashboard).mockResolvedValueOnce(withoutCards as LeagueDashboard)
+
+    const wrapper = await mountDashboard()
+
+    expect(wrapper.find('[data-test="cards-chart"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Não foi possível carregar os cartões desta liga.')
+  })
+
+  it('partidas da mini-lista só viram link com game:read', async () => {
+    let wrapper = await mountDashboard()
+    expect(wrapper.find('[data-test="mini-game"]').attributes('href')).toBe('/admin/liga/1/partidas/10')
+
+    setActivePinia(createPinia())
+    wrapper = await mountDashboard([])
+    expect(wrapper.find('[data-test="mini-game"]').attributes('href')).toBeUndefined()
   })
 
   it('mostra a mensagem do backend quando o Dashboard falha', async () => {
