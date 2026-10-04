@@ -30,14 +30,19 @@ const { xs } = useDisplay()
         <v-spacer />
         <v-btn icon="mdi-close" variant="text" size="small" @click="emit('update:modelValue', false)" />
       </v-card-title>
-      <v-form @submit.prevent="emit('submit')">
-        <v-card-text>
+      <!-- O v-form fica entre o v-card e o v-card-text, o que quebra o layout `scrollable` do
+           v-dialog: por isso o form é flex column e só o conteúdo rola. Assim as ações ficam
+           fixas no rodapé (no fullscreen do mobile, no fim da tela) e não se movem quando um
+           campo muda de altura no blur — senão o primeiro toque em Salvar se perde. -->
+      <v-form class="form-dialog__form" @submit.prevent="emit('submit')">
+        <v-card-text class="form-dialog__content" data-test="form-content">
           <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4" data-test="form-error">
             {{ errorMessage }}
           </v-alert>
           <slot />
         </v-card-text>
-        <v-card-actions>
+        <v-divider />
+        <v-card-actions data-test="form-actions">
           <v-spacer />
           <v-btn variant="text" @click="emit('update:modelValue', false)">Cancelar</v-btn>
           <v-btn type="submit" color="primary" variant="flat" :loading="loading" data-test="form-submit">
@@ -48,3 +53,17 @@ const { xs } = useDisplay()
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.form-dialog__form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.form-dialog__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>
