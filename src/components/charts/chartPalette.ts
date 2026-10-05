@@ -1,8 +1,8 @@
 import { computed } from 'vue'
-import { useAppTheme } from '@/composables/useAppTheme'
+import { useTheme } from 'vuetify'
 
 /**
- * Paleta dos gráficos do Dashboard (paleta de referência da skill de dataviz), validada
+ * Paleta dos gráficos (Dashboard e Estatísticas, admin e público — paleta de referência da skill de dataviz), validada
  * com `validate_palette.js` contra as superfícies do tema (#FFFFFF claro / #1B1D1B escuro):
  * - série única e resultados: slots categóricos 1-3 (azul, laranja, aqua) — passam
  *   todos os pares (CVD ΔE >= 9.2, visão normal >= 26.5) nos dois modos;
@@ -29,7 +29,8 @@ const DARK: typeof LIGHT = {
   baseline: '#383835',
 }
 
+// Segue o tema efetivo do VApp mais próximo (admin alterna claro/escuro; o público é claro).
 export function useChartPalette() {
-  const { isDark } = useAppTheme()
-  return computed(() => (isDark.value ? DARK : LIGHT))
+  const theme = useTheme()
+  return computed(() => (theme.current.value.dark ? DARK : LIGHT))
 }

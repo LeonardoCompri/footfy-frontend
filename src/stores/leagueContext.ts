@@ -2,14 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { leaguesService } from '@/services/api/leagues.service'
 import type { Championship, League } from '@/types/championship'
-import type { CardsSplit, LeagueDashboard } from '@/types/dashboard'
+import type { LeagueDashboard } from '@/types/dashboard'
 
 const STORAGE_KEY = 'footfy_active_league'
-
-export interface DashboardSnapshot {
-  dashboard: LeagueDashboard
-  cards: CardsSplit | null
-}
 
 export interface ChampionshipWithLeagues {
   championship: Championship
@@ -38,7 +33,7 @@ export const useLeagueContextStore = defineStore('leagueContext', () => {
   let pending: Promise<void> | null = null
   // Último Dashboard carregado por liga: ao voltar para uma liga já vista, a tela pinta
   // na hora e revalida em segundo plano, em vez de piscar vazia a cada troca de contexto.
-  const dashboardCache = new Map<number, DashboardSnapshot>()
+  const dashboardCache = new Map<number, LeagueDashboard>()
 
   const activeLeague = computed(
     () => leagues.value.find((league) => league.id === activeLeagueId.value) ?? null,

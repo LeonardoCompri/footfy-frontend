@@ -16,12 +16,17 @@ export interface UserPayload {
   email: string | null
   document: string
   password?: string
-  role: UserRole
+  // Só master altera papel; para admin o backend ignora o campo (UserService::update).
+  role?: UserRole
 }
 
-export const USER_ROLE_OPTIONS: { value: UserRole; title: string }[] = [
-  { value: 'master', title: 'Master' },
-  { value: 'admin', title: 'Admin' },
-  { value: 'coach', title: 'Técnico' },
-  { value: 'player', title: 'Jogador' },
+export const USER_ROLE_OPTIONS: { value: UserRole; title: string; color: string }[] = [
+  { value: 'master', title: 'Master', color: 'secondary' },
+  { value: 'admin', title: 'Admin', color: 'primary' },
+  { value: 'coach', title: 'Técnico', color: 'info' },
+  { value: 'player', title: 'Jogador', color: 'success' },
 ]
+
+export function userRoleOption(role: string | undefined) {
+  return USER_ROLE_OPTIONS.find((option) => option.value === role) ?? { value: role, title: role ?? '—', color: 'default' }
+}

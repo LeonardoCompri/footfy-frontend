@@ -1,19 +1,14 @@
 import http from './http'
-import { createResourceService } from './resource'
+import { createResourceService, unwrap } from './resource'
 import type { User, UserPayload } from '@/types/user'
 
-interface Envelope<T> {
-  data: T
-}
+const baseUrl = '/users'
 
 export const usersService = {
-  ...createResourceService<User, UserPayload>('/users'),
-  syncLeagues: (id: number | string, leagueIds: number[]) =>
-    http
-      .post<Envelope<User>>(`/users/${id}/leagues`, { league_ids: leagueIds })
-      .then((res) => res.data.data),
-  removeLeague: (id: number | string, leagueId: number | string) =>
-    http
-      .delete<Envelope<User>>(`/users/${id}/leagues/${leagueId}`)
-      .then((res) => res.data.data),
+  ...createResourceService<User, UserPayload>(baseUrl),
+  // O backend usa syncWithoutDetaching: só acrescenta vínculos, nunca remove os existentes.
+  attachLeagues: (id: number | string, leagueIds: number[]) =>
+    unwrap<User>(http.post(`${baseUrl}/${id}/leagues`, { league_ids: leagueIds })),
+  detachLeague: (id: number | string, leagueId: number | string) =>
+    unwrap<User>(http.delete(`${baseUrl}/${id}/leagues/${leagueId}`)),
 }

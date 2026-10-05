@@ -2,19 +2,27 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePublicItem } from '@/composables/usePublicItem'
-import { useQueryTab } from '@/composables/useQueryTab'
 import { publicLeaguesService } from '@/services/api/publicLeagues.service'
 import { GAME_STATUS_OPTIONS } from '@/types/game'
 import type { Game } from '@/types/game'
 import type { League } from '@/types/championship'
+import QueryTabs from '@/components/common/QueryTabs.vue'
 import StatTiles from '@/components/common/StatTiles.vue'
 import TeamCard from '@/components/teams/TeamCard.vue'
+import LeagueStatisticsPanel from '@/components/leagues/LeagueStatisticsPanel.vue'
+import LeagueTablePanel from '@/components/leagues/LeagueTablePanel.vue'
 
 const props = defineProps<{ id: string }>()
 
 const router = useRouter()
 const { item: league, loading, errorMessage, fetchOne } = usePublicItem<League>(publicLeaguesService)
-const { tab } = useQueryTab('times')
+const tabs = [
+  { value: 'times', title: 'Times' },
+  { value: 'partidas', title: 'Partidas' },
+  { value: 'estadios', title: 'Estádios' },
+  { value: 'tabela', title: 'Tabela' },
+  { value: 'estatisticas', title: 'Estatísticas' },
+]
 
 const teams = computed(() => league.value?.teams ?? [])
 const games = computed(() =>
@@ -81,16 +89,8 @@ onMounted(() => fetchOne(props.id))
 
       <StatTiles :items="statTiles" class="mb-6" />
 
-      <v-tabs v-model="tab" color="primary" class="mb-4">
-        <v-tab value="times">Times</v-tab>
-        <v-tab value="partidas">Partidas</v-tab>
-        <v-tab value="estadios">Estádios</v-tab>
-        <v-tab value="tabela">Tabela</v-tab>
-        <v-tab value="estatisticas">Estatísticas</v-tab>
-      </v-tabs>
-
-      <v-window v-model="tab">
-        <v-window-item value="times">
+      <QueryTabs :tabs="tabs">
+        <template #times>
           <v-alert v-if="teams.length === 0" type="info" variant="tonal">
             Nenhum time cadastrado para esta liga ainda.
           </v-alert>
@@ -99,9 +99,9 @@ onMounted(() => fetchOne(props.id))
               <TeamCard :team="team" :league-id="league.id" />
             </v-col>
           </v-row>
-        </v-window-item>
+        </template>
 
-        <v-window-item value="partidas">
+        <template #partidas>
           <v-alert v-if="games.length === 0" type="info" variant="tonal">
             Nenhuma partida cadastrada para esta liga ainda.
           </v-alert>
@@ -127,9 +127,9 @@ onMounted(() => fetchOne(props.id))
               </tr>
             </tbody>
           </v-table>
-        </v-window-item>
+        </template>
 
-        <v-window-item value="estadios">
+        <template #estadios>
           <v-alert v-if="stadiums.length === 0" type="info" variant="tonal">
             Nenhum estádio cadastrado para esta liga ainda.
           </v-alert>
@@ -144,18 +144,17 @@ onMounted(() => fetchOne(props.id))
               </v-card>
             </v-col>
           </v-row>
-        </v-window-item>
+        </template>
 
-        <!-- TODO(FOOT-0026): depende da rota pública de tabela de classificação da liga. -->
-        <v-window-item value="tabela">
-          <v-alert type="info" variant="tonal">Tabela de classificação em breve.</v-alert>
-        </v-window-item>
+        <!-- Mesmos componentes da Tabela/Estatísticas do admin, consumindo as rotas públicas. -->
+        <template #tabela>
+          <LeagueTablePanel :format="league.format" :load="() => publicLeaguesService.table(props.id)" />
+        </template>
 
-        <!-- TODO(FOOT-0027): depende da rota pública de estatísticas da liga. -->
-        <v-window-item value="estatisticas">
-          <v-alert type="info" variant="tonal">Estatísticas em breve.</v-alert>
-        </v-window-item>
-      </v-window>
+        <template #estatisticas>
+          <LeagueStatisticsPanel :load="() => publicLeaguesService.statistics(props.id)" />
+        </template>
+      </QueryTabs>
     </template>
   </v-container>
 </template>

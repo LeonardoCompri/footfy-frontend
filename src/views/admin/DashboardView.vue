@@ -2,17 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import type { AxiosError } from 'axios'
 import { useLeagueContextStore } from '@/stores/leagueContext'
-import type { DashboardSnapshot } from '@/stores/leagueContext'
 import { leaguesService } from '@/services/api/leagues.service'
-import { gameEventsService } from '@/services/api/gameEvents.service'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { ApiErrorResponse } from '@/types/api'
-import type { CardsSplit } from '@/types/dashboard'
+import type { LeagueDashboard } from '@/types/dashboard'
 import StatCard from '@/components/common/StatCard.vue'
-import GoalsBarChart from '@/components/dashboard/GoalsBarChart.vue'
-import ResultsSplitBar from '@/components/dashboard/ResultsSplitBar.vue'
-import CardsBarChart from '@/components/dashboard/CardsBarChart.vue'
-import GameMiniList from '@/components/dashboard/GameMiniList.vue'
+import GoalsBarChart from '@/components/charts/GoalsBarChart.vue'
+import ResultsSplitBar from '@/components/charts/ResultsSplitBar.vue'
+import CardsBarChart from '@/components/charts/CardsBarChart.vue'
+import GameMiniList from '@/components/games/GameMiniList.vue'
 
 const leagueContext = useLeagueContextStore()
 
@@ -20,11 +18,9 @@ const leagueContext = useLeagueContextStore()
 const league = computed(() => leagueContext.activeLeague)
 const leagueId = leagueContext.activeLeagueId as number
 
-const snapshot = ref<DashboardSnapshot | null>(leagueContext.dashboardCache.get(leagueId) ?? null)
+const dashboard = ref<LeagueDashboard | null>(leagueContext.dashboardCache.get(leagueId) ?? null)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
-
-const dashboard = computed(() => snapshot.value?.dashboard ?? null)
 
 const counters = computed(() => {
   const c = dashboard.value?.counters
@@ -51,42 +47,18 @@ const leagueFacts = computed(() =>
   ].filter(Boolean),
 )
 
-/**
- * Total de cartões da liga. O endpoint de Dashboard não traz esse total, e `top_cards`
- * das estatísticas é limitado ao top 10 de jogadores — então contamos os eventos de
- * cartão (GET /game-events?type=, já escopado às ligas do usuário) desta liga.
- */
-async function fetchCards(): Promise<CardsSplit> {
-  const [yellow, red] = await Promise.all([
-    gameEventsService.list({ type: 'yellow_card' }),
-    gameEventsService.list({ type: 'red_card' }),
-  ])
-  return {
-    yellow: yellow.filter((event) => event.league_id === leagueId).length,
-    red: red.filter((event) => event.league_id === leagueId).length,
-  }
-}
-
 async function load() {
   loading.value = true
   errorMessage.value = null
-  const [dashboardResult, cardsResult] = await Promise.allSettled([
-    leaguesService.dashboard(leagueId),
-    fetchCards(),
-  ])
-  loading.value = false
-
-  if (dashboardResult.status === 'rejected') {
-    const err = dashboardResult.reason as AxiosError<ApiErrorResponse>
-    errorMessage.value = err.response?.data?.message ?? 'Não foi possível carregar o Dashboard.'
-    return
+  try {
+    dashboard.value = await leaguesService.dashboard(leagueId)
+    leagueContext.dashboardCache.set(leagueId, dashboard.value)
+  } catch (err) {
+    const axiosErr = err as AxiosError<ApiErrorResponse>
+    errorMessage.value = axiosErr.response?.data?.message ?? 'Não foi possível carregar o Dashboard.'
+  } finally {
+    loading.value = false
   }
-
-  snapshot.value = {
-    dashboard: dashboardResult.value,
-    cards: cardsResult.status === 'fulfilled' ? cardsResult.value : null,
-  }
-  leagueContext.dashboardCache.set(leagueId, snapshot.value)
 }
 
 onMounted(load)
@@ -148,7 +120,7 @@ onMounted(load)
           <v-card>
             <v-card-title class="text-subtitle-1 font-weight-bold">Cartões</v-card-title>
             <v-card-text>
-              <CardsBarChart v-if="snapshot?.cards" :cards="snapshot.cards" />
+              <CardsBarChart v-if="dashboard.cards_split" :cards="dashboard.cards_split" />
               <div v-else class="text-medium-emphasis text-body-2">
                 Não foi possível carregar os cartões desta liga.
               </div>

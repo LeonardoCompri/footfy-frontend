@@ -151,35 +151,21 @@ export const adminRoutes: RouteRecordRaw[] = [
             path: 'partidas',
             name: 'admin-games-list',
             component: () => import('@/views/admin/games/GameAdminListView.vue'),
+            meta: { permission: 'game:read' },
           },
           {
-            path: 'partidas/novo',
-            name: 'admin-games-create',
-            component: () => import('@/views/admin/games/GameFormView.vue'),
-          },
-          {
-            path: 'partidas/:id/editar',
-            name: 'admin-games-edit',
-            component: () => import('@/views/admin/games/GameFormView.vue'),
+            path: 'partidas/:id',
+            name: 'admin-games-detail',
+            component: () => import('@/views/admin/games/GameDetailView.vue'),
             props: idProp,
+            meta: { permission: 'game:read' },
           },
           {
+            // Não existe permissão `user:*` no PermissionSeeder: o backend libera
+            // leitura/edição para master|admin e criação/exclusão/ligas só para master.
             path: 'usuarios',
             name: 'admin-users-list',
             component: () => import('@/views/admin/users/UserAdminListView.vue'),
-            meta: { roles: ['master', 'admin'] },
-          },
-          {
-            path: 'usuarios/novo',
-            name: 'admin-users-create',
-            component: () => import('@/views/admin/users/UserFormView.vue'),
-            meta: { roles: ['master'] },
-          },
-          {
-            path: 'usuarios/:id/editar',
-            name: 'admin-users-edit',
-            component: () => import('@/views/admin/users/UserFormView.vue'),
-            props: idProp,
             meta: { roles: ['master', 'admin'] },
           },
           {
