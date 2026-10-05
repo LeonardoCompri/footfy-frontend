@@ -1,22 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
+import { usePublicList } from '@/composables/usePublicList'
 import { publicChampionshipsService } from '@/services/api/publicChampionships.service'
 import type { Championship } from '@/types/championship'
 import ChampionshipCard from '@/components/championships/ChampionshipCard.vue'
 
-const items = ref<Championship[]>([])
-const loading = ref(false)
-
-async function fetchAll() {
-  loading.value = true
-  try {
-    items.value = await publicChampionshipsService.list()
-  } catch {
-    items.value = []
-  } finally {
-    loading.value = false
-  }
-}
+// errorMessage é ignorado de propósito: na Home, falha da API cai no estado vazio, sem alerta.
+const { items, loading, fetchAll } = usePublicList<Championship>(publicChampionshipsService)
 
 const highlights = [
   {
