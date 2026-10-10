@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import CpfTextField from '@/components/common/CpfTextField.vue'
 import { cpfDigits } from '@/components/common/format'
+import type { SubmitEventPromise } from 'vuetify'
 import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
 
@@ -22,7 +23,10 @@ const requiredRule = (value: string) => !!value || 'Campo obrigatório.'
 const cpfLengthRule = (value: string) =>
   cpfDigits(value).length === 11 || 'O CPF deve ter 11 dígitos.'
 
-async function handleSubmit() {
+async function handleSubmit(event: SubmitEventPromise) {
+  // Só chama a API com o formulário válido: as rules já mostram o erro no campo.
+  const { valid } = await event
+  if (!valid) return
   loading.value = true
   errorMessage.value = null
   try {
