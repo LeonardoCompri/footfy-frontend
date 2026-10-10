@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import CpfTextField from '@/components/common/CpfTextField.vue'
+import { cpfDigits } from '@/components/common/format'
 import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
 
@@ -16,6 +18,9 @@ const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
 const requiredRule = (value: string) => !!value || 'Campo obrigatório.'
+// Rules do Vuetify recebem o texto exibido (com máscara), por isso conta só os dígitos.
+const cpfLengthRule = (value: string) =>
+  cpfDigits(value).length === 11 || 'O CPF deve ter 11 dígitos.'
 
 async function handleSubmit() {
   loading.value = true
@@ -49,11 +54,9 @@ async function handleSubmit() {
               {{ errorMessage }}
             </v-alert>
             <v-form @submit.prevent="handleSubmit">
-              <v-text-field
+              <CpfTextField
                 v-model="document"
-                label="CPF"
-                placeholder="000.000.000-00"
-                :rules="[requiredRule]"
+                :rules="[requiredRule, cpfLengthRule]"
                 class="mb-2"
               />
               <v-text-field
