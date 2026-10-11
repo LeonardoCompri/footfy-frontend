@@ -150,6 +150,22 @@ describe('UserAdminListView', () => {
     expect(rowOf(wrapper, 'Novo').text()).toContain('Série A')
   })
 
+  it('dialog de usuário não salva sem CPF ou com CPF incompleto', async () => {
+    const wrapper = await mountList('master')
+
+    await wrapper.find('[data-test="user-create"]').trigger('click')
+    await flushPromises()
+    await setInput('[data-test="user-name"]', 'Novo')
+    await setInput('[data-test="user-password"]', 'segredo1')
+    await submit()
+    expect(document.body.textContent).toContain('Campo obrigatório.')
+
+    await setInput('[data-test="user-document"]', '123.456.78')
+    await submit()
+    expect(document.body.textContent).toContain('O CPF deve ter 11 dígitos.')
+    expect(usersService.create).not.toHaveBeenCalled()
+  })
+
   it('dialog de ligas vincula e desvincula o usuário', async () => {
     vi.mocked(usersService.attachLeagues).mockResolvedValue({
       ...admin,

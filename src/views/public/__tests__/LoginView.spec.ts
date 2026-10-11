@@ -66,4 +66,15 @@ describe('LoginView', () => {
     expect(authService.login).toHaveBeenCalledWith({ document: '12345678901', password: '123456' })
     expect(router.currentRoute.value.name).toBe('admin-select-championship')
   })
+
+  it('submit repetido enquanto o login está em andamento chama a API uma vez só', async () => {
+    vi.mocked(authService.login).mockReturnValue(new Promise(() => {}))
+    const { wrapper } = await mountLogin()
+
+    await fill(wrapper, '123.456.789-01', '123456')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(authService.login).toHaveBeenCalledTimes(1)
+  })
 })
