@@ -103,7 +103,7 @@ async function handleSubmit() {
     <v-text-field v-model="form.name" label="Nome" :error-messages="fieldErrors.name" data-test="user-name" />
     <v-row dense>
       <v-col cols="12" sm="6">
-        <CpfTextField v-model="form.document" :error-messages="fieldErrors.document" data-test="user-document" />
+        <CpfTextField v-model="form.document" required :error-messages="fieldErrors.document" data-test="user-document" />
       </v-col>
       <v-col cols="12" sm="6">
         <v-text-field v-model="form.email" label="E-mail" type="email" :error-messages="fieldErrors.email" />
