@@ -78,6 +78,39 @@ describe('PlayerFormDialog', () => {
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
   })
 
+  it('envia o CPF só com dígitos, mesmo digitado com máscara', async () => {
+    vi.mocked(playersService.create).mockResolvedValue(makePlayer(30, 'Novo Jogador', { team_id: 5 }))
+    await mountDialog()
+
+    await setInput('[data-test="player-name"]', 'Novo Jogador')
+    await setInput('[data-test="player-document"]', '123.456.789-01')
+    expect((document.querySelector('[data-test="player-document"] input') as HTMLInputElement).value).toBe(
+      '123.456.789-01',
+    )
+    await submit()
+
+    expect(playersService.create).toHaveBeenCalledWith(expect.objectContaining({ document: '12345678901' }))
+  })
+
+  it('não salva com CPF incompleto (o CPF é opcional, mas se informado precisa de 11 dígitos)', async () => {
+    await mountDialog()
+
+    await setInput('[data-test="player-name"]', 'Novo Jogador')
+    await setInput('[data-test="player-document"]', '123.456')
+    await submit()
+
+    expect(playersService.create).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('O CPF deve ter 11 dígitos.')
+  })
+
+  it('edição exibe o CPF cadastrado formatado', async () => {
+    await mountDialog(makePlayer(1, 'Antigo', { document: '12345678901' }))
+
+    expect((document.querySelector('[data-test="player-document"] input') as HTMLInputElement).value).toBe(
+      '123.456.789-01',
+    )
+  })
+
   it('edição mantém posição legada (texto livre) selecionável', async () => {
     const wrapper = await mountDialog(makePlayer(1, 'Antigo', { position: 'Volante' }))
 

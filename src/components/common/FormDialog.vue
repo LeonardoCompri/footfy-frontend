@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDisplay } from 'vuetify'
+import type { SubmitEventPromise } from 'vuetify'
 
 defineProps<{
   modelValue: boolean
@@ -14,6 +15,12 @@ const emit = defineEmits<{
 }>()
 
 const { xs } = useDisplay()
+
+// Só emite submit com o formulário válido: as rules dos campos já mostram o erro.
+async function handleSubmit(event: SubmitEventPromise) {
+  const { valid } = await event
+  if (valid) emit('submit')
+}
 </script>
 
 <template>
@@ -34,7 +41,7 @@ const { xs } = useDisplay()
            v-dialog: por isso o form é flex column e só o conteúdo rola. Assim as ações ficam
            fixas no rodapé (no fullscreen do mobile, no fim da tela) e não se movem quando um
            campo muda de altura no blur — senão o primeiro toque em Salvar se perde. -->
-      <v-form class="form-dialog__form" @submit.prevent="emit('submit')">
+      <v-form class="form-dialog__form" @submit.prevent="handleSubmit">
         <v-card-text class="form-dialog__content" data-test="form-content">
           <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4" data-test="form-error">
             {{ errorMessage }}

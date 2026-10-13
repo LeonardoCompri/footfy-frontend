@@ -6,6 +6,7 @@ import { playersService } from '@/services/api/players.service'
 import type { SelectOption } from '@/types/api'
 import type { Player, PlayerPayload } from '@/types/player'
 import FormDialog from '@/components/common/FormDialog.vue'
+import CpfTextField from '@/components/common/CpfTextField.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -64,7 +65,12 @@ function toNullableNumber(value: unknown): number | null {
 
 async function handleSubmit() {
   // O time nunca é perguntado: vem do contexto da tela (time aberto).
-  const payload = { ...form, team_id: props.teamId, number: toNullableNumber(form.number) }
+  const payload = {
+    ...form,
+    team_id: props.teamId,
+    number: toNullableNumber(form.number),
+    document: form.document || null,
+  }
   const result = await save(payload, props.player?.id)
   if (result) {
     snackbar.success(isEditing.value ? 'Jogador atualizado com sucesso.' : 'Jogador criado com sucesso.')
@@ -123,12 +129,7 @@ onMounted(async () => {
         />
       </v-col>
       <v-col cols="12" sm="6">
-        <v-text-field
-          v-model="form.document"
-          label="CPF"
-          maxlength="11"
-          :error-messages="fieldErrors.document"
-        />
+        <CpfTextField v-model="form.document" :error-messages="fieldErrors.document" data-test="player-document" />
       </v-col>
     </v-row>
   </FormDialog>

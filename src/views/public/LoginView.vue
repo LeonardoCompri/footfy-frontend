@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import CpfTextField from '@/components/common/CpfTextField.vue'
+import type { SubmitEventPromise } from 'vuetify'
 import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
 
@@ -17,7 +19,11 @@ const errorMessage = ref<string | null>(null)
 
 const requiredRule = (value: string) => !!value || 'Campo obrigatório.'
 
-async function handleSubmit() {
+async function handleSubmit(event: SubmitEventPromise) {
+  // Só chama a API com o formulário válido: as rules já mostram o erro no campo.
+  const { valid } = await event
+  // Enter repetido não dispara um segundo login enquanto o primeiro está em andamento.
+  if (!valid || loading.value) return
   loading.value = true
   errorMessage.value = null
   try {
@@ -49,13 +55,7 @@ async function handleSubmit() {
               {{ errorMessage }}
             </v-alert>
             <v-form @submit.prevent="handleSubmit">
-              <v-text-field
-                v-model="document"
-                label="CPF"
-                placeholder="000.000.000-00"
-                :rules="[requiredRule]"
-                class="mb-2"
-              />
+              <CpfTextField v-model="document" required class="mb-2" />
               <v-text-field
                 v-model="password"
                 label="Senha"

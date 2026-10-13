@@ -7,6 +7,7 @@ import { useLeagueContextStore } from '@/stores/leagueContext'
 import { USER_ROLE_OPTIONS } from '@/types/user'
 import type { User, UserPayload, UserRole } from '@/types/user'
 import FormDialog from '@/components/common/FormDialog.vue'
+import CpfTextField from '@/components/common/CpfTextField.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -63,7 +64,7 @@ watch(
 async function handleSubmit() {
   const payload: UserPayload = {
     name: form.name,
-    document: form.document.replace(/\D/g, ''),
+    document: form.document,
     email: form.email || null,
   }
   if (form.password) payload.password = form.password
@@ -102,15 +103,7 @@ async function handleSubmit() {
     <v-text-field v-model="form.name" label="Nome" :error-messages="fieldErrors.name" data-test="user-name" />
     <v-row dense>
       <v-col cols="12" sm="6">
-        <v-text-field
-          v-model="form.document"
-          label="CPF"
-          inputmode="numeric"
-          maxlength="14"
-          hint="Somente números"
-          :error-messages="fieldErrors.document"
-          data-test="user-document"
-        />
+        <CpfTextField v-model="form.document" required :error-messages="fieldErrors.document" data-test="user-document" />
       </v-col>
       <v-col cols="12" sm="6">
         <v-text-field v-model="form.email" label="E-mail" type="email" :error-messages="fieldErrors.email" />

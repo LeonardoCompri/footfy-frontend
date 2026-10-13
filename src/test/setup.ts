@@ -1,3 +1,12 @@
+// Date.now que nunca anda para trás: o Vue ignora um evento cujo timestamp (`_vts`, que o
+// test-utils grava com Date.now() + 1 no trigger) não é maior que o horário em que o listener foi
+// anexado. Quando o relógio de parede recua (ajustes de hora do WSL2/NTP chegam a voltar segundos),
+// cliques em componentes recém-montados eram descartados e os testes falhavam de forma intermitente.
+// Continua sendo o relógio de parede (igual a `new Date()`); só segura o valor enquanto ele recua.
+const wallClockNow = Date.now.bind(Date)
+let lastNow = 0
+Date.now = () => (lastNow = Math.max(lastNow, wallClockNow()))
+
 // Polyfills de APIs de browser que o jsdom não implementa e o Vuetify/tema usam.
 class ResizeObserverStub {
   observe() {}

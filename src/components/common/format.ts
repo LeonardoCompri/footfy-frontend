@@ -9,3 +9,16 @@ export function formatBirthDate(date: string | null, today = new Date()): string
   const formatted = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
   return `${formatted} (${age} anos)`
 }
+
+// CPF: o backend de usuários/jogadores exige só os 11 dígitos (size:11); a máscara é só visual.
+export function cpfDigits(value: string | null | undefined): string {
+  return (value ?? '').replace(/\D/g, '').slice(0, 11)
+}
+
+// Máscara progressiva: 123 → 123.4 → 123.456.7 → 123.456.789-0.
+export function formatCpf(value: string | null | undefined): string {
+  return cpfDigits(value)
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2')
+}
