@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { teamsService } from '@/services/api/teams.service'
@@ -22,6 +22,22 @@ const snackbar = useSnackbar()
 
 const form = reactive<TeamPayload>({ name: '', nickname: null, logo: null })
 const isEditing = computed(() => !!props.team)
+
+// Preview do escudo recém-selecionado; sem arquivo novo, mostra o escudo atual do time.
+const newLogoUrl = ref<string | null>(null)
+const logoPreview = computed(() => newLogoUrl.value ?? props.team?.logo ?? null)
+
+watch(
+  () => form.logo,
+  (file) => {
+    if (newLogoUrl.value) URL.revokeObjectURL(newLogoUrl.value)
+    newLogoUrl.value = file ? URL.createObjectURL(file) : null
+  },
+)
+
+onBeforeUnmount(() => {
+  if (newLogoUrl.value) URL.revokeObjectURL(newLogoUrl.value)
+})
 
 watch(
   () => props.modelValue,
@@ -70,7 +86,7 @@ async function handleSubmit() {
     <v-text-field v-model="form.name" label="Nome" :error-messages="fieldErrors.name" data-test="team-name" />
     <v-text-field v-model="form.nickname" label="Apelido" :error-messages="fieldErrors.nickname" />
     <div class="d-flex align-center ga-3">
-      <v-avatar v-if="team?.logo" :image="team.logo" size="48" rounded="lg" />
+      <v-avatar v-if="logoPreview" :image="logoPreview" size="48" rounded="lg" data-test="team-logo-preview" />
       <v-file-input
         v-model="form.logo"
         :label="team?.logo ? 'Trocar escudo' : 'Escudo'"
