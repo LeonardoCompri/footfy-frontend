@@ -125,6 +125,21 @@ describe('TeamDetailView', () => {
     ])
   })
 
+  it('mostra o escudo do time no cabeçalho', async () => {
+    vi.mocked(teamsService.get).mockResolvedValue({ ...team, logo: 'http://api/storage/teams/v.png' })
+    const { wrapper } = await mountDetail()
+
+    const avatar = wrapper.find('.v-card-text .v-avatar')
+    expect(avatar.findComponent({ name: 'VImg' }).props('src')).toBe('http://api/storage/teams/v.png')
+  })
+
+  it('sem escudo, mostra o ícone padrão no cabeçalho', async () => {
+    const { wrapper } = await mountDetail()
+
+    expect(wrapper.find('.v-card-text .v-avatar .mdi-shield').exists()).toBe(true)
+    expect(wrapper.find('.v-card-text .v-avatar .v-img').exists()).toBe(false)
+  })
+
   it('aba Comissão Técnica lista os membros do time', async () => {
     const { wrapper } = await mountDetail(ALL_WRITE, '?tab=comissao')
 

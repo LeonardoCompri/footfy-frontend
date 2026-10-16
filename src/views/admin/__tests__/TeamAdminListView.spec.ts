@@ -60,6 +60,19 @@ describe('TeamAdminListView', () => {
     expect(cards[0].attributes('href')).toBe('/admin/liga/7/times/2')
   })
 
+  it('mostra o escudo no card do time e, sem escudo, as iniciais', async () => {
+    vi.mocked(teamsService.list).mockResolvedValue([
+      makeTeam(1, 'Vitória FC', { nickname: 'Vitória', logo: 'http://api/storage/teams/v.png' }),
+      makeTeam(2, 'Atlético'),
+    ])
+    const { wrapper } = await mountList([])
+
+    const [withLogo, withoutLogo] = wrapper.findAll('[data-test="team-card"]')
+    expect(withLogo.findComponent({ name: 'VImg' }).props('src')).toBe('http://api/storage/teams/v.png')
+    expect(withoutLogo.findComponent({ name: 'VImg' }).exists()).toBe(false)
+    expect(withoutLogo.find('.v-avatar').text()).toBe('AT')
+  })
+
   it('mostra estado vazio quando a liga não tem times', async () => {
     vi.mocked(teamsService.list).mockResolvedValue([])
     const { wrapper } = await mountList([])

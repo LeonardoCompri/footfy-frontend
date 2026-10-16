@@ -80,8 +80,9 @@ onMounted(() => fetchAll({ league_id: leagueId }))
         <v-card :to="{ name: 'admin-teams-detail', params: { teamId: team.id } }" data-test="team-card">
           <v-card-item>
             <template #prepend>
-              <v-avatar size="48" rounded="lg" color="primary" variant="tonal" :image="team.logo ?? undefined">
-                <span v-if="!team.logo" class="font-weight-bold">{{ initials(team) }}</span>
+              <v-avatar size="48" rounded="lg" color="primary" variant="tonal">
+                <v-img v-if="team.logo" :src="team.logo" cover data-test="team-logo" />
+                <span v-else class="font-weight-bold">{{ initials(team) }}</span>
               </v-avatar>
             </template>
             <v-card-title>{{ team.name }}</v-card-title>
