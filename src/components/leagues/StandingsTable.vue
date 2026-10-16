@@ -35,8 +35,9 @@ function initials(row: StandingRow): string {
             <td class="text-center pos font-weight-bold">{{ index + 1 }}</td>
             <td>
               <div class="d-flex align-center ga-2 team-cell">
-                <v-avatar size="28" rounded="lg" color="primary" variant="tonal" :image="row.team.logo ?? undefined">
-                  <span v-if="!row.team.logo" class="text-caption font-weight-bold">{{ initials(row) }}</span>
+                <v-avatar size="28" rounded="lg" color="primary" variant="tonal">
+                  <v-img v-if="row.team.logo" :src="row.team.logo" cover data-test="team-logo" />
+                  <span v-else class="text-caption font-weight-bold">{{ initials(row) }}</span>
                 </v-avatar>
                 <span class="text-truncate">
                   <span class="d-sm-none">{{ row.team.nickname || row.team.name }}</span>
