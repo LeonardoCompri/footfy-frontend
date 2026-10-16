@@ -205,8 +205,9 @@ onMounted(async () => {
     <template v-else>
       <v-card class="mb-4">
         <v-card-text class="d-flex flex-wrap align-center ga-4">
-          <v-avatar size="64" rounded="lg" color="primary" variant="tonal" :image="team.logo ?? undefined">
-            <v-icon v-if="!team.logo" icon="mdi-shield" size="32" />
+          <v-avatar size="64" rounded="lg" color="primary" variant="tonal">
+            <v-img v-if="team.logo" :src="team.logo" cover data-test="team-logo" />
+            <v-icon v-else icon="mdi-shield" size="32" />
           </v-avatar>
           <div class="header-title">
             <h1 class="text-h5 text-sm-h4 font-weight-bold text-break" data-test="team-title">{{ team.name }}</h1>
