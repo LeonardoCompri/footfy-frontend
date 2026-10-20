@@ -16,7 +16,7 @@ export interface Team {
   // Só vêm preenchidos em GET /teams/{id} e GET /public/teams/{id} (eager loaded no backend).
   players?: Player[]
   technicalCommitteeMembers?: TechnicalCommitteeMember[]
-  // Só vem preenchido nas respostas de POST/DELETE /teams/{id}/leagues.
+  // Vem em GET /teams/{id}, no 201 de POST /teams e em POST/DELETE /teams/{id}/leagues.
   leagues?: TeamLeague[]
 }
 
@@ -25,4 +25,6 @@ export interface TeamPayload {
   name: string
   nickname: string | null
   logo: File | null
+  // Só usado no create (vínculo na mesma transação); o update nunca envia.
+  league_ids?: number[]
 }

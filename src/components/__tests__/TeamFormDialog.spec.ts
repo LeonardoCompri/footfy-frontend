@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import TeamFormDialog from '@/components/teams/TeamFormDialog.vue'
 import { teamsService } from '@/services/api/teams.service'
 import { createTestVuetify } from '@/test/utils'
-import { makeTeam } from '@/test/factories'
+import { apiError, makeTeam } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/teams.service', () => ({
@@ -88,10 +88,9 @@ describe('TeamFormDialog', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:novo-escudo')
   })
 
-  it('cria o time enviando o arquivo do escudo e vincula à liga atual', async () => {
-    const created = makeTeam(30, 'Novo Time')
+  it('cria o time enviando o escudo e a liga atual', async () => {
+    const created = makeTeam(30, 'Novo Time', { leagues: [{ id: 3, name: 'Liga 3' }] })
     vi.mocked(teamsService.create).mockResolvedValue(created)
-    vi.mocked(teamsService.attachLeagues).mockResolvedValue(created)
     const wrapper = await mountDialog()
     const file = new File(['x'], 'escudo.png', { type: 'image/png' })
 
@@ -99,9 +98,34 @@ describe('TeamFormDialog', () => {
     await selectLogo(wrapper, file)
     await submit()
 
-    expect(teamsService.create).toHaveBeenCalledWith({ name: 'Novo Time', nickname: null, logo: file })
-    expect(teamsService.attachLeagues).toHaveBeenCalledWith(30, [3])
+    expect(teamsService.create).toHaveBeenCalledWith({
+      name: 'Novo Time',
+      nickname: null,
+      logo: file,
+      league_ids: [3],
+    })
+    expect(teamsService.attachLeagues).not.toHaveBeenCalled()
     expect(wrapper.emitted('saved')?.[0]).toEqual([created])
+  })
+
+  it('mantém o dialog aberto com a mensagem do backend quando a liga não é acessível', async () => {
+    vi.mocked(teamsService.create).mockRejectedValue(
+      apiError(422, 'Você não tem acesso a uma ou mais ligas informadas.', {
+        'league_ids.0': ['Você não tem acesso a uma ou mais ligas informadas.'],
+      }),
+    )
+    const wrapper = await mountDialog()
+
+    await setName('Novo Time')
+    await submit()
+
+    expect(document.querySelector('[data-test="form-error"]')?.textContent).toContain(
+      'Você não tem acesso a uma ou mais ligas informadas.',
+    )
+    expect(document.querySelector('.v-overlay--active [data-test="team-name"]')).not.toBeNull()
+    expect(wrapper.emitted('saved')).toBeUndefined()
+    const closed = wrapper.emitted('update:modelValue')?.some(([open]) => open === false)
+    expect(closed ?? false).toBe(false)
   })
 
   it('edita sem trocar o escudo enviando logo nulo (mantém o existente)', async () => {
