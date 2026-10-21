@@ -11,7 +11,7 @@ import { teamsService } from '@/services/api/teams.service'
 import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { optionTitle, type SelectOption } from '@/types/api'
 import type { Player, PlayerPayload } from '@/types/player'
-import type { Team, TeamPayload } from '@/types/team'
+import type { Team, TeamLeague, TeamPayload } from '@/types/team'
 import type {
   TechnicalCommitteeMember,
   TechnicalCommitteeMemberPayload,
@@ -115,6 +115,10 @@ const deleteTeamMessage = computed(() => {
 async function loadTeam() {
   const data = await teamCrud.fetchOne(props.teamId)
   if (data) team.value = data
+}
+
+function onLeaguesUpdated(leagues: TeamLeague[]) {
+  if (team.value) team.value.leagues = leagues
 }
 
 function openPlayer(player: Player) {
@@ -372,7 +376,7 @@ onMounted(async () => {
       </QueryTabs>
 
       <TeamFormDialog v-model="teamDialog" :league-id="leagueId" :team="team" @saved="loadTeam" />
-      <TeamLeaguesDialog v-model="leaguesDialog" :team="team" />
+      <TeamLeaguesDialog v-model="leaguesDialog" :team="team" @updated="onLeaguesUpdated" />
       <PlayerFormDialog v-model="playerDialog" :team-id="team.id" :player="playerToEdit" @saved="loadTeam" />
       <TechnicalCommitteeMemberFormDialog
         v-model="memberDialog"

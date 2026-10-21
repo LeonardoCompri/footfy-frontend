@@ -11,6 +11,7 @@ function toFormData(payload: TeamPayload): FormData {
   if (payload.logo) {
     formData.append('logo', payload.logo)
   }
+  payload.league_ids?.forEach((id) => formData.append('league_ids[]', String(id)))
   return formData
 }
 
@@ -21,7 +22,9 @@ export const teamsService = {
   create: (payload: TeamPayload) => unwrap<Team>(http.post(baseUrl, toFormData(payload))),
   // Laravel não faz parse de multipart/form-data em PUT: POST com `_method=PUT` (upload do escudo).
   update: (id: number | string, payload: TeamPayload) =>
-    unwrap<Team>(http.post(`${baseUrl}/${id}?_method=PUT`, toFormData(payload))),
+    unwrap<Team>(
+      http.post(`${baseUrl}/${id}?_method=PUT`, toFormData({ ...payload, league_ids: undefined })),
+    ),
   attachLeagues: (id: number | string, leagueIds: number[]) =>
     unwrap<Team>(http.post(`${baseUrl}/${id}/leagues`, { league_ids: leagueIds })),
   detachLeague: (id: number | string, leagueId: number | string) =>
