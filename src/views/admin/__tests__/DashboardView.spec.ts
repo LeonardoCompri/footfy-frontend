@@ -42,6 +42,7 @@ const dashboardData: LeagueDashboard = {
   ],
   results_split: { home_wins: 4, draws: 2, away_wins: 1 },
   cards_split: { yellow: 2, red: 1 },
+  totals: { goals: 10, finished_games: 7, goals_average: 1.43 },
 }
 
 async function mountDashboard(permissions: string[] = ['game:read']) {
