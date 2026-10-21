@@ -45,7 +45,11 @@ const scorers = computed(() =>
 onMounted(async () => {
   try {
     const [leagueGames, allEvents] = await Promise.all([
-      gamesService.list({ league_id: props.leagueId }),
+      gamesService.listAll({
+        league_id: props.leagueId,
+        team_id: props.teamId,
+        status: 'finished',
+      }),
       gameEventsService.list(),
     ])
     games.value = leagueGames

@@ -39,7 +39,7 @@ vi.mock('@/services/api/players.service', () => ({
 vi.mock('@/services/api/technicalCommitteeMembers.service', () => ({
   technicalCommitteeMembersService: { roles: vi.fn(), remove: vi.fn(), create: vi.fn(), update: vi.fn() },
 }))
-vi.mock('@/services/api/games.service', () => ({ gamesService: { list: vi.fn() } }))
+vi.mock('@/services/api/games.service', () => ({ gamesService: { listAll: vi.fn() } }))
 vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
 
 const team = makeTeam(5, 'Vitória FC', {
@@ -150,7 +150,11 @@ describe('TeamDetailView', () => {
   })
 
   it('aba Estatísticas calcula a campanha e artilharia só com dados da liga ativa', async () => {
-    vi.mocked(gamesService.list).mockResolvedValue([game(1, 5, 8, 2, 1), game(2, 8, 5, 0, 0), game(3, 8, 9, 3, 0)])
+    vi.mocked(gamesService.listAll).mockResolvedValue([
+      game(1, 5, 8, 2, 1),
+      game(2, 8, 5, 0, 0),
+      game(3, 8, 9, 3, 0),
+    ])
     vi.mocked(gameEventsService.list).mockResolvedValue([
       goal(1, 1, 11, 10),
       goal(2, 1, 11),
@@ -158,7 +162,11 @@ describe('TeamDetailView', () => {
     ])
     const { wrapper } = await mountDetail(ALL_WRITE, '?tab=estatisticas')
 
-    expect(gamesService.list).toHaveBeenCalledWith({ league_id: 1 })
+    expect(gamesService.listAll).toHaveBeenCalledWith({
+      league_id: 1,
+      team_id: 5,
+      status: 'finished',
+    })
     const tiles = wrapper.findAll('[data-test="team-stats"] .v-card').map((c) => c.text())
     expect(tiles.slice(0, 6)).toEqual(['2Jogos', '1Vitórias', '1Empates', '0Derrotas', '2Gols pró', '1Gols contra'])
     const scorers = wrapper.findAll('table tbody tr').map((r) => r.text())

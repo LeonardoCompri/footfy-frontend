@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -8,22 +8,37 @@ import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { gamesService } from '@/services/api/games.service'
+import { leaguesService } from '@/services/api/leagues.service'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import { teamsService } from '@/services/api/teams.service'
-import { formatMatchDate, gameStageLabel, gameStatusOption } from '@/types/game'
-import type { Game, GamePayload } from '@/types/game'
+import {
+  formatMatchDate,
+  GAME_STATUS_OPTIONS,
+  gameStageLabel,
+  gameStatusOption,
+} from '@/types/game'
+import type { Game, GameListParams, GamePayload, GameStatus } from '@/types/game'
 import type { Stadium } from '@/types/stadium'
 import type { Team } from '@/types/team'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import GameFormDialog from '@/components/games/GameFormDialog.vue'
 
+interface GameFilters {
+  round: string | number | null
+  phase: string | null
+  status: GameStatus | null
+  team_id: number | null
+}
+
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 const router = useRouter()
 const snackbar = useSnackbar()
 const { xs, smAndDown } = useDisplay()
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<Game, GamePayload>(gamesService)
+const { items, meta, loading, errorMessage, fetchPage, destroy } = useCrud<Game, GamePayload>(
+  gamesService,
+)
 
 // Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
 const leagueId = leagueContext.activeLeagueId as number
@@ -33,54 +48,100 @@ const can = {
   update: authStore.hasPermission('game:update'),
   delete: authStore.hasPermission('game:delete'),
 }
+const showRoundFilter = league?.format !== 'knockout'
 
 const teams = ref<Team[]>([])
 const stadiums = ref<Stadium[]>([])
-const search = ref('')
-const stageFilter = ref<string | null>(null)
+const knownPhases = ref<{ phase: string; phase_order: number | null }[]>([])
 const formDialog = ref(false)
 const gameToEdit = ref<Game | null>(null)
 const { open: confirmOpen, target: gameToDelete, ask: askDelete } = useConfirmDialog<Game>()
+
+const emptyFilters = (): GameFilters => ({ round: null, phase: null, status: null, team_id: null })
+// Os campos editam só o rascunho; a API só recebe os filtros aplicados pelo botão "Buscar".
+const draftFilters = ref<GameFilters>(emptyFilters())
+const appliedFilters = ref<GameFilters>(emptyFilters())
+const roundError = ref<string | null>(null)
+const page = ref(1)
+const perPage = ref(20)
+
+const teamOptions = computed(() =>
+  teams.value.map((team) => ({ value: team.id, title: team.nickname || team.name })),
+)
+const phaseOptions = computed(() => knownPhases.value.map((item) => item.phase))
+const hasAppliedFilters = computed(() =>
+  Object.values(appliedFilters.value).some((value) => isFilled(value)),
+)
+
+function isFilled(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== ''
+}
+
+function buildQuery(filters: GameFilters, targetPage: number): GameListParams {
+  const params: GameListParams = { league_id: leagueId, page: targetPage, per_page: perPage.value }
+  if (isFilled(filters.round)) params.round = Number(filters.round)
+  if (filters.phase) params.phase = filters.phase
+  if (filters.status) params.status = filters.status
+  if (filters.team_id) params.team_id = filters.team_id
+  return params
+}
+
+const query = computed(() => buildQuery(appliedFilters.value, page.value))
+
+// Única fonte de requisição da lista (inclusive no mount). A comparação por JSON ignora disparos
+// sem mudança real; não usamos @update:options porque o Vuetify o emite também ao montar.
+watch(
+  () => JSON.stringify(query.value),
+  () => fetchPage(query.value),
+  { immediate: true },
+)
 
 function teamName(id: number): string {
   const team = teams.value.find((t) => t.id === id)
   return team?.nickname || team?.name || '—'
 }
 
-// Ordem do calendário: rodadas, depois fases do mata-mata (por ordem), depois data.
-function stageOrder(game: Game): number {
-  if (game.round != null) return game.round
-  return 10_000 + (game.phase_order ?? 999)
+const rows = computed(() =>
+  items.value.map((game) => ({
+    ...game,
+    stage: gameStageLabel(game),
+    home: game.homeTeam?.nickname || game.homeTeam?.name || teamName(game.home_team_id),
+    away: game.awayTeam?.nickname || game.awayTeam?.name || teamName(game.away_team_id),
+  })),
+)
+
+function searchGames() {
+  const round = draftFilters.value.round
+  if (isFilled(round) && !(Number.isInteger(Number(round)) && Number(round) >= 1)) {
+    roundError.value = 'Informe uma rodada válida (número inteiro a partir de 1).'
+    return
+  }
+  roundError.value = null
+  const next = { ...draftFilters.value }
+  // Mesmos filtros já na página 1: o watcher não dispararia, então recarrega direto.
+  if (JSON.stringify(buildQuery(next, 1)) === JSON.stringify(query.value)) {
+    fetchPage(query.value)
+    return
+  }
+  appliedFilters.value = next
+  page.value = 1
 }
 
-const rows = computed(() =>
-  [...items.value]
-    .sort((a, b) => stageOrder(a) - stageOrder(b) || (a.match_date ?? '').localeCompare(b.match_date ?? ''))
-    .map((game) => ({
-      ...game,
-      stage: gameStageLabel(game),
-      stageGroup: game.round != null ? `${game.round}ª rodada` : (game.phase ?? '—'),
-      home: teamName(game.home_team_id),
-      away: teamName(game.away_team_id),
-    })),
-)
-
-const stageOptions = computed(() => [...new Set(rows.value.map((row) => row.stageGroup))])
-
-const filteredRows = computed(() => {
-  const term = search.value?.trim().toLocaleLowerCase('pt-BR') ?? ''
-  return rows.value.filter(
-    (row) =>
-      (!stageFilter.value || row.stageGroup === stageFilter.value) &&
-      (!term || `${row.home} ${row.away}`.toLocaleLowerCase('pt-BR').includes(term)),
-  )
-})
-
-const knownPhases = computed(() =>
-  items.value
-    .filter((game) => game.phase)
-    .map((game) => ({ phase: game.phase as string, phase_order: game.phase_order })),
-)
+// Fases do mata-mata (opções do filtro e fases conhecidas do formulário). O mesmo nome pode repetir.
+function loadPhases() {
+  if (league?.format === 'round_robin') return
+  leaguesService
+    .table(leagueId)
+    .then((table) => {
+      const unique = new Map<string, { phase: string; phase_order: number | null }>()
+      for (const item of table.phases ?? []) {
+        if (unique.has(item.phase)) continue
+        unique.set(item.phase, { phase: item.phase, phase_order: item.phase_order })
+      }
+      knownPhases.value = [...unique.values()]
+    })
+    .catch(() => (knownPhases.value = []))
+}
 
 // No mobile Etapa/Data/Status viram legenda sob o confronto, para caber sem rolagem horizontal.
 const headers = computed(() => [
@@ -114,6 +175,9 @@ async function handleDelete() {
   if (!gameToDelete.value) return
   if (await destroy(gameToDelete.value.id)) {
     snackbar.success('Partida excluída com sucesso.')
+    // Página esvaziou: volta uma (o watcher recarrega); senão recarrega para repor a página.
+    if (items.value.length === 0 && page.value > 1) page.value--
+    else fetchPage(query.value)
   } else {
     snackbar.error(errorMessage.value ?? 'Não foi possível excluir a partida.')
     errorMessage.value = null
@@ -123,18 +187,19 @@ async function handleDelete() {
 
 function onSaved(game: Game) {
   if (gameToEdit.value) {
-    fetchAll({ league_id: leagueId })
+    fetchPage(query.value)
+    loadPhases()
   } else {
     router.push({ name: 'admin-games-detail', params: { id: game.id } })
   }
 }
 
 onMounted(() => {
-  fetchAll({ league_id: leagueId })
   teamsService.list({ league_id: leagueId }).then((data) => (teams.value = data)).catch(() => undefined)
   if (can.create || can.update) {
     stadiumsService.list({ league_id: leagueId }).then((data) => (stadiums.value = data)).catch(() => undefined)
   }
+  loadPhases()
 })
 </script>
 
@@ -154,35 +219,78 @@ onMounted(() => {
     <v-card>
       <v-card-text>
         <v-row dense class="mb-2">
-          <v-col cols="12" sm="7">
+          <v-col v-if="showRoundFilter" cols="12" sm="6" md>
             <v-text-field
-              v-model="search"
-              prepend-inner-icon="mdi-magnify"
-              label="Buscar time"
-              single-line
-              hide-details
+              v-model="draftFilters.round"
+              type="number"
+              min="1"
+              label="Rodada"
+              hide-details="auto"
               clearable
+              :error-messages="roundError ?? undefined"
+              data-test="game-round-filter"
+              @keyup.enter="searchGames"
             />
           </v-col>
-          <v-col cols="12" sm="5">
+          <v-col v-if="phaseOptions.length > 0" cols="12" sm="6" md>
             <v-select
-              v-model="stageFilter"
-              :items="stageOptions"
-              label="Rodada/fase"
-              single-line
+              v-model="draftFilters.phase"
+              :items="phaseOptions"
+              label="Fase"
               hide-details
               clearable
-              data-test="game-stage-filter"
+              data-test="game-phase-filter"
             />
+          </v-col>
+          <v-col cols="12" sm="6" md>
+            <v-select
+              v-model="draftFilters.status"
+              :items="GAME_STATUS_OPTIONS"
+              item-title="title"
+              item-value="value"
+              label="Status"
+              hide-details
+              clearable
+              data-test="game-status-filter"
+            />
+          </v-col>
+          <v-col cols="12" sm="6" md>
+            <v-autocomplete
+              v-model="draftFilters.team_id"
+              :items="teamOptions"
+              label="Time"
+              hide-details
+              clearable
+              data-test="game-team-filter"
+            />
+          </v-col>
+          <v-col cols="12" sm="auto" class="d-flex align-center">
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-magnify"
+              :block="xs"
+              :loading="loading"
+              data-test="game-search"
+              @click="searchGames"
+            >
+              Buscar
+            </v-btn>
           </v-col>
         </v-row>
-        <v-data-table
+        <v-data-table-server
+          v-model:page="page"
+          v-model:items-per-page="perPage"
           :headers="headers"
-          :items="filteredRows"
+          :items="rows"
+          :items-length="meta?.total ?? 0"
+          :items-per-page-options="[10, 20, 50, 100]"
           :loading="loading"
           item-value="id"
-          :items-per-page="20"
-          no-data-text="Nenhuma partida cadastrada nesta liga."
+          :no-data-text="
+            hasAppliedFilters
+              ? 'Nenhuma partida encontrada com esses filtros.'
+              : 'Nenhuma partida cadastrada nesta liga.'
+          "
           hover
           data-test="games-table"
           @click:row="openGame"
@@ -230,7 +338,7 @@ onMounted(() => {
               />
             </div>
           </template>
-        </v-data-table>
+        </v-data-table-server>
       </v-card-text>
     </v-card>
 
