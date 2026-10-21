@@ -1,3 +1,4 @@
+import type { Paginated, PaginationMeta } from '@/types/api'
 import type { Game } from '@/types/game'
 import type { GameEvent } from '@/types/gameEvent'
 import type { Player } from '@/types/player'
@@ -96,5 +97,13 @@ export function makeAppUser(id: number, name: string, role: string, extra: Parti
     created_at: '',
     updated_at: '',
     ...extra,
+  }
+}
+
+// Resposta paginada da API (`{ data, meta }`); por padrão uma única página com todos os itens.
+export function makePage<T>(data: T[], meta: Partial<PaginationMeta> = {}): Paginated<T> {
+  return {
+    data,
+    meta: { current_page: 1, per_page: 20, total: data.length, last_page: 1, ...meta },
   }
 }

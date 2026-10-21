@@ -1,4 +1,31 @@
+import http from './http'
 import { createResourceService } from './resource'
-import type { Game, GamePayload } from '@/types/game'
+import type { Paginated } from '@/types/api'
+import type { Game, GameListParams, GamePayload } from '@/types/game'
 
-export const gamesService = createResourceService<Game, GamePayload>('/games')
+const baseUrl = '/games'
+const MAX_PER_PAGE = 100
+// Teto de segurança para o listAll (5.000 partidas): evita laço longo se a API mudar.
+const MAX_PAGES = 50
+
+function listPaginated(params: GameListParams): Promise<Paginated<Game>> {
+  return http.get<Paginated<Game>>(baseUrl, { params }).then((res) => res.data)
+}
+
+// Todas as partidas que batem com os filtros, página a página (per_page máximo da API).
+async function listAll(params: Omit<GameListParams, 'page' | 'per_page'>): Promise<Game[]> {
+  const first = await listPaginated({ ...params, page: 1, per_page: MAX_PER_PAGE })
+  const lastPage = Math.min(first.meta.last_page, MAX_PAGES)
+  if (lastPage <= 1) return first.data
+  const pages = Array.from({ length: lastPage - 1 }, (_, index) => index + 2)
+  const rest = await Promise.all(
+    pages.map((page) => listPaginated({ ...params, page, per_page: MAX_PER_PAGE })),
+  )
+  return [...first.data, ...rest.flatMap((result) => result.data)]
+}
+
+export const gamesService = {
+  ...createResourceService<Game, GamePayload>(baseUrl),
+  listPaginated,
+  listAll,
+}

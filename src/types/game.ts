@@ -25,7 +25,7 @@ export interface Game {
   status: GameStatus
   created_at: string
   updated_at: string
-  // Só vêm preenchidos em GET /games/{id} (eager loaded no backend).
+  // Times e estádio vêm eager loaded em GET /games (index) e GET /games/{id}; `events` só no show.
   homeTeam?: Team
   awayTeam?: Team
   stadium?: Stadium | null
@@ -48,6 +48,17 @@ export type GamePayload = Pick<
   | 'leg'
   | 'status'
 >
+
+// Filtros de GET /games (`league_id` obrigatório). `type` (não interface) para caber em `ListParams`.
+export type GameListParams = {
+  league_id: number
+  page?: number
+  per_page?: number
+  round?: number
+  phase?: string
+  status?: GameStatus
+  team_id?: number
+}
 
 export const GAME_STATUS_OPTIONS: { value: GameStatus; title: string; color: string }[] = [
   { value: 'scheduled', title: 'Agendada', color: 'info' },

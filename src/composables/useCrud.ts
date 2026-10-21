@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { AxiosError } from 'axios'
-import type { ApiErrorResponse } from '@/types/api'
+import type { ApiErrorResponse, Paginated, PaginationMeta } from '@/types/api'
 import type { ListParams } from '@/services/api/resource'
 
 interface CrudService<T, P> {
@@ -9,6 +9,8 @@ interface CrudService<T, P> {
   create: (payload: P) => Promise<T>
   update: (id: number | string, payload: P) => Promise<T>
   remove: (id: number | string) => Promise<unknown>
+  // Sintaxe de método (bivariante) para aceitar services com params mais específicos (ex.: GameListParams).
+  listPaginated?(params: ListParams): Promise<Paginated<T>>
 }
 
 export function extractErrorMessage(err: unknown): string {
@@ -21,6 +23,8 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
   const fieldErrors = ref<Record<string, string[]>>({})
+  const meta = ref<PaginationMeta | null>(null)
+  let pageRequestId = 0
 
   function handleError(err: unknown) {
     const axiosErr = err as AxiosError<ApiErrorResponse>
@@ -39,6 +43,26 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
       errorMessage.value = extractErrorMessage(err)
     } finally {
       loading.value = false
+    }
+  }
+
+  // Só a resposta da requisição mais recente é aplicada (troca rápida de página/filtro).
+  async function fetchPage(params: ListParams): Promise<boolean> {
+    if (!service.listPaginated) throw new Error('useCrud: o service não implementa listPaginated.')
+    const requestId = ++pageRequestId
+    loading.value = true
+    errorMessage.value = null
+    try {
+      const result = await service.listPaginated(params)
+      if (requestId !== pageRequestId) return false
+      items.value = result.data
+      meta.value = result.meta
+      return true
+    } catch (err) {
+      if (requestId === pageRequestId) errorMessage.value = extractErrorMessage(err)
+      return false
+    } finally {
+      if (requestId === pageRequestId) loading.value = false
     }
   }
 
@@ -84,5 +108,16 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     }
   }
 
-  return { items, loading, errorMessage, fieldErrors, fetchAll, fetchOne, save, destroy }
+  return {
+    items,
+    meta,
+    loading,
+    errorMessage,
+    fieldErrors,
+    fetchAll,
+    fetchPage,
+    fetchOne,
+    save,
+    destroy,
+  }
 }
