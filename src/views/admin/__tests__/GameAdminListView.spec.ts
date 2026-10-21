@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import GameAdminListView from '@/views/admin/games/GameAdminListView.vue'
 import { gamesService } from '@/services/api/games.service'
+import { leaguesService } from '@/services/api/leagues.service'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import { teamsService } from '@/services/api/teams.service'
 import type { LeagueFormat } from '@/types/championship'
@@ -14,11 +15,21 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { apiError, makeGame, makeTeam } from '@/test/factories'
+import { apiError, makeGame, makePage, makeTeam } from '@/test/factories'
+import type { GameListParams } from '@/types/game'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/games.service', () => ({
-  gamesService: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+  gamesService: {
+    list: vi.fn(),
+    listPaginated: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  },
+}))
+vi.mock('@/services/api/leagues.service', () => ({
+  leaguesService: { list: vi.fn(), table: vi.fn() },
 }))
 vi.mock('@/services/api/teams.service', () => ({ teamsService: { list: vi.fn() } }))
 vi.mock('@/services/api/stadiums.service', () => ({ stadiumsService: { list: vi.fn() } }))
@@ -37,8 +48,25 @@ const games = [
     status: 'finished',
     match_date: '2026-04-05 16:00:00',
   }),
-  makeGame(3, { league_id: 7, round: null, phase: 'Final', phase_order: 3, tie_key: 'F', leg: 1, home_team_id: 1, away_team_id: 2 }),
+  makeGame(3, {
+    league_id: 7,
+    round: null,
+    phase: 'Final',
+    phase_order: 3,
+    tie_key: 'F',
+    leg: 1,
+    home_team_id: 3,
+    away_team_id: 2,
+    homeTeam: makeTeam(3, 'Sport Club do Recife'),
+    awayTeam: makeTeam(2, 'Esporte Clube Bahia', { nickname: 'Bahia' }),
+  }),
 ]
+
+const BASE = { league_id: 7, page: 1, per_page: 20 }
+
+const phases = (...names: [string, number][]) => ({
+  phases: names.map(([phase, phase_order]) => ({ phase, phase_order, ties: [] })),
+})
 
 async function mountList(permissions: string[] = ALL, format: LeagueFormat = 'round_robin') {
   setupLeagueSession(makeUser('admin', permissions), [makeLeague(7, championshipA, { format })])
@@ -63,6 +91,14 @@ async function choose(wrapper: VueWrapper, name: string, test: string, value: un
   await flushPromises()
 }
 
+async function confirmDelete() {
+  const confirm = [...document.querySelectorAll('.v-overlay--active button')].find((b) =>
+    b.textContent?.includes('Excluir'),
+  ) as HTMLButtonElement
+  confirm.click()
+  await flushPromises()
+}
+
 function submit() {
   ;(document.querySelector('[data-test="form-submit"]') as HTMLButtonElement).click()
   return flushPromises()
@@ -73,6 +109,24 @@ async function openCreate(wrapper: VueWrapper) {
   await flushPromises()
 }
 
+async function search(wrapper: VueWrapper) {
+  await wrapper.find('[data-test="game-search"]').trigger('click')
+  await flushPromises()
+}
+
+async function nextPage(wrapper: VueWrapper) {
+  await wrapper.find('[data-test="games-table"] button[aria-label="Next page"]').trigger('click')
+  await flushPromises()
+}
+
+function lastQuery(): GameListParams {
+  return vi.mocked(gamesService.listPaginated).mock.lastCall![0]
+}
+
+function tableRows(wrapper: VueWrapper) {
+  return wrapper.findAll('[data-test="games-table"] tbody tr').map((tr) => tr.text())
+}
+
 describe('GameAdminListView', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -80,7 +134,10 @@ describe('GameAdminListView', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     window.innerWidth = 1366
-    vi.mocked(gamesService.list).mockResolvedValue(games)
+    vi.mocked(gamesService.listPaginated).mockResolvedValue(
+      makePage(games, { total: 45, last_page: 3 }),
+    )
+    vi.mocked(leaguesService.table).mockResolvedValue({})
     vi.mocked(teamsService.list).mockResolvedValue([
       makeTeam(1, 'Esporte Clube Vitória', { nickname: 'Vitória' }),
       makeTeam(2, 'Esporte Clube Bahia', { nickname: 'Bahia' }),
@@ -88,30 +145,156 @@ describe('GameAdminListView', () => {
     vi.mocked(stadiumsService.list).mockResolvedValue([])
   })
 
-  it('lista as partidas da liga ativa em ordem de calendário, sem coluna de campeonato', async () => {
+  it('no mount busca a 1ª página uma única vez e mantém a ordem da API', async () => {
     const { wrapper } = await mountList()
 
-    expect(gamesService.list).toHaveBeenCalledWith({ league_id: 7 })
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+    expect(gamesService.listPaginated).toHaveBeenCalledWith(BASE)
+    expect(gamesService.list).not.toHaveBeenCalled()
+    expect(leaguesService.table).not.toHaveBeenCalled()
     expect(teamsService.list).toHaveBeenCalledWith({ league_id: 7 })
     const headers = wrapper.findAll('[data-test="games-table"] thead th').map((th) => th.text())
     expect(headers).toEqual(['Etapa', 'Confronto', 'Placar', 'Data', 'Status', ''])
-    const rows = wrapper.findAll('[data-test="games-table"] tbody tr').map((tr) => tr.text())
-    expect(rows[0]).toContain('1ª rodada')
-    expect(rows[0]).toContain('Vitória × Bahia')
-    expect(rows[0]).toContain('2 × 1')
-    expect(rows[0]).toContain('05/04/2026 16:00')
-    expect(rows[0]).toContain('Finalizada')
-    expect(rows[1]).toContain('2ª rodada')
+    const rows = tableRows(wrapper)
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toContain('2ª rodada')
+    expect(rows[0]).toContain('Bahia × Vitória')
+    expect(rows[1]).toContain('1ª rodada')
+    expect(rows[1]).toContain('Vitória × Bahia')
+    expect(rows[1]).toContain('2 × 1')
+    expect(rows[1]).toContain('05/04/2026 16:00')
+    expect(rows[1]).toContain('Finalizada')
+    // Time embutido na resposta tem prioridade sobre a lista de times carregada.
     expect(rows[2]).toContain('Final · Ida')
+    expect(rows[2]).toContain('Sport Club do Recife × Bahia')
+    expect(wrapper.find('[data-test="games-table"]').text()).toContain('1-20 of 45')
   })
 
-  it('filtra por rodada/fase', async () => {
+  it('itens por página não oferecem "Todos" (per_page=-1 daria 422)', async () => {
     const { wrapper } = await mountList()
-    await choose(wrapper, 'VSelect', 'game-stage-filter', 'Final')
+    const footerSelect = wrapper
+      .findComponent({ name: 'VDataTableFooter' })
+      .findComponent({ name: 'VSelect' })
 
-    const rows = wrapper.findAll('[data-test="games-table"] tbody tr')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('Final')
+    const values = (footerSelect.props('items') as { value: number }[]).map((item) => item.value)
+    expect(values).toEqual([10, 20, 50, 100])
+  })
+
+  it('filtro de status só é aplicado ao clicar em Buscar', async () => {
+    const { wrapper } = await mountList()
+    await choose(wrapper, 'VSelect', 'game-status-filter', 'finished')
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+
+    await search(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(2)
+    expect(lastQuery()).toEqual({ ...BASE, status: 'finished' })
+  })
+
+  it('filtro de time (mandante ou visitante) usa os times da liga', async () => {
+    const { wrapper } = await mountList()
+    const items = field(wrapper, 'VAutocomplete', 'game-team-filter').props('items')
+    expect(items).toEqual([
+      { value: 1, title: 'Vitória' },
+      { value: 2, title: 'Bahia' },
+    ])
+
+    await choose(wrapper, 'VAutocomplete', 'game-team-filter', 2)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+    await search(wrapper)
+    expect(lastQuery()).toEqual({ ...BASE, team_id: 2 })
+  })
+
+  it('filtro de rodada valida o número antes de buscar', async () => {
+    const { wrapper } = await mountList()
+    await choose(wrapper, 'VTextField', 'game-round-filter', '0')
+    await search(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Informe uma rodada válida')
+
+    await choose(wrapper, 'VTextField', 'game-round-filter', '3')
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+    await search(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(2)
+    expect(lastQuery()).toEqual({ ...BASE, round: 3 })
+    expect(wrapper.text()).not.toContain('Informe uma rodada válida')
+  })
+
+  it.each([['hybrid' as const], ['knockout' as const]])(
+    'filtro de fase (%s) usa as fases da tabela, sem repetir',
+    async (format) => {
+      vi.mocked(leaguesService.table).mockResolvedValue(
+        phases(['Semifinal', 1], ['Semifinal', 1], ['Final', 2]),
+      )
+      const { wrapper } = await mountList(ALL, format)
+
+      expect(leaguesService.table).toHaveBeenCalledWith(7)
+      expect(field(wrapper, 'VSelect', 'game-phase-filter').props('items')).toEqual([
+        'Semifinal',
+        'Final',
+      ])
+      expect(wrapper.find('[data-test="game-round-filter"]').exists()).toBe(format === 'hybrid')
+
+      await choose(wrapper, 'VSelect', 'game-phase-filter', 'Final')
+      expect(gamesService.listPaginated).toHaveBeenCalledTimes(1)
+      await search(wrapper)
+      expect(lastQuery()).toEqual({ ...BASE, phase: 'Final' })
+    },
+  )
+
+  it('pontos corridos: sem fases não mostra o filtro de Fase', async () => {
+    const { wrapper } = await mountList()
+
+    expect(wrapper.find('[data-test="game-round-filter"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="game-phase-filter"]').exists()).toBe(false)
+  })
+
+  it('falha ao carregar a tabela não quebra a tela', async () => {
+    vi.mocked(leaguesService.table).mockRejectedValue(apiError(500, 'Erro'))
+    const { wrapper } = await mountList(ALL, 'hybrid')
+
+    expect(wrapper.find('[data-test="game-phase-filter"]').exists()).toBe(false)
+    expect(wrapper.find('.v-alert').exists()).toBe(false)
+    expect(tableRows(wrapper)).toHaveLength(3)
+  })
+
+  it('trocar de página mantém só os filtros aplicados', async () => {
+    const { wrapper } = await mountList()
+    await choose(wrapper, 'VSelect', 'game-status-filter', 'finished')
+    await search(wrapper)
+    // Rascunho não aplicado não vai para a API.
+    await choose(wrapper, 'VAutocomplete', 'game-team-filter', 2)
+
+    await nextPage(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(3)
+    expect(lastQuery()).toEqual({ ...BASE, page: 2, status: 'finished' })
+  })
+
+  it('Buscar na página 2 volta para a 1 com uma única requisição', async () => {
+    const { wrapper } = await mountList()
+    await nextPage(wrapper)
+    expect(lastQuery()).toEqual({ ...BASE, page: 2 })
+
+    await choose(wrapper, 'VSelect', 'game-status-filter', 'scheduled')
+    await search(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(3)
+    expect(lastQuery()).toEqual({ ...BASE, status: 'scheduled' })
+  })
+
+  it('Buscar sem mudar nada recarrega a página atual uma vez', async () => {
+    const { wrapper } = await mountList()
+    await search(wrapper)
+
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(2)
+    expect(lastQuery()).toEqual(BASE)
+  })
+
+  it('com filtro aplicado e sem resultado, avisa que nada bate com os filtros', async () => {
+    const { wrapper } = await mountList()
+    vi.mocked(gamesService.listPaginated).mockResolvedValue(makePage([]))
+    await choose(wrapper, 'VSelect', 'game-status-filter', 'cancelled')
+    await search(wrapper)
+
+    expect(wrapper.text()).toContain('Nenhuma partida encontrada com esses filtros.')
   })
 
   it('clicar na linha abre o detalhe da partida', async () => {
@@ -119,7 +302,7 @@ describe('GameAdminListView', () => {
     await wrapper.find('[data-test="games-table"] tbody tr').trigger('click')
 
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('admin-games-detail'))
-    expect(router.currentRoute.value.params.id).toBe('1')
+    expect(router.currentRoute.value.params.id).toBe('2')
   })
 
   it.each([
@@ -166,6 +349,7 @@ describe('GameAdminListView', () => {
 
   it('mata-mata: form pede Fase + Confronto + perna (sem Rodada)', async () => {
     vi.mocked(gamesService.create).mockResolvedValue(makeGame(9))
+    vi.mocked(leaguesService.table).mockResolvedValue(phases(['Final', 3]))
     const { wrapper } = await mountList(ALL, 'knockout')
     await openCreate(wrapper)
 
@@ -215,20 +399,65 @@ describe('GameAdminListView', () => {
     expect(document.body.textContent).toContain('Informe a Fase desta partida (liga mata-mata).')
   })
 
-  it('edita pela lista com o formulário preenchido', async () => {
+  it('editar recarrega a lista com a mesma página e filtros', async () => {
     vi.mocked(gamesService.update).mockResolvedValue(games[1])
     const { wrapper } = await mountList()
-    await wrapper.findAll('[data-test="game-edit"]')[0].trigger('click')
-    await flushPromises()
+    await choose(wrapper, 'VSelect', 'game-status-filter', 'finished')
+    await search(wrapper)
+    await nextPage(wrapper)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(3)
 
+    await wrapper.findAll('[data-test="game-edit"]')[1].trigger('click')
+    await flushPromises()
     expect(field(wrapper, 'VAutocomplete', 'game-home-team').props('modelValue')).toBe(1)
     expect(field(wrapper, 'VTextField', 'game-round').props('modelValue')).toBe(1)
     await submit()
 
     expect(gamesService.update).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ league_id: 7, round: 1, home_score: 2, match_date: '2026-04-05T16:00' }),
+      expect.objectContaining({
+        league_id: 7,
+        round: 1,
+        home_score: 2,
+        match_date: '2026-04-05T16:00',
+      }),
     )
-    expect(gamesService.list).toHaveBeenCalledTimes(2)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(4)
+    expect(lastQuery()).toEqual({ ...BASE, page: 2, status: 'finished' })
+  })
+
+  it('excluir o último item da página 2 volta para a página 1', async () => {
+    vi.mocked(gamesService.remove).mockResolvedValue({} as never)
+    vi.mocked(gamesService.listPaginated).mockImplementation((params) =>
+      Promise.resolve(
+        params.page === 2
+          ? makePage([games[1]], { current_page: 2, total: 21, last_page: 2 })
+          : makePage(games, { total: 21, last_page: 2 }),
+      ),
+    )
+    const { wrapper } = await mountList()
+    await nextPage(wrapper)
+    expect(tableRows(wrapper)).toHaveLength(1)
+
+    await wrapper.find('[data-test="game-delete"]').trigger('click')
+    await flushPromises()
+    await confirmDelete()
+
+    expect(gamesService.remove).toHaveBeenCalledWith(1)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(3)
+    expect(lastQuery()).toEqual(BASE)
+  })
+
+  it('excluir com mais itens na página recarrega a mesma página', async () => {
+    vi.mocked(gamesService.remove).mockResolvedValue({} as never)
+    const { wrapper } = await mountList()
+
+    await wrapper.findAll('[data-test="game-delete"]')[0].trigger('click')
+    await flushPromises()
+    await confirmDelete()
+
+    expect(gamesService.remove).toHaveBeenCalledWith(2)
+    expect(gamesService.listPaginated).toHaveBeenCalledTimes(2)
+    expect(lastQuery()).toEqual(BASE)
   })
 })

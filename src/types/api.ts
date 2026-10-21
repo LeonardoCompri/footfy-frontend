@@ -13,3 +13,16 @@ export function optionTitle(options: SelectOption[], value: string | null): stri
   if (!value) return '—'
   return options.find((option) => option.value === value)?.title ?? value
 }
+
+// Paginação das listagens paginadas (ex.: GET /games): `{ data, meta }`.
+export interface PaginationMeta {
+  current_page: number
+  per_page: number
+  total: number
+  last_page: number
+}
+
+export interface Paginated<T> {
+  data: T[]
+  meta: PaginationMeta
+}
