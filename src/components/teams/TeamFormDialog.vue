@@ -53,20 +53,11 @@ watch(
 )
 
 async function handleSubmit() {
-  const result = await save(form, props.team?.id)
+  // No create, o time já nasce vinculado à liga ativa (senão não aparece na listagem escopada).
+  const result = props.team
+    ? await save(form, props.team.id)
+    : await save({ ...form, league_ids: [props.leagueId] })
   if (!result) return
-
-  if (!isEditing.value) {
-    // POST /teams não recebe liga: o vínculo com a liga ativa é feito logo em seguida,
-    // senão o time recém-criado não aparece na listagem escopada.
-    try {
-      await teamsService.attachLeagues(result.id, [props.leagueId])
-    } catch {
-      snackbar.error('Time criado, mas não foi possível vinculá-lo à liga atual.')
-      emit('update:modelValue', false)
-      return
-    }
-  }
 
   snackbar.success(isEditing.value ? 'Time atualizado com sucesso.' : 'Time criado com sucesso.')
   emit('saved', result)

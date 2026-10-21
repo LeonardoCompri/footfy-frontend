@@ -204,10 +204,10 @@ describe('TeamDetailView', () => {
   })
 
   it('vincula e desvincula o time de outra liga pelo dialog de ligas', async () => {
-    // GET /teams/{id} não traz `leagues`: o dialog descobre o vínculo pela listagem por liga.
-    vi.mocked(teamsService.list).mockImplementation(async (params) =>
-      params?.league_id === 1 ? [team] : [],
-    )
+    vi.mocked(teamsService.get).mockResolvedValue({
+      ...team,
+      leagues: [{ id: 1, name: 'Série A' }],
+    })
     vi.mocked(teamsService.attachLeagues).mockResolvedValue({
       ...team,
       leagues: [
@@ -231,9 +231,24 @@ describe('TeamDetailView', () => {
     expect(teamsService.attachLeagues).toHaveBeenCalledWith(5, [2])
     expect(toggle().textContent).toContain('Desvincular')
 
+    // Reabrir usa o `leagues` atualizado pelo evento `updated`, sem novo GET.
+    const close = [...document.querySelectorAll('.v-overlay--active button')].find(
+      (b) => b.textContent?.trim() === 'Fechar',
+    ) as HTMLButtonElement
+    close.click()
+    await flushPromises()
+    expect(document.querySelector('.v-overlay--active [data-test="league-link-toggle"]')).toBeNull()
+    await wrapper.find('[data-test="team-leagues"]').trigger('click')
+    await flushPromises()
+    expect(toggle().textContent).toContain('Desvincular')
+    expect(teamsService.get).toHaveBeenCalledTimes(1)
+
     toggle().click()
     await flushPromises()
     expect(teamsService.detachLeague).toHaveBeenCalledWith(5, 2)
     expect(toggle().textContent).toContain('Vincular')
+    expect(
+      vi.mocked(teamsService.list).mock.calls.filter(([params]) => params?.league_id != null),
+    ).toEqual([])
   })
 })
