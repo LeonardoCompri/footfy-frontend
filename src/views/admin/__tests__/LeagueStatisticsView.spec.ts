@@ -39,6 +39,8 @@ const stats: LeagueStatistics = {
   ],
   results_split: { home_wins: 2, draws: 1, away_wins: 1 },
   cards_split: { yellow: 7, red: 2 },
+  // Diverge de propósito da soma dos buckets (10) e do split (4): os tiles devem usar `totals`.
+  totals: { goals: 12, finished_games: 5, goals_average: 2.4 },
 }
 
 async function mountView(data: LeagueStatistics = stats) {
@@ -49,6 +51,13 @@ async function mountView(data: LeagueStatistics = stats) {
   const wrapper = mount(LeagueStatisticsView, { global: { plugins: [createTestVuetify(), router] } })
   await flushPromises()
   return wrapper
+}
+
+function tileTexts(wrapper: Awaited<ReturnType<typeof mountView>>) {
+  return wrapper
+    .find('[data-test="league-stat-tiles"]')
+    .findAll('.v-card')
+    .map((card) => card.text())
 }
 
 describe('LeagueStatisticsView', () => {
@@ -69,15 +78,16 @@ describe('LeagueStatisticsView', () => {
     expect(cards).toBe('1Zé HugoSem time213')
   })
 
-  it('totais e gráficos da liga (reaproveitados do Dashboard)', async () => {
+  it('totais vêm de `totals` da API e gráficos da liga (reaproveitados do Dashboard)', async () => {
     const wrapper = await mountView()
 
-    const tiles = wrapper.find('[data-test="league-stat-tiles"]').text()
-    expect(tiles).toContain('10Gols')
-    expect(tiles).toContain('4Partidas finalizadas')
-    expect(tiles).toContain('2,5Média de gols')
-    expect(tiles).toContain('7Cartões amarelos')
-    expect(tiles).toContain('2Cartões vermelhos')
+    expect(tileTexts(wrapper)).toEqual([
+      '12Gols',
+      '5Partidas finalizadas',
+      '2,4Média de gols',
+      '7Cartões amarelos',
+      '2Cartões vermelhos',
+    ])
     expect(wrapper.findAll('[data-test="goals-bar"]')).toHaveLength(2)
     expect(wrapper.find('[data-test="results-split"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="cards-chart"]').exists()).toBe(true)
@@ -100,9 +110,19 @@ describe('LeagueStatisticsView', () => {
       top_cards: [],
       goals_by_bucket: [],
       results_split: { home_wins: 0, draws: 0, away_wins: 0 },
+      totals: { goals: 0, finished_games: 0, goals_average: null },
     })
 
     expect(wrapper.text()).toContain('Nenhum gol registrado ainda.')
-    expect(wrapper.text()).toContain('—Média de gols')
+    expect(tileTexts(wrapper)).toEqual(['0Gols', '0Partidas finalizadas', '—Média de gols'])
+  })
+
+  it('média de gols com uma casa decimal no formato pt-BR', async () => {
+    const wrapper = await mountView({
+      ...stats,
+      totals: { goals: 4, finished_games: 3, goals_average: 1.33 },
+    })
+
+    expect(tileTexts(wrapper)).toContain('1,3Média de gols')
   })
 })
