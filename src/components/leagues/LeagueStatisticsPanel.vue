@@ -21,14 +21,18 @@ const errorMessage = ref<string | null>(null)
 
 const tiles = computed(() => {
   if (!stats.value) return []
-  const goals = stats.value.goals_by_bucket.reduce((sum, bucket) => sum + bucket.goals, 0)
-  const split = stats.value.results_split
-  const finished = split.home_wins + split.draws + split.away_wins
+  const { goals, finished_games, goals_average } = stats.value.totals
   const cards = stats.value.cards_split
   return [
     { label: 'Gols', value: goals },
-    { label: 'Partidas finalizadas', value: finished },
-    { label: 'Média de gols', value: finished ? (goals / finished).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—' },
+    { label: 'Partidas finalizadas', value: finished_games },
+    {
+      label: 'Média de gols',
+      value:
+        goals_average == null
+          ? '—'
+          : goals_average.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+    },
     ...(cards
       ? [
           { label: 'Cartões amarelos', value: cards.yellow },

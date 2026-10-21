@@ -34,6 +34,13 @@ export interface ResultsSplit {
   away_wins: number
 }
 
+// Totais da liga pelo placar das partidas finalizadas; média null sem partidas (FOOT-0038 no backend).
+export interface LeagueTotals {
+  goals: number
+  finished_games: number
+  goals_average: number | null
+}
+
 // Resposta de GET /leagues/{id}/dashboard (DashboardService no backend).
 export interface LeagueDashboard {
   counters: {
@@ -48,6 +55,7 @@ export interface LeagueDashboard {
   results_split: ResultsSplit
   // Total de cartões amarelos/vermelhos da liga inteira (FOOT-0031 no backend).
   cards_split: CardsSplit
+  totals: LeagueTotals
 }
 
 export interface CardsSplit {

@@ -1,5 +1,5 @@
 import type { GameLeg, GameStatus } from './game'
-import type { CardsSplit, GoalsBucket, ResultsSplit } from './dashboard'
+import type { CardsSplit, GoalsBucket, LeagueTotals, ResultsSplit } from './dashboard'
 
 // Resposta de GET /leagues/{id}/table e GET /public/leagues/{id}/table (StandingsService).
 export interface StandingRow {
@@ -84,4 +84,5 @@ export interface LeagueStatistics {
   results_split: ResultsSplit
   // Total de cartões da liga (FOOT-0031 no backend); opcional até o deploy dessa task.
   cards_split?: CardsSplit
+  totals: LeagueTotals
 }
