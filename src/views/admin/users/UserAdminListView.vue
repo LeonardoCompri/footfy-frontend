@@ -7,6 +7,7 @@ import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { usersService } from '@/services/api/users.service'
 import { userRoleOption } from '@/types/user'
+import { cpfDigits, formatCpf } from '@/components/common/format'
 import type { User, UserPayload } from '@/types/user'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -38,11 +39,19 @@ const leaguesDialog = ref(false)
 const leaguesUser = ref<User | null>(null)
 const { open: confirmOpen, target: userToDelete, ask: askDelete } = useConfirmDialog<User>()
 
+// Termo "com cara de CPF" (só dígitos, ponto, hífen, espaço): compara pelos dígitos.
+const CPF_LIKE = /^[\d.\-\s]+$/
+
 const filteredUsers = computed(() => {
   const term = search.value?.trim().toLocaleLowerCase('pt-BR') ?? ''
   if (!term) return items.value
-  return items.value.filter((user) =>
-    [user.name, user.document, user.email ?? ''].some((text) => text.toLocaleLowerCase('pt-BR').includes(term)),
+  const digits = CPF_LIKE.test(term) ? cpfDigits(term) : ''
+  return items.value.filter(
+    (user) =>
+      [user.name, user.email ?? ''].some((text) =>
+        text.toLocaleLowerCase('pt-BR').includes(term),
+      ) ||
+      (digits !== '' && cpfDigits(user.document).includes(digits)),
   )
 })
 
@@ -115,6 +124,7 @@ onMounted(() => fetchAll())
           hide-details
           clearable
           class="mb-4"
+          data-test="users-search"
         />
         <v-data-table
           :headers="headers"
@@ -128,12 +138,13 @@ onMounted(() => fetchAll())
             <div class="py-2">
               <div class="font-weight-medium">{{ item.name }}</div>
               <div v-if="xs" class="text-caption text-medium-emphasis">
-                {{ userRoleOption(item.roles[0]).title }} · {{ item.document }}
+                {{ userRoleOption(item.roles[0]).title }} · {{ formatCpf(item.document) }}
               </div>
               <div v-else class="text-caption text-medium-emphasis">{{ item.email ?? '' }}</div>
               <div v-if="smAndDown" class="text-caption text-medium-emphasis">{{ leaguesLabel(item) }}</div>
             </div>
           </template>
+          <template v-slot:[`item.document`]="{ item }">{{ formatCpf(item.document) }}</template>
           <template v-slot:[`item.roles`]="{ item }">
             <v-chip :color="userRoleOption(item.roles[0]).color" size="small" variant="tonal">
               {{ userRoleOption(item.roles[0]).title }}
