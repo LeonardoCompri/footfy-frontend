@@ -39,3 +39,16 @@ globalThis.visualViewport ??= Object.assign(new EventTarget(), {
   onresize: null,
   onscroll: null,
 }) as unknown as VisualViewport
+
+// No jsdom as imagens nunca carregam, então o poll de `naturalWidth` do VImg se reagenda até o
+// componente ser desmontado e quebra ("window is not defined") depois do teardown do ambiente.
+// `enableAutoUnmount` não serve: o `app.unmount` do vue-router reseta a rota antes de desmontar a
+// árvore e os links com `leagueId` implícito falham (36 testes quebrados).
+Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', {
+  configurable: true,
+  get: () => 1,
+})
+Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', {
+  configurable: true,
+  get: () => 1,
+})
