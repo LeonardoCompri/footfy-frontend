@@ -14,7 +14,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import QueryTabs from '@/components/common/QueryTabs.vue'
 import PlayerFormDialog from '@/components/players/PlayerFormDialog.vue'
 import PlayerStatsPanel from '@/components/players/PlayerStatsPanel.vue'
-import { formatBirthDate } from '@/components/common/format'
+import { formatBirthDate, formatCpf } from '@/components/common/format'
 
 const props = defineProps<{ teamId: string; id: string }>()
 
@@ -48,7 +48,7 @@ const profile = computed(() => {
     { label: 'Posição', value: optionTitle(positions.value, player.value.position), icon: 'mdi-soccer' },
     { label: 'Número', value: player.value.number ?? '—', icon: 'mdi-pound' },
     { label: 'Nascimento', value: formatBirthDate(player.value.birth_date), icon: 'mdi-cake-variant' },
-    { label: 'CPF', value: player.value.document ?? '—', icon: 'mdi-card-account-details' },
+    { label: 'CPF', value: formatCpf(player.value.document) || '—', icon: 'mdi-card-account-details' },
   ]
 })
 

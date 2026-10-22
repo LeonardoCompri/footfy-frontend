@@ -75,7 +75,18 @@ describe('PlayerDetailView', () => {
     expect(profile).toContain('Vitória FC')
     expect(profile).toContain('Atacante')
     expect(profile).toContain('15/03/2000')
-    expect(profile).toContain('12345678901')
+    expect(profile).toContain('123.456.789-01')
+    expect(profile).not.toContain('12345678901')
+  })
+
+  it('perfil mostra "—" no CPF quando o jogador não tem documento', async () => {
+    vi.mocked(playersService.get).mockResolvedValue({ ...player, document: null })
+    const { wrapper } = await mountDetail([])
+
+    const cpf = wrapper
+      .findAll('[data-test="player-profile"] .v-list-item')
+      .find((item) => item.text().includes('CPF'))
+    expect(cpf?.find('.v-list-item-title').text()).toBe('—')
   })
 
   it('estatísticas contam gols, assistências e cartões apenas da liga ativa', async () => {
