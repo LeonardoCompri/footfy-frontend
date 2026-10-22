@@ -59,6 +59,12 @@ async function setInput(selector: string, value: string) {
   await flushPromises()
 }
 
+function listedNames(wrapper: VueWrapper) {
+  return wrapper
+    .findAll('[data-test="users-table"] tbody tr .font-weight-medium')
+    .map((el) => el.text())
+}
+
 function submit() {
   ;(document.querySelector('[data-test="form-submit"]') as HTMLButtonElement).click()
   return flushPromises()
@@ -192,5 +198,73 @@ describe('UserAdminListView', () => {
     expect(usersService.detachLeague).toHaveBeenCalledWith(2, 1)
     expect(rowOf(wrapper, 'Ana Admin').text()).toContain('Copa')
     expect(rowOf(wrapper, 'Ana Admin').text()).not.toContain('Série A')
+  })
+
+  describe('CPF formatado e busca', () => {
+    const withCpf = makeAppUser(4, 'Carlos Cpf', 'coach', {
+      document: '12345678901',
+      email: 'carlos@footfy.com',
+    })
+
+    beforeEach(() => {
+      vi.mocked(usersService.list).mockResolvedValue([master, admin, coach, withCpf])
+    })
+
+    it('desktop: coluna CPF mostra o documento com máscara', async () => {
+      const wrapper = await mountList('master')
+
+      const row = rowOf(wrapper, 'Carlos Cpf').text()
+      expect(row).toContain('123.456.789-01')
+      expect(row).not.toContain('12345678901')
+    })
+
+    it('mobile (xs): legenda sob o nome mostra o CPF com máscara', async () => {
+      window.innerWidth = 375
+      const wrapper = await mountList('master')
+
+      const row = rowOf(wrapper, 'Carlos Cpf').text()
+      expect(row).toContain('Técnico · 123.456.789-01')
+      expect(row).not.toContain('12345678901')
+    })
+
+    it.each(['123.456.789-01', '12345678901', '456.789'])(
+      'busca por CPF "%s" acha só o usuário certo',
+      async (term) => {
+        const wrapper = await mountList('master')
+
+        await setInput('[data-test="users-search"]', term)
+        expect(listedNames(wrapper)).toEqual(['Carlos Cpf'])
+      },
+    )
+
+    it('busca por nome e por e-mail parcial continua funcionando', async () => {
+      const wrapper = await mountList('master')
+
+      await setInput('[data-test="users-search"]', 'ana ad')
+      expect(listedNames(wrapper)).toEqual(['Ana Admin'])
+      await setInput('[data-test="users-search"]', 'carlos@foot')
+      expect(listedNames(wrapper)).toEqual(['Carlos Cpf'])
+    })
+
+    it('termo com letras busca só por texto, sem casar dígitos do CPF', async () => {
+      vi.mocked(usersService.list).mockResolvedValue([
+        makeAppUser(5, 'Joao2', 'coach', { document: '11111111111' }),
+        makeAppUser(6, 'Pedro', 'coach', { document: '22222222222' }),
+      ])
+      const wrapper = await mountList('master')
+
+      await setInput('[data-test="users-search"]', 'joao2')
+      expect(listedNames(wrapper)).toEqual(['Joao2'])
+    })
+
+    it('termo só com pontuação não quebra e não lista ninguém', async () => {
+      const wrapper = await mountList('master')
+
+      await setInput('[data-test="users-search"]', '..-')
+      expect(listedNames(wrapper)).toEqual([])
+      expect(wrapper.find('[data-test="users-table"]').text()).toContain(
+        'Nenhum usuário encontrado.',
+      )
+    })
   })
 })
