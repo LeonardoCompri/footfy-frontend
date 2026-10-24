@@ -42,4 +42,4 @@ jobs:
       FOOTFY_SERVER_DIR: ${{ vars.FOOTFY_SERVER_DIR }}
     steps:
       - name: Deploy do frontend
-        run: '"${FOOTFY_SERVER_DIR:-$HOME/footfy-server}/deploy.sh" frontend'
+        run: '"${FOOTFY_SERVER_DIR:-$HOME/analitix/footfy}/deploy.sh" frontend'
