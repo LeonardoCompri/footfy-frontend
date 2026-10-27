@@ -40,11 +40,6 @@ export const publicRoutes: RouteRecordRaw[] = [
         props: true,
       },
       {
-        path: 'times',
-        name: 'teams-list',
-        component: () => import('@/views/public/teams/TeamListView.vue'),
-      },
-      {
         path: 'times/:id',
         name: 'teams-detail',
         component: () => import('@/views/public/teams/TeamDetailView.vue'),
