@@ -1,37 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { usePublicItem } from '@/composables/usePublicItem'
 import { useQueryTab } from '@/composables/useQueryTab'
 import { publicTeamsService } from '@/services/api/publicTeams.service'
 import type { Team } from '@/types/team'
 import StatTiles from '@/components/common/StatTiles.vue'
+import { formatDate } from '@/components/common/format'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
+const router = useRouter()
 
 const { item: team, loading, errorMessage, fetchOne } = usePublicItem<Team>(publicTeamsService)
 const { tab } = useQueryTab('elenco')
 
 const roster = computed(() => team.value?.players ?? [])
+const technicalCommittee = computed(() => team.value?.technicalCommitteeMembers ?? [])
 
-// TODO(FOOT-0024): GET /public/teams/{id} ainda não retorna a comissão técnica do time.
-// Depende de TeamService::publicShow() passar a incluir `technicalCommitteeMembers`
-// no eager load da rota pública. Até lá, exibimos vazio.
-const technicalCommittee: { id: number; name: string; role: string; birth_date: string | null }[] = []
-
-const backLeagueId = computed(() =>
-  typeof route.query.back === 'string' ? route.query.back : null,
-)
-const backTo = computed(() =>
-  backLeagueId.value
-    ? { name: 'leagues-detail', params: { id: backLeagueId.value } }
-    : { name: 'teams-list' },
-)
+// Sem `?back=` não há liga de origem: volta pelo histórico do app e, se a tela foi
+// aberta direto (sem página anterior no app), cai na lista pública de campeonatos.
+function goBack() {
+  const leagueId = route.query.back
+  if (typeof leagueId === 'string') {
+    router.push({ name: 'leagues-detail', params: { id: leagueId } })
+  } else if (router.options.history.state.back) {
+    router.back()
+  } else {
+    router.push({ name: 'championships-list' })
+  }
+}
 
 const statTiles = computed(() => [
   { label: 'Elenco', value: roster.value.length },
-  { label: 'Comissão Técnica', value: technicalCommittee.length },
+  { label: 'Comissão Técnica', value: technicalCommittee.value.length },
 ])
 
 function formatNumber(number: number | null): string {
@@ -42,17 +44,14 @@ function formatPosition(position: string | null): string {
   return position ?? '—'
 }
 
-function formatDate(date: string | null): string {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('pt-BR')
-}
-
 onMounted(() => fetchOne(props.id))
 </script>
 
 <template>
   <v-container class="py-8">
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-4" :to="backTo"> Voltar </v-btn>
+    <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-4" @click="goBack">
+      Voltar
+    </v-btn>
 
     <v-row v-if="loading" justify="center">
       <v-progress-circular indeterminate color="primary" />
