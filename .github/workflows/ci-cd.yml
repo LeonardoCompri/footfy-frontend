@@ -1,0 +1,45 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Rodar testes
+        run: npm test
+
+      - name: Build (inclui checagem de tipos)
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: /api
+
+  deploy:
+    name: Deploy no servidor
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, footfy-server]
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      FOOTFY_SERVER_DIR: ${{ vars.FOOTFY_SERVER_DIR }}
+    steps:
+      - name: Deploy do frontend
+        run: '"${FOOTFY_SERVER_DIR:-$HOME/analitix/footfy}/deploy.sh" frontend'

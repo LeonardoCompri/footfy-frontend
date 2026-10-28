@@ -1,7 +1,7 @@
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { createMemoryHistory, createRouter, type RouterHistory } from 'vue-router'
 import type { Championship, League } from '@/types/championship'
 import type { AuthUser } from '@/types/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -14,14 +14,17 @@ export function createTestVuetify() {
 const Stub = { render: () => null }
 
 // Router mínimo com os nomes de rota que as telas públicas e do contexto de liga referenciam.
-export function createTestRouter() {
+// `history` permite usar createWebHistory quando o teste depende do `history.state` do navegador.
+export function createTestRouter(history: RouterHistory = createMemoryHistory()) {
   return createRouter({
-    history: createMemoryHistory(),
+    history,
     routes: [
       { path: '/', name: 'home', component: Stub },
       { path: '/login', name: 'login', component: Stub },
       { path: '/campeonatos', name: 'championships-list', component: Stub },
       { path: '/campeonatos/:id', name: 'championships-detail', component: Stub },
+      { path: '/ligas/:id', name: 'leagues-detail', component: Stub },
+      { path: '/times/:id', name: 'teams-detail', component: Stub },
       { path: '/admin', name: 'admin-home', component: Stub },
       { path: '/admin/selecionar', name: 'admin-select-championship', component: Stub },
       { path: '/admin/selecionar/:championshipId', name: 'admin-select-league', component: Stub },

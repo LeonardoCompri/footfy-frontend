@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { cpfDigits, formatBirthDate, formatCpf } from '@/components/common/format'
+import { cpfDigits, formatBirthDate, formatCpf, formatDate } from '@/components/common/format'
+
+describe('formatDate', () => {
+  it('formata YYYY-MM-DD sem deslocamento de fuso', () => {
+    expect(formatDate('1980-05-10')).toBe('10/05/1980')
+    expect(formatDate('2000-01-01T00:00:00.000000Z')).toBe('01/01/2000')
+    expect(formatDate(null)).toBe('—')
+  })
+})
 
 describe('formatBirthDate', () => {
   it('formata sem deslocamento de fuso e calcula a idade', () => {
