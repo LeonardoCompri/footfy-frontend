@@ -1,0 +1,13 @@
+{
+  "data": {
+    "id": 4,
+    "team_id": 1,
+    "name": "Lucas Ferreira",
+    "position": "ATA",
+    "number": 9,
+    "birth_date": "2000-11-05",
+    "document": null,
+    "created_at": "2026-03-01T12:00:00.000000Z",
+    "updated_at": "2026-03-01T12:00:00.000000Z"
+  }
+}

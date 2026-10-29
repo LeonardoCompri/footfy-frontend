@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "value": "GOL",
+      "title": "Goleiro"
+    },
+    {
+      "value": "ZAG",
+      "title": "Zagueiro"
+    },
+    {
+      "value": "LAT",
+      "title": "Lateral"
+    },
+    {
+      "value": "MEI",
+      "title": "Meio-Campo"
+    },
+    {
+      "value": "ATA",
+      "title": "Atacante"
+    }
+  ]
+}

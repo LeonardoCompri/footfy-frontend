@@ -1,0 +1,107 @@
+{
+  "data": {
+    "top_scorers": [
+      {
+        "player_id": 4,
+        "player_name": "Lucas Ferreira",
+        "player_removed": false,
+        "team_id": 1,
+        "team_name": "Atlético Serrano",
+        "team_nickname": "Serrano",
+        "goals": 2
+      },
+      {
+        "player_id": 5,
+        "player_name": "Thiago Rocha",
+        "player_removed": false,
+        "team_id": 1,
+        "team_name": "Atlético Serrano",
+        "team_nickname": "Serrano",
+        "goals": 1
+      },
+      {
+        "player_id": 7,
+        "player_name": "Felipe Nunes",
+        "player_removed": false,
+        "team_id": 2,
+        "team_name": "Clube Ribeirinho",
+        "team_nickname": "Ribeirinho",
+        "goals": 1
+      }
+    ],
+    "top_assists": [
+      {
+        "player_id": 3,
+        "player_name": "Diego Martins",
+        "player_removed": false,
+        "team_id": 1,
+        "team_name": "Atlético Serrano",
+        "team_nickname": "Serrano",
+        "assists": 1
+      },
+      {
+        "player_id": 4,
+        "player_name": "Lucas Ferreira",
+        "player_removed": false,
+        "team_id": 1,
+        "team_name": "Atlético Serrano",
+        "team_nickname": "Serrano",
+        "assists": 1
+      }
+    ],
+    "top_cards": [
+      {
+        "player_id": 2,
+        "player_name": "Bruno Lima",
+        "player_removed": false,
+        "team_id": 1,
+        "team_name": "Atlético Serrano",
+        "team_nickname": "Serrano",
+        "yellow_cards": 0,
+        "red_cards": 1,
+        "total_cards": 1
+      },
+      {
+        "player_id": 8,
+        "player_name": "Gustavo Pires",
+        "player_removed": false,
+        "team_id": 2,
+        "team_name": "Clube Ribeirinho",
+        "team_nickname": "Ribeirinho",
+        "yellow_cards": 1,
+        "red_cards": 0,
+        "total_cards": 1
+      }
+    ],
+    "goals_by_bucket": [
+      {
+        "type": "round",
+        "round": 1,
+        "phase": null,
+        "phase_order": null,
+        "goals": 3
+      },
+      {
+        "type": "round",
+        "round": 2,
+        "phase": null,
+        "phase_order": null,
+        "goals": 8
+      }
+    ],
+    "results_split": {
+      "home_wins": 1,
+      "draws": 2,
+      "away_wins": 1
+    },
+    "cards_split": {
+      "yellow": 1,
+      "red": 1
+    },
+    "totals": {
+      "goals": 11,
+      "finished_games": 4,
+      "goals_average": 2.75
+    }
+  }
+}
