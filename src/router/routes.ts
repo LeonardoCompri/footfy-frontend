@@ -156,8 +156,9 @@ export const adminRoutes: RouteRecordRaw[] = [
             meta: { permission: 'game:read' },
           },
           {
-            // Não existe permissão `user:*` no PermissionSeeder: o backend libera
-            // leitura/edição para master|admin e criação/exclusão/ligas só para master.
+            // Não existe permissão `user:*` no PermissionSeeder: o backend libera leitura,
+            // edição e criação para master|admin (admin só cria coach/player); exclusão e
+            // vínculo de ligas só para master.
             path: 'usuarios',
             name: 'admin-users-list',
             component: () => import('@/views/admin/users/UserAdminListView.vue'),

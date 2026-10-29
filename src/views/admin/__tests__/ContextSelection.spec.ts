@@ -29,7 +29,7 @@ async function mountView(component: object, path: string, props: Record<string, 
     global: { plugins: [createTestVuetify(), router] },
   })
   await flushPromises()
-  return wrapper
+  return Object.assign(wrapper, { router })
 }
 
 function login(role: string) {
@@ -80,13 +80,42 @@ describe('Seleção de Campeonato', () => {
     )
   })
 
-  it('avisa quando chegou aqui por tentar abrir uma liga sem acesso', async () => {
+  it('avisa quando chegou aqui por tentar abrir uma liga sem acesso (sem pular, mesmo com liga única)', async () => {
     login('admin')
     listLeagues.mockResolvedValue([makeLeague(1, championshipA)])
 
     const wrapper = await mountView(ChampionshipSelectView, '/admin/selecionar?negado=1')
 
     expect(wrapper.find('[data-test="access-denied"]').exists()).toBe(true)
+    expect(wrapper.router.currentRoute.value.name).toBe('admin-select-championship')
+  })
+
+  it.each(['coach', 'player', 'admin'])('%s com uma única liga entra direto nela', async (role) => {
+    login(role)
+    listLeagues.mockResolvedValue([makeLeague(4, championshipA)])
+
+    const wrapper = await mountView(ChampionshipSelectView, '/admin/selecionar')
+
+    await vi.waitFor(() => expect(wrapper.router.currentRoute.value.fullPath).toBe('/admin/liga/4'))
+  })
+
+  it('master com uma única liga continua na seleção (acesso à gestão de campeonatos)', async () => {
+    login('master')
+    listLeagues.mockResolvedValue([makeLeague(4, championshipA)])
+
+    const wrapper = await mountView(ChampionshipSelectView, '/admin/selecionar')
+
+    expect(wrapper.router.currentRoute.value.name).toBe('admin-select-championship')
+    expect(wrapper.findAll('[data-test="championship-card"]')).toHaveLength(1)
+  })
+
+  it('com mais de uma liga (mesmo num só campeonato) não pula a seleção', async () => {
+    login('coach')
+    listLeagues.mockResolvedValue([makeLeague(1, championshipA), makeLeague(3, championshipA)])
+
+    const wrapper = await mountView(ChampionshipSelectView, '/admin/selecionar')
+
+    expect(wrapper.router.currentRoute.value.name).toBe('admin-select-championship')
   })
 })
 
@@ -111,6 +140,19 @@ describe('Seleção de Liga', () => {
     expect(cards.map((c) => c.find('.v-card-title').text())).toEqual(['Série A', 'Série B'])
     expect(cards[1].text()).toContain('Mata-mata')
     expect(cards[0].attributes('href')).toBe('/admin/liga/1')
+  })
+
+  it('campeonato com uma única liga entra direto nela', async () => {
+    listLeagues.mockResolvedValue([
+      makeLeague(1, championshipA, { name: 'Série A' }),
+      makeLeague(2, championshipB, { name: 'Copa SP' }),
+    ])
+
+    const wrapper = await mountView(LeagueSelectView, '/admin/selecionar/2', {
+      championshipId: '2',
+    })
+
+    await vi.waitFor(() => expect(wrapper.router.currentRoute.value.fullPath).toBe('/admin/liga/2'))
   })
 
   it('campeonato sem ligas acessíveis mostra estado vazio', async () => {

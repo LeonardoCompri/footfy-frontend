@@ -81,8 +81,12 @@ function goal(id: number, leagueId: number, playerId: number, assist: number | n
   }
 }
 
-async function mountDetail(permissions: string[] = ALL_WRITE, query = '') {
-  setupLeagueSession(makeUser('admin', permissions), [
+async function mountDetail(
+  permissions: string[] = ALL_WRITE,
+  query = '',
+  user = makeUser('admin', permissions),
+) {
+  setupLeagueSession(user, [
     makeLeague(1, championshipA, { name: 'Série A' }),
     makeLeague(2, championshipB, { name: 'Copa' }),
   ])
@@ -188,6 +192,43 @@ describe('TeamDetailView', () => {
     expect(wrapper.find('[data-test="player-create"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-test="player-edit"]')).toHaveLength(2)
     expect(wrapper.findAll('[data-test="player-delete"]')).toHaveLength(2)
+  })
+
+  // Seeder: coach tem team:read e as permissões de jogador; o backend só deixa mexer no próprio time.
+  const COACH = [
+    'team:read',
+    'stadium:read',
+    'player:read',
+    'player:create',
+    'player:update',
+    'player:delete',
+  ]
+
+  it.each([
+    [
+      'coach do próprio time',
+      true,
+      makeUser('coach', COACH, { team: { id: 5, name: 'Vitória FC', logo: null } }),
+    ],
+    [
+      'coach de outro time',
+      false,
+      makeUser('coach', COACH, { team: { id: 7, name: 'Outro FC', logo: null } }),
+    ],
+    ['coach sem time vinculado', false, makeUser('coach', COACH, { team: null })],
+    [
+      'player do time (mesmo com a permissão)',
+      false,
+      makeUser('player', COACH, { team: { id: 5, name: 'Vitória FC', logo: null } }),
+    ],
+  ])('%s: criar/editar/excluir jogador visíveis = %s', async (_label, visible, user) => {
+    const { wrapper } = await mountDetail([], '', user)
+
+    expect(wrapper.find('[data-test="team-title"]').text()).toBe('Vitória FC')
+    expect(wrapper.find('[data-test="player-create"]').exists()).toBe(visible)
+    expect(wrapper.findAll('[data-test="player-edit"]')).toHaveLength(visible ? 2 : 0)
+    expect(wrapper.findAll('[data-test="player-delete"]')).toHaveLength(visible ? 2 : 0)
+    expect(wrapper.find('[data-test="team-edit"]').exists()).toBe(false)
   })
 
   it('exclusão de time bloqueada pelo backend mostra a mensagem retornada', async () => {

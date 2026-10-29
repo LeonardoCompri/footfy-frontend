@@ -1,3 +1,5 @@
+import type { UserPlayer, UserTeam } from './user'
+
 export interface Role {
   id: number
   name: string
@@ -17,6 +19,9 @@ export interface AuthUser {
   document: string
   roles: Role[]
   permissions: Permission[]
+  // Opcionais: sessões salvas antes do FOOT-0034 não têm os campos até o próximo login.
+  team?: UserTeam | null
+  player?: UserPlayer | null
 }
 
 export interface LoginPayload {

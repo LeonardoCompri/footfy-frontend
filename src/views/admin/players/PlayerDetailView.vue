@@ -36,8 +36,13 @@ const initializing = ref(true)
 const editDialog = ref(false)
 const deleteDialog = ref(false)
 
-const canUpdate = authStore.hasPermission('player:update')
-const canDelete = authStore.hasPermission('player:delete')
+// Pelo time do jogador carregado (não pelo da URL): coach só edita o elenco do próprio time.
+const canUpdate = computed(
+  () => !!player.value && authStore.canManagePlayersOf('player:update', player.value.team_id),
+)
+const canDelete = computed(
+  () => !!player.value && authStore.canManagePlayersOf('player:delete', player.value.team_id),
+)
 
 const teamRoute = computed(() => ({ name: 'admin-teams-detail', params: { teamId: props.teamId } }))
 

@@ -48,9 +48,9 @@ const roles = ref<SelectOption[]>([])
 const can = {
   updateTeam: authStore.hasPermission('team:update'),
   deleteTeam: authStore.hasPermission('team:delete'),
-  createPlayer: authStore.hasPermission('player:create'),
-  updatePlayer: authStore.hasPermission('player:update'),
-  deletePlayer: authStore.hasPermission('player:delete'),
+  createPlayer: authStore.canManagePlayersOf('player:create', Number(props.teamId)),
+  updatePlayer: authStore.canManagePlayersOf('player:update', Number(props.teamId)),
+  deletePlayer: authStore.canManagePlayersOf('player:delete', Number(props.teamId)),
   createMember: authStore.hasPermission('technical_committee_member:create'),
   updateMember: authStore.hasPermission('technical_committee_member:update'),
   deleteMember: authStore.hasPermission('technical_committee_member:delete'),

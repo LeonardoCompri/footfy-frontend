@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import PageHeader from '@/components/common/PageHeader.vue'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 
@@ -16,7 +17,19 @@ function leaguesLabel(count: number): string {
 }
 
 // Recarrega sempre ao abrir a seleção: ligas criadas/vinculadas durante a sessão aparecem.
-onMounted(() => leagueContext.loadLeagues(true).catch(() => undefined))
+onMounted(async () => {
+  try {
+    await leagueContext.loadLeagues(true)
+  } catch {
+    return
+  }
+  // Com uma única liga não há o que escolher: entra direto nela. Não pula quando chegou aqui
+  // por acesso negado (evita loop) nem para master, que só chega à gestão de campeonatos por aqui.
+  const leagues = leagueContext.championships.flatMap((group) => group.leagues)
+  if (leagues.length !== 1 || accessDenied.value || authStore.hasRole('master')) return
+  if (router.currentRoute.value.name !== 'admin-select-championship') return
+  router.replace({ name: 'admin-dashboard', params: { leagueId: leagues[0].id } })
+})
 </script>
 
 <template>

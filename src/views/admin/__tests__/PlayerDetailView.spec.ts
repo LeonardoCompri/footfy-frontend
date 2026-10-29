@@ -39,8 +39,16 @@ function event(id: number, type: GameEvent['type'], playerId: number, leagueId =
   }
 }
 
-async function mountDetail(permissions: string[], query = '') {
-  setupLeagueSession(makeUser('coach', permissions))
+const PLAYER_WRITE = ['player:read', 'player:create', 'player:update', 'player:delete']
+const team5 = { id: 5, name: 'Vitória FC', logo: null }
+const team7 = { id: 7, name: 'Outro FC', logo: null }
+
+async function mountDetail(
+  permissions: string[],
+  query = '',
+  user = makeUser('admin', permissions),
+) {
+  setupLeagueSession(user)
   const router = createTestRouter()
   await router.push(`/admin/liga/1/times/5/jogadores/10${query}`)
   const wrapper = mount(PlayerDetailView, {
@@ -113,6 +121,33 @@ describe('PlayerDetailView', () => {
     const { wrapper } = await mountDetail(permissions)
     expect(wrapper.find('[data-test="player-edit"]').exists()).toBe(canEdit)
     expect(wrapper.find('[data-test="player-delete"]').exists()).toBe(canDelete)
+  })
+
+  it.each([
+    ['coach do próprio time', true, makeUser('coach', PLAYER_WRITE, { team: team5 })],
+    ['coach de outro time', false, makeUser('coach', PLAYER_WRITE, { team: team7 })],
+    ['coach sem time vinculado', false, makeUser('coach', PLAYER_WRITE, { team: null })],
+    [
+      'player (mesmo com a permissão)',
+      false,
+      makeUser('player', PLAYER_WRITE, {
+        team: team5,
+        player: { id: 10, name: 'Fulano', team_id: 5 },
+      }),
+    ],
+  ])('%s: editar/remover visíveis = %s', async (_label, visible, user) => {
+    const { wrapper } = await mountDetail([], '', user)
+    expect(wrapper.find('[data-test="player-edit"]').exists()).toBe(visible)
+    expect(wrapper.find('[data-test="player-delete"]').exists()).toBe(visible)
+  })
+
+  it('coach: vale o time do jogador carregado, não o da URL', async () => {
+    vi.mocked(playersService.get).mockResolvedValue({ ...player, team_id: 7 })
+    const { wrapper } = await mountDetail([], '', makeUser('coach', PLAYER_WRITE, { team: team5 }))
+
+    expect(wrapper.find('[data-test="player-title"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="player-edit"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="player-delete"]').exists()).toBe(false)
   })
 
   it('editar abre o dialog sem campo de time e atualiza a tela com o retorno', async () => {
