@@ -12,12 +12,17 @@ vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/leagues.service', () => ({
   leaguesService: { list: vi.fn(), dashboard: vi.fn() },
 }))
+vi.mock('@/services/api/auth.service', () => ({
+  authService: { logout: vi.fn().mockResolvedValue({}) },
+}))
 
 const Stub = { render: () => null }
 // Conta as montagens da tela de detalhe do time (remonta ao trocar de time?).
 const teamDetailMounts = vi.fn()
 const TeamDetailStub = { render: () => null, mounted: teamDetailMounts }
 
+// O v-menu da conta (VOverlay com close-on-back) registra um beforeEach que adia toda navegação
+// por um setTimeout: depois de um clique em link, espere a rota com vi.waitFor.
 function createLayoutRouter() {
   const leagueChild = (path: string, name: string, component: object = Stub) => ({
     path,
@@ -33,6 +38,7 @@ function createLayoutRouter() {
         component: AdminLayout,
         children: [
           { path: 'selecionar', name: 'admin-select-championship', component: Stub },
+          { path: 'perfil', name: 'admin-profile', component: Stub },
           {
             path: 'liga/:leagueId',
             meta: { requiresLeague: true },
@@ -83,6 +89,11 @@ const myTeam = { team: { id: 5, name: 'Vitória FC', logo: null } }
 
 function navTitles(wrapper: VueWrapper) {
   return wrapper.findAll('.v-navigation-drawer .v-list-item-title').map((t) => t.text())
+}
+
+async function openAccountMenu(wrapper: VueWrapper) {
+  await wrapper.find('[data-test="account-menu"]').trigger('click')
+  await flushPromises()
 }
 
 function activeItems(wrapper: VueWrapper) {
@@ -185,9 +196,11 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
       .findAll('.v-navigation-drawer .v-list-item')
       .find((i) => i.text() === 'Meu time')
     await item!.trigger('click')
-    await flushPromises()
 
-    expect(wrapper.router.currentRoute.value.fullPath).toBe('/admin/liga/1/times/5')
+    await vi.waitFor(() =>
+      expect(wrapper.router.currentRoute.value.fullPath).toBe('/admin/liga/1/times/5'),
+    )
+    await flushPromises()
     expect(teamDetailMounts).toHaveBeenCalledTimes(2)
   })
 
@@ -196,5 +209,35 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     expect(wrapper.find('.v-navigation-drawer').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Trocar')
     expect(wrapper.text()).toContain('Footfy Admin')
+  })
+
+  it.each([
+    ['dentro de uma liga', '/admin/liga/1'],
+    ['fora de uma liga', '/admin/selecionar'],
+  ])('menu da conta tem "Meu perfil" %s', async (_label, path) => {
+    const wrapper = await mountAt(path, 'player', [])
+
+    await openAccountMenu(wrapper)
+
+    const link = document.querySelector('[data-test="profile-link"]')
+    expect(link?.textContent).toContain('Meu perfil')
+    expect(link?.getAttribute('href')).toBe('/admin/perfil')
+    ;(link as HTMLElement).click()
+    await vi.waitFor(() => expect(wrapper.router.currentRoute.value.name).toBe('admin-profile'))
+  })
+
+  it('"Meu perfil" não entra no menu lateral da liga', async () => {
+    const wrapper = await mountAt('/admin/liga/1')
+    expect(navTitles(wrapper)).not.toContain('Meu perfil')
+  })
+
+  it('"Sair" no menu da conta encerra a sessão e volta para o login', async () => {
+    const wrapper = await mountAt('/admin/liga/1')
+
+    await openAccountMenu(wrapper)
+    ;(document.querySelector('[data-test="logout"]') as HTMLElement).click()
+
+    await vi.waitFor(() => expect(wrapper.router.currentRoute.value.name).toBe('login'))
+    expect(useAuthStore().isAuthenticated).toBe(false)
   })
 })
