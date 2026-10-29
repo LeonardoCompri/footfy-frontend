@@ -4,9 +4,10 @@ import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { gameEventsService } from '@/services/api/gameEvents.service'
 import { GAME_EVENT_TYPE_OPTIONS } from '@/types/gameEvent'
-import type { GameEvent, GameEventPayload, SummaryTeam } from '@/types/gameEvent'
+import type { GameEvent, GameEventPayload, GameEventPlayer, SummaryTeam } from '@/types/gameEvent'
 import type { Player } from '@/types/player'
 import FormDialog from '@/components/common/FormDialog.vue'
+import RemovedBadge from '@/components/common/RemovedBadge.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -34,12 +35,31 @@ const form = reactive({
 
 const isEditing = computed(() => !!props.event)
 
+type PlayerOption = Pick<Player, 'id' | 'name' | 'number'> & { removed?: boolean }
+
 const teamPlayers = computed(
   () => props.teams.find((team) => team.id === form.team_id)?.players ?? [],
 )
-const assistPlayers = computed(() => teamPlayers.value.filter((player) => player.id !== form.player_id))
 
-function playerTitle(player: Player): string {
+// Jogador removido do elenco só vira opção se já está gravado no evento: o backend aceita
+// mantê-lo na edição, mas recusa trocar para outro removido.
+function withSavedRemoved(saved: GameEventPlayer | null | undefined): PlayerOption[] {
+  const players: PlayerOption[] = teamPlayers.value
+  if (!saved?.removed || props.event?.team_id !== form.team_id) return players
+  if (players.some((player) => player.id === saved.id)) return players
+  return [...players, { id: saved.id, name: saved.name, number: null, removed: true }]
+}
+
+const playerOptions = computed(() => withSavedRemoved(props.event?.player))
+const assistPlayers = computed(() =>
+  withSavedRemoved(props.event?.related_player).filter((player) => player.id !== form.player_id),
+)
+
+function isRemoved(options: PlayerOption[], id: number | null): boolean {
+  return options.some((player) => player.id === id && player.removed)
+}
+
+function playerTitle(player: PlayerOption): string {
   return player.number != null ? `${player.number} · ${player.name}` : player.name
 }
 
@@ -140,7 +160,7 @@ async function handleSubmit() {
     />
     <v-autocomplete
       v-model="form.player_id"
-      :items="teamPlayers"
+      :items="playerOptions"
       :item-title="playerTitle"
       item-value="id"
       label="Jogador"
@@ -148,7 +168,16 @@ async function handleSubmit() {
       no-data-text="Nenhum jogador no elenco deste time."
       :error-messages="fieldErrors.player_id"
       data-test="event-player"
-    />
+    >
+      <template #item="{ props: itemProps, item }">
+        <v-list-item v-bind="itemProps" role="option">
+          <template v-if="item.raw.removed" #append><RemovedBadge /></template>
+        </v-list-item>
+      </template>
+      <template v-if="isRemoved(playerOptions, form.player_id)" #append-inner>
+        <RemovedBadge />
+      </template>
+    </v-autocomplete>
     <v-autocomplete
       v-if="form.type === 'goal'"
       v-model="form.related_player_id"
@@ -160,7 +189,16 @@ async function handleSubmit() {
       :disabled="!form.player_id"
       :error-messages="fieldErrors.related_player_id"
       data-test="event-assist"
-    />
+    >
+      <template #item="{ props: itemProps, item }">
+        <v-list-item v-bind="itemProps" role="option">
+          <template v-if="item.raw.removed" #append><RemovedBadge /></template>
+        </v-list-item>
+      </template>
+      <template v-if="isRemoved(assistPlayers, form.related_player_id)" #append-inner>
+        <RemovedBadge />
+      </template>
+    </v-autocomplete>
     <v-text-field
       v-model="form.minute"
       label="Minuto"

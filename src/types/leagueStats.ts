@@ -57,6 +57,7 @@ export interface LeagueTable {
 export interface RankingPlayer {
   player_id: number
   player_name: string
+  player_removed: boolean
   team_id: number | null
   team_name: string | null
   team_nickname: string | null
