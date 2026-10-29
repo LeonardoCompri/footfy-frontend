@@ -21,6 +21,7 @@ vi.mock('@/services/api/leagues.service', () => ({
 const player = (id: number, name: string, team: string | null) => ({
   player_id: id,
   player_name: name,
+  player_removed: false,
   team_id: team ? 1 : null,
   team_name: team ? `${team} FC` : null,
   team_nickname: team,

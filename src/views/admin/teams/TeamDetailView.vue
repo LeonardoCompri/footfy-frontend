@@ -161,7 +161,9 @@ async function handleDelete() {
   const crud = target.kind === 'player' ? playerCrud : memberCrud
   const ok = await crud.destroy(target.id)
   if (ok) {
-    snackbar.success(target.kind === 'player' ? 'Jogador excluído com sucesso.' : 'Membro excluído com sucesso.')
+    snackbar.success(
+      target.kind === 'player' ? 'Jogador removido do elenco.' : 'Membro excluído com sucesso.',
+    )
     await loadTeam()
   } else {
     snackbar.error(crud.errorMessage.value ?? 'Não foi possível excluir.')
@@ -392,8 +394,13 @@ onMounted(async () => {
       />
       <ConfirmDialog
         v-model="confirmDialog"
-        :title="pendingDelete?.kind === 'player' ? 'Excluir jogador' : 'Excluir membro'"
-        :message="`Tem certeza que deseja excluir '${pendingDelete?.name}'?`"
+        :title="pendingDelete?.kind === 'player' ? 'Remover do elenco' : 'Excluir membro'"
+        :message="
+          pendingDelete?.kind === 'player'
+            ? `Remover '${pendingDelete.name}' do elenco (as estatísticas são mantidas).`
+            : `Tem certeza que deseja excluir '${pendingDelete?.name}'?`
+        "
+        :confirm-text="pendingDelete?.kind === 'player' ? 'Remover' : 'Excluir'"
         @confirm="handleDelete"
       />
     </template>

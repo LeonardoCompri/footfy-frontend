@@ -86,6 +86,55 @@ describe('GameEventsPanel (Súmula)', () => {
     expect(rows[1]).toContain('Cartão amarelo · Bahia')
   })
 
+  it('jogador removido do elenco aparece pelo nome do evento com o selo "removido"', async () => {
+    vi.mocked(gameEventsService.list).mockResolvedValue([
+      makeEvent(1, {
+        game_id: 7,
+        team_id: 1,
+        player_id: 99,
+        related_player_id: 98,
+        player: { id: 99, name: 'Zé Removido', removed: true },
+        related_player: { id: 98, name: 'Assis Removido', removed: true },
+        minute: 10,
+      }),
+      makeEvent(2, {
+        game_id: 7,
+        team_id: 1,
+        player_id: 11,
+        related_player_id: null,
+        player: { id: 11, name: 'Renato', removed: false },
+        related_player: null,
+        minute: 20,
+      }),
+    ])
+    const wrapper = await mountPanel()
+
+    const [removed, active] = wrapper.findAll('[data-test="event-row"]')
+    expect(removed.find('[data-test="event-player"] .text-truncate').text()).toBe('Zé Removido')
+    expect(removed.find('[data-test="event-player"] [data-test="removed-badge"]').exists()).toBe(true)
+    expect(removed.find('[data-test="event-subtitle"]').text()).toBe(
+      'Gol · Vitória · Assistência: Assis Removido removido',
+    )
+    expect(removed.findAll('[data-test="removed-badge"]')).toHaveLength(2)
+    expect(active.find('[data-test="event-player"]').text()).toBe('Renato')
+    expect(active.find('[data-test="removed-badge"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Jogador fora do elenco')
+  })
+
+  it('sem a relação carregada, usa o elenco e por último o texto de fora do elenco', async () => {
+    vi.mocked(gameEventsService.list).mockResolvedValue([
+      makeEvent(1, { game_id: 7, team_id: 1, player_id: 11, related_player_id: 55, minute: 10 }),
+    ])
+    const wrapper = await mountPanel()
+
+    const row = wrapper.find('[data-test="event-row"]')
+    expect(row.find('[data-test="event-player"]').text()).toBe('Renato')
+    expect(row.find('[data-test="event-subtitle"]').text()).toBe(
+      'Gol · Vitória · Assistência: Jogador fora do elenco',
+    )
+    expect(row.find('[data-test="removed-badge"]').exists()).toBe(false)
+  })
+
   it('times e jogadores do formulário ficam restritos aos dois times da partida', async () => {
     const wrapper = await mountPanel()
     await wrapper.find('[data-test="event-create"]').trigger('click')

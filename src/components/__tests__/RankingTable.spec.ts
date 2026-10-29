@@ -14,6 +14,7 @@ const rows = [
   {
     player_id: 1,
     player_name: 'Dr. Márcio Ferreira Sobrinho de Albuquerque',
+    player_removed: false,
     team_id: 1,
     team_name: 'Clube Atlético Mineiro',
     team_nickname: 'Atlético-MG',
@@ -50,6 +51,27 @@ describe('RankingTable', () => {
     expect(headers[0].find('.v-icon').attributes('aria-label')).toBe('Cartões amarelos')
     expect(headers[2].attributes('title')).toBeUndefined()
     expect(wrapper.find('[data-test="ranking-row"]').text()).toContain('213')
+  })
+
+  it('jogador removido do elenco mostra o selo "removido" ao lado do nome; ativo não', () => {
+    const wrapper = mount(RankingTable, {
+      props: {
+        title: 'Cartões',
+        icon: 'mdi-card',
+        rows: [
+          rows[0],
+          { ...rows[0], player_id: 2, player_name: 'Zé Removido', player_removed: true },
+        ],
+        columns,
+        emptyText: 'Vazio',
+      },
+      global: { plugins: [createTestVuetify()] },
+    })
+
+    const names = wrapper.findAll('[data-test="ranking-row"] td:nth-child(2)')
+    expect(names[0].find('[data-test="removed-badge"]').exists()).toBe(false)
+    expect(names[1].text()).toContain('Zé Removido')
+    expect(names[1].find('[data-test="removed-badge"]').text()).toBe('removido')
   })
 
   it('sem linhas mostra o texto de vazio', () => {

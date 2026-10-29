@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RankingPlayer } from '@/types/leagueStats'
+import RemovedBadge from '@/components/common/RemovedBadge.vue'
 
 export interface RankingColumn {
   key: string
@@ -56,7 +57,10 @@ defineProps<{
         <tr v-for="(row, index) in rows" :key="row.player_id" data-test="ranking-row">
           <td class="pos text-medium-emphasis">{{ index + 1 }}</td>
           <td :title="row.player_name">
-            <div class="text-truncate">{{ row.player_name }}</div>
+            <div class="d-flex align-center ga-1">
+              <span class="text-truncate">{{ row.player_name }}</span>
+              <RemovedBadge v-if="row.player_removed" />
+            </div>
             <div class="text-caption text-medium-emphasis text-truncate">
               {{ row.team_nickname || row.team_name || 'Sem time' }}
             </div>

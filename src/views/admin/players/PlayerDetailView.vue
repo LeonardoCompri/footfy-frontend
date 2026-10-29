@@ -55,10 +55,10 @@ const profile = computed(() => {
 async function handleDelete() {
   if (!player.value) return
   if (await destroy(player.value.id)) {
-    snackbar.success('Jogador excluído com sucesso.')
+    snackbar.success('Jogador removido do elenco.')
     router.push(teamRoute.value)
   } else {
-    snackbar.error(errorMessage.value ?? 'Não foi possível excluir o jogador.')
+    snackbar.error(errorMessage.value ?? 'Não foi possível remover o jogador.')
   }
 }
 
@@ -121,7 +121,7 @@ onMounted(async () => {
               data-test="player-delete"
               @click="deleteDialog = true"
             >
-              Excluir
+              Remover
             </v-btn>
           </div>
         </v-card-text>
@@ -154,8 +154,9 @@ onMounted(async () => {
       />
       <ConfirmDialog
         v-model="deleteDialog"
-        title="Excluir jogador"
-        :message="`Tem certeza que deseja excluir '${player.name}'?`"
+        title="Remover do elenco"
+        :message="`Remover '${player.name}' do elenco (as estatísticas são mantidas).`"
+        confirm-text="Remover"
         @confirm="handleDelete"
       />
     </template>
