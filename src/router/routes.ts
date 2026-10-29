@@ -84,6 +84,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        // Conta do próprio usuário (/me): fora de `liga/:leagueId`, vale para qualquer papel.
+        path: 'perfil',
+        name: 'admin-profile',
+        component: () => import('@/views/admin/profile/ProfileView.vue'),
+      },
+      {
         path: 'campeonatos',
         name: 'admin-championships-list',
         component: () => import('@/views/admin/championships/ChampionshipAdminListView.vue'),

@@ -37,6 +37,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: token.value, user: user.value }))
   }
 
+  // Mescla só o que mudou: o UserResource do /me traz `roles` como strings e não tem
+  // `permissions`, então substituir o usuário quebraria hasRole/hasPermission.
+  function updateUser(changes: Partial<Pick<AuthUser, 'name' | 'email' | 'player'>>) {
+    if (!user.value) return
+    user.value = { ...user.value, ...changes }
+    persist()
+  }
+
   function restoreSession() {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return
@@ -82,6 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
     canManagePlayersOf,
     login,
     logout,
+    updateUser,
     restoreSession,
     clearSession,
   }

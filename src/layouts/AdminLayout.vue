@@ -186,10 +186,36 @@ async function handleLogout() {
         variant="text"
         @click="toggleTheme"
       />
-      <span class="mx-4 d-none d-md-inline">{{ authStore.user?.name }}</span>
-      <v-btn variant="text" prepend-icon="mdi-logout" @click="handleLogout">
-        <span class="d-none d-sm-inline">Sair</span>
-      </v-btn>
+      <!-- Menu da conta: fica no app bar para existir dentro e fora de uma liga. -->
+      <v-menu location="bottom end">
+        <template #activator="{ props: menuProps }">
+          <v-btn
+            v-bind="menuProps"
+            variant="text"
+            prepend-icon="mdi-account-circle"
+            append-icon="mdi-menu-down"
+            aria-label="Menu da conta"
+            class="text-none mr-2"
+            data-test="account-menu"
+          >
+            <span class="d-none d-md-inline">{{ authStore.user?.name }}</span>
+          </v-btn>
+        </template>
+        <v-list density="compact" nav>
+          <v-list-item
+            prepend-icon="mdi-account-edit"
+            title="Meu perfil"
+            :to="{ name: 'admin-profile' }"
+            data-test="profile-link"
+          />
+          <v-list-item
+            prepend-icon="mdi-logout"
+            title="Sair"
+            data-test="logout"
+            @click="handleLogout"
+          />
+        </v-list>
+      </v-menu>
     </v-app-bar>
 
     <v-main>
