@@ -23,6 +23,16 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value.permissions.some((p) => p.name === permission || p.name === `${module}:all`)
   }
 
+  // Mesma regra do backend (access:player_write): coach só mexe no elenco do próprio time e
+  // player nunca edita jogadores. Master/admin seguem só a permissão.
+  function canManagePlayersOf(permission: string, teamId: number | null): boolean {
+    if (!hasPermission(permission)) return false
+    if (hasRole('master') || hasRole('admin')) return true
+    if (hasRole('player')) return false
+    if (hasRole('coach')) return teamId !== null && user.value?.team?.id === teamId
+    return true
+  }
+
   function persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: token.value, user: user.value }))
   }
@@ -69,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     hasPermission,
     hasRole,
+    canManagePlayersOf,
     login,
     logout,
     restoreSession,

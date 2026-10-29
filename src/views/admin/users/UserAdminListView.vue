@@ -19,16 +19,24 @@ const snackbar = useSnackbar()
 const { xs, smAndDown } = useDisplay()
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<User, UserPayload>(usersService)
 
-// Regra do backend (routes/backoffice.php): master|admin listam e editam; criar, excluir e
-// vincular ligas é só master. Admin também não edita master (evita alterar senha de quem
-// tem mais privilégio — ver BUG-012).
+// Regra do backend (routes/backoffice.php): master|admin listam e criam (admin só coach e
+// player); excluir e vincular ligas é só master. Admin edita só a si mesmo e coach/player
+// (access:user_write — nunca master nem outro admin, ver BUG-012).
 const isMaster = authStore.hasRole('master')
 const currentUserId = authStore.user?.id
 
+// Coach e player herdam as ligas do time vinculado (não usam vínculo manual de ligas).
+function isTeamScoped(user: User): boolean {
+  return (
+    user.roles.some((role) => role === 'coach' || role === 'player') &&
+    !user.roles.some((role) => role === 'master' || role === 'admin')
+  )
+}
+
 const can = {
-  create: isMaster,
-  edit: (user: User) => isMaster || !user.roles.includes('master'),
-  leagues: (user: User) => isMaster && !user.roles.includes('master'),
+  create: isMaster || authStore.hasRole('admin'),
+  edit: (user: User) => isMaster || user.id === currentUserId || isTeamScoped(user),
+  leagues: (user: User) => isMaster && !user.roles.includes('master') && !isTeamScoped(user),
   delete: (user: User) => isMaster && user.id !== currentUserId,
 }
 
@@ -55,19 +63,31 @@ const filteredUsers = computed(() => {
   )
 })
 
-// No mobile CPF/Papel/Ligas viram legenda sob o nome, para caber sem rolagem horizontal.
+// No mobile CPF/Papel/Ligas/Vínculo viram legenda sob o nome, para caber sem rolagem horizontal.
 const headers = computed(() => [
   { title: 'Nome', key: 'name' },
   ...(xs.value ? [] : [{ title: 'CPF', key: 'document' }]),
   ...(xs.value ? [] : [{ title: 'Papel', key: 'roles', sortable: false }]),
   ...(smAndDown.value ? [] : [{ title: 'Ligas', key: 'leagues', sortable: false }]),
+  ...(smAndDown.value ? [] : [{ title: 'Vínculo', key: 'link', sortable: false }]),
   { title: '', key: 'actions', sortable: false, align: 'end' as const },
 ])
 
 function leaguesLabel(user: User): string {
   if (user.roles.includes('master')) return 'Todas as ligas'
+  if (isTeamScoped(user)) return user.team ? 'Ligas do time' : 'Nenhuma liga'
   if (user.leagues.length === 0) return 'Nenhuma liga'
   return user.leagues.map((league) => league.name).join(', ')
+}
+
+// Time do coach ou jogador (com o time) do player; '' para quem não tem vínculo por papel.
+function linkLabel(user: User): string {
+  if (user.roles.includes('coach')) return user.team ? `Time: ${user.team.name}` : 'Sem time'
+  if (user.roles.includes('player')) {
+    if (!user.player) return 'Sem jogador'
+    return user.team ? `Jogador: ${user.player.name} (${user.team.name})` : `Jogador: ${user.player.name}`
+  }
+  return ''
 }
 
 function replaceUser(user: User) {
@@ -142,6 +162,9 @@ onMounted(() => fetchAll())
               </div>
               <div v-else class="text-caption text-medium-emphasis">{{ item.email ?? '' }}</div>
               <div v-if="smAndDown" class="text-caption text-medium-emphasis">{{ leaguesLabel(item) }}</div>
+              <div v-if="smAndDown && linkLabel(item)" class="text-caption text-medium-emphasis">
+                {{ linkLabel(item) }}
+              </div>
             </div>
           </template>
           <template v-slot:[`item.document`]="{ item }">{{ formatCpf(item.document) }}</template>
@@ -152,6 +175,9 @@ onMounted(() => fetchAll())
           </template>
           <template v-slot:[`item.leagues`]="{ item }">
             <span class="text-body-2">{{ leaguesLabel(item) }}</span>
+          </template>
+          <template v-slot:[`item.link`]="{ item }">
+            <span class="text-body-2" data-test="user-link">{{ linkLabel(item) || '—' }}</span>
           </template>
           <template v-slot:[`item.actions`]="{ item }">
             <div class="d-flex justify-end">
@@ -189,7 +215,7 @@ onMounted(() => fetchAll())
       </v-card-text>
     </v-card>
 
-    <UserFormDialog v-model="formDialog" :user="userToEdit" :can-change-role="isMaster" @saved="replaceUser" />
+    <UserFormDialog v-model="formDialog" :user="userToEdit" @saved="replaceUser" />
     <UserLeaguesDialog v-if="leaguesUser" v-model="leaguesDialog" :user="leaguesUser" @updated="replaceUser" />
     <ConfirmDialog
       v-model="confirmOpen"

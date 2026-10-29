@@ -69,8 +69,13 @@ export function makeLeague(id: number, championship: Championship, extra: Partia
   }
 }
 
-// `permissions` simula o retorno do login com as permissões efetivas (FOOT-0030).
-export function makeUser(role: string, permissions: string[] = []): AuthUser {
+// `permissions` simula o retorno do login com as permissões efetivas (FOOT-0030); `extra` traz
+// o vínculo (`team`/`player`) do coach/player (FOOT-0034).
+export function makeUser(
+  role: string,
+  permissions: string[] = [],
+  extra: Partial<AuthUser> = {},
+): AuthUser {
   return {
     id: 1,
     name: 'Usuário Teste',
@@ -78,6 +83,7 @@ export function makeUser(role: string, permissions: string[] = []): AuthUser {
     document: '00000000000',
     roles: [{ id: 1, name: role, guard_name: 'sanctum' }],
     permissions: permissions.map((name, index) => ({ id: index + 1, name, guard_name: 'sanctum' })),
+    ...extra,
   }
 }
 

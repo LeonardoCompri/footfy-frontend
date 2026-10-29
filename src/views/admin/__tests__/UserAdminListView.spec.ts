@@ -3,6 +3,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import UserAdminListView from '@/views/admin/users/UserAdminListView.vue'
 import { usersService } from '@/services/api/users.service'
+import { teamsService } from '@/services/api/teams.service'
+import { playersService } from '@/services/api/players.service'
 import {
   championshipA,
   championshipB,
@@ -12,9 +14,11 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { makeAppUser } from '@/test/factories'
+import { makeAppUser, makePlayer, makeTeam } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
+vi.mock('@/services/api/teams.service', () => ({ teamsService: { list: vi.fn() } }))
+vi.mock('@/services/api/players.service', () => ({ playersService: { list: vi.fn() } }))
 vi.mock('@/services/api/users.service', () => ({
   usersService: {
     list: vi.fn(),
@@ -26,13 +30,20 @@ vi.mock('@/services/api/users.service', () => ({
   },
 }))
 
+const vitoria = { id: 5, name: 'Vitória FC', logo: null }
 const master = makeAppUser(1, 'Dono', 'master')
 const admin = makeAppUser(2, 'Ana Admin', 'admin', { leagues: [{ id: 1, name: 'Série A' }] })
-const coach = makeAppUser(3, 'Tite', 'coach')
+const coach = makeAppUser(3, 'Tite', 'coach', { team: vitoria })
+const player = makeAppUser(4, 'Joga Bem', 'player', {
+  team: vitoria,
+  player: { id: 10, name: 'Joga Bem', team_id: 5 },
+})
+const coachWithoutTeam = makeAppUser(5, 'Sem Time', 'coach', { team: null })
+const extraAdmin = makeAppUser(6, 'Beto Admin', 'admin', { leagues: [{ id: 1, name: 'Série A' }] })
 
-// `makeUser` (sessão) usa id 1: como master, a pessoa logada é o próprio "Dono".
+// Sessão: como master a pessoa logada é o "Dono" (id 1); como admin, a "Ana Admin" (id 2).
 async function mountList(role: 'master' | 'admin') {
-  setupLeagueSession(makeUser(role), [
+  setupLeagueSession(makeUser(role, [], { id: role === 'master' ? 1 : 2 }), [
     makeLeague(1, championshipA, { name: 'Série A' }),
     makeLeague(2, championshipB, { name: 'Copa' }),
   ])
@@ -78,6 +89,8 @@ describe('UserAdminListView', () => {
     vi.clearAllMocks()
     window.innerWidth = 1366
     vi.mocked(usersService.list).mockResolvedValue([master, admin, coach])
+    vi.mocked(teamsService.list).mockResolvedValue([makeTeam(5, 'Vitória FC')])
+    vi.mocked(playersService.list).mockResolvedValue([makePlayer(10, 'Joga Bem', { team_id: 5 })])
   })
 
   it('lista usuários com papel e ligas vinculadas', async () => {
@@ -88,10 +101,32 @@ describe('UserAdminListView', () => {
     expect(rowOf(wrapper, 'Ana Admin').text()).toContain('Admin')
     expect(rowOf(wrapper, 'Ana Admin').text()).toContain('Série A')
     expect(rowOf(wrapper, 'Tite').text()).toContain('Técnico')
-    expect(rowOf(wrapper, 'Tite').text()).toContain('Nenhuma liga')
+    expect(rowOf(wrapper, 'Tite').text()).toContain('Ligas do time')
   })
 
-  it('master: cria, edita, exclui (menos a si mesmo) e gerencia ligas (menos de master)', async () => {
+  it('coluna Vínculo mostra o time do coach e o jogador do player', async () => {
+    vi.mocked(usersService.list).mockResolvedValue([master, admin, coach, player, coachWithoutTeam])
+    const wrapper = await mountList('master')
+
+    const link = (name: string) => rowOf(wrapper, name).find('[data-test="user-link"]').text()
+    expect(link('Tite')).toBe('Time: Vitória FC')
+    expect(link('Joga Bem')).toBe('Jogador: Joga Bem (Vitória FC)')
+    expect(link('Sem Time')).toBe('Sem time')
+    expect(rowOf(wrapper, 'Sem Time').text()).toContain('Nenhuma liga')
+    expect(link('Ana Admin')).toBe('—')
+  })
+
+  it('mobile (sm): o vínculo vira legenda sob o nome', async () => {
+    window.innerWidth = 800
+    vi.mocked(usersService.list).mockResolvedValue([master, coach])
+    const wrapper = await mountList('master')
+
+    expect(wrapper.find('[data-test="user-link"]').exists()).toBe(false)
+    expect(rowOf(wrapper, 'Tite').text()).toContain('Time: Vitória FC')
+  })
+
+  it('master: cria, edita, exclui (menos a si mesmo) e gerencia ligas só de admin', async () => {
+    vi.mocked(usersService.list).mockResolvedValue([master, admin, coach, player])
     const wrapper = await mountList('master')
 
     expect(wrapper.find('[data-test="user-create"]').exists()).toBe(true)
@@ -99,19 +134,28 @@ describe('UserAdminListView', () => {
     expect(self.find('[data-test="user-edit"]').exists()).toBe(true)
     expect(self.find('[data-test="user-delete"]').exists()).toBe(false)
     expect(self.find('[data-test="user-leagues-open"]').exists()).toBe(false)
-    const other = rowOf(wrapper, 'Tite')
+    const other = rowOf(wrapper, 'Ana Admin')
     expect(other.find('[data-test="user-edit"]').exists()).toBe(true)
     expect(other.find('[data-test="user-delete"]').exists()).toBe(true)
     expect(other.find('[data-test="user-leagues-open"]').exists()).toBe(true)
+    // Coach e player herdam as ligas do time: sem o botão "Ligas".
+    for (const name of ['Tite', 'Joga Bem']) {
+      expect(rowOf(wrapper, name).find('[data-test="user-edit"]').exists()).toBe(true)
+      expect(rowOf(wrapper, name).find('[data-test="user-leagues-open"]').exists()).toBe(false)
+    }
   })
 
-  it('admin: só edita dados básicos de não-master, sem criar/excluir/vincular ligas', async () => {
+  it('admin: cria e edita coach/player e a si mesmo, sem excluir, vincular ligas ou editar master/admin', async () => {
+    vi.mocked(usersService.list).mockResolvedValue([master, admin, extraAdmin, coach, player])
     const wrapper = await mountList('admin')
 
-    expect(wrapper.find('[data-test="user-create"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="user-create"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="user-delete"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="user-leagues-open"]').exists()).toBe(false)
     expect(rowOf(wrapper, 'Dono').find('[data-test="user-edit"]').exists()).toBe(false)
+    expect(rowOf(wrapper, 'Beto Admin').find('[data-test="user-edit"]').exists()).toBe(false)
+    expect(rowOf(wrapper, 'Ana Admin').find('[data-test="user-edit"]').exists()).toBe(true)
+    expect(rowOf(wrapper, 'Joga Bem').find('[data-test="user-edit"]').exists()).toBe(true)
 
     vi.mocked(usersService.update).mockResolvedValue({ ...coach, name: 'Adenor' })
     await rowOf(wrapper, 'Tite').find('[data-test="user-edit"]').trigger('click')
@@ -120,17 +164,19 @@ describe('UserAdminListView', () => {
     await setInput('[data-test="user-name"]', 'Adenor')
     await submit()
 
-    // Sem `role` (o backend ignoraria) e sem senha quando o campo fica em branco.
+    // Sem `role` (o backend rejeita para admin) e sem senha quando o campo fica em branco;
+    // o time do coach vai junto (obrigatório para quem não é master).
     expect(usersService.update).toHaveBeenCalledWith(3, {
       name: 'Adenor',
       document: coach.document,
       email: null,
+      team_id: 5,
     })
     expect(rowOf(wrapper, 'Adenor').exists()).toBe(true)
   })
 
-  it('cria usuário pelo dialog e vincula às ligas escolhidas (padrão: liga ativa)', async () => {
-    const created = makeAppUser(9, 'Novo', 'coach')
+  it('master cria admin pelo dialog e vincula às ligas escolhidas (padrão: liga ativa)', async () => {
+    const created = makeAppUser(9, 'Novo', 'admin')
     vi.mocked(usersService.create).mockResolvedValue(created)
     vi.mocked(usersService.attachLeagues).mockResolvedValue({ ...created, leagues: [{ id: 1, name: 'Série A' }] })
     const wrapper = await mountList('master')
@@ -141,8 +187,7 @@ describe('UserAdminListView', () => {
     await setInput('[data-test="user-document"]', '123.456.789-01')
     await setInput('[data-test="user-password"]', 'segredo1')
     const role = wrapper.findAllComponents({ name: 'VSelect' }).find((c) => c.attributes('data-test') === 'user-role')
-    role!.vm.$emit('update:modelValue', 'coach')
-    await flushPromises()
+    expect(role!.props('modelValue')).toBe('admin')
     await submit()
 
     expect(usersService.create).toHaveBeenCalledWith({
@@ -150,7 +195,7 @@ describe('UserAdminListView', () => {
       document: '12345678901',
       email: null,
       password: 'segredo1',
-      role: 'coach',
+      role: 'admin',
     })
     expect(usersService.attachLeagues).toHaveBeenCalledWith(9, [1])
     expect(rowOf(wrapper, 'Novo').text()).toContain('Série A')

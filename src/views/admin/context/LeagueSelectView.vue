@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { League } from '@/types/championship'
@@ -7,6 +8,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 
 const props = defineProps<{ championshipId: string }>()
 
+const router = useRouter()
 const leagueContext = useLeagueContextStore()
 
 const group = computed(() =>
@@ -23,7 +25,17 @@ function leagueDetails(league: League): string {
     .join(' · ')
 }
 
-onMounted(() => leagueContext.loadLeagues().catch(() => undefined))
+onMounted(async () => {
+  try {
+    await leagueContext.loadLeagues()
+  } catch {
+    return
+  }
+  // Campeonato com uma única liga: entra direto nela, sem a escolha intermediária.
+  if (group.value?.leagues.length !== 1) return
+  if (router.currentRoute.value.name !== 'admin-select-league') return
+  router.replace({ name: 'admin-dashboard', params: { leagueId: group.value.leagues[0].id } })
+})
 </script>
 
 <template>
