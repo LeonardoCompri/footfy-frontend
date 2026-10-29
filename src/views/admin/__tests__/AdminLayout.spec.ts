@@ -37,6 +37,16 @@ function createLayoutRouter() {
         path: '/admin',
         component: AdminLayout,
         children: [
+          {
+            path: '',
+            name: 'admin-home',
+            redirect: () => {
+              const { activeLeagueId } = useLeagueContextStore()
+              return activeLeagueId
+                ? { name: 'admin-dashboard', params: { leagueId: activeLeagueId } }
+                : { name: 'admin-select-championship' }
+            },
+          },
           { path: 'selecionar', name: 'admin-select-championship', component: Stub },
           { path: 'perfil', name: 'admin-profile', component: Stub },
           {
@@ -74,7 +84,11 @@ async function mountAt(
   context.leagues = [makeLeague(1, championshipA, { name: 'Série A' })]
   context.loaded = true
   context.setActiveLeague(1)
+  return mountLayout(path)
+}
 
+// Monta o layout sem preparar o contexto de liga (o teste define o estado antes).
+async function mountLayout(path: string) {
   const router = createLayoutRouter()
   await router.push(path)
   const wrapper = mount({ template: '<RouterView />' }, {
@@ -224,6 +238,70 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     expect(link?.getAttribute('href')).toBe('/admin/perfil')
     ;(link as HTMLElement).click()
     await vi.waitFor(() => expect(wrapper.router.currentRoute.value.name).toBe('admin-profile'))
+  })
+
+  it('no perfil com liga ativa mostra o menu e o pill da liga ativa, sem item destacado', async () => {
+    const wrapper = await mountAt('/admin/perfil', 'coach', ['team:read'], myTeam)
+
+    expect(wrapper.find('.v-navigation-drawer').classes()).toContain('v-navigation-drawer--active')
+    expect(activeItems(wrapper)).toEqual([])
+    expect(wrapper.text()).toContain('Série A')
+    expect(wrapper.text()).not.toContain('Footfy Admin')
+    const hrefs = wrapper
+      .findAll('.v-navigation-drawer .v-list-item[href]')
+      .map((i) => [i.text(), i.attributes('href')])
+    expect(hrefs).toContainEqual(['Dashboard', '/admin/liga/1'])
+    expect(hrefs).toContainEqual(['Meu time', '/admin/liga/1/times/5'])
+
+    const dashboard = wrapper
+      .findAll('.v-navigation-drawer .v-list-item')
+      .find((i) => i.text() === 'Dashboard')
+    await dashboard!.trigger('click')
+    await vi.waitFor(() => expect(wrapper.router.currentRoute.value.name).toBe('admin-dashboard'))
+  })
+
+  it('no perfil com liga ativa o mobile tem o hambúrguer que abre o menu', async () => {
+    window.innerWidth = 375
+    const wrapper = await mountAt('/admin/perfil')
+
+    const navIcon = wrapper.find('.v-app-bar-nav-icon')
+    expect(navIcon.exists()).toBe(true)
+    await navIcon.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.v-navigation-drawer').classes()).toContain('v-navigation-drawer--active')
+  })
+
+  it('reload direto no perfil busca as ligas para montar o menu da liga ativa', async () => {
+    const { leaguesService } = await import('@/services/api/leagues.service')
+    vi.mocked(leaguesService.list).mockReset()
+    vi.mocked(leaguesService.list).mockResolvedValue([
+      makeLeague(1, championshipA, { name: 'Série A' }),
+    ])
+    useAuthStore().token = 'token'
+    useAuthStore().user = makeUser('admin', ['game:read'])
+    useLeagueContextStore().setActiveLeague(1)
+
+    const wrapper = await mountLayout('/admin/perfil')
+
+    expect(leaguesService.list).toHaveBeenCalledTimes(1)
+    expect(navTitles(wrapper)).toContain('Dashboard')
+    expect(wrapper.text()).toContain('Série A')
+  })
+
+  it('no perfil sem liga ativa não mostra o menu e a marca leva ao painel', async () => {
+    useAuthStore().token = 'token'
+    useAuthStore().user = makeUser('admin', ['game:read'])
+
+    const wrapper = await mountLayout('/admin/perfil')
+
+    expect(wrapper.find('.v-navigation-drawer').exists()).toBe(false)
+    const home = wrapper.find('[data-test="home-link"]')
+    expect(home.text()).toBe('Footfy Admin')
+    expect(home.attributes('href')).toBe('/admin')
+    await home.trigger('click')
+    await vi.waitFor(() =>
+      expect(wrapper.router.currentRoute.value.name).toBe('admin-select-championship'),
+    )
   })
 
   it('"Meu perfil" não entra no menu lateral da liga', async () => {

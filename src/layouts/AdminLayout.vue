@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { RouterView, useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
@@ -77,9 +77,21 @@ const navItems: NavItem[] = [
   },
 ]
 
-// Nav rail e pill só existem dentro de uma rota escopada por liga.
+// Liga da rota: só as rotas escopadas por liga têm; é ela que entra na key da tela.
 const leagueId = computed(() => (route.meta.requiresLeague ? route.params.leagueId : undefined))
-const inLeague = computed(() => !!leagueId.value && !!leagueContext.activeLeague)
+// Liga do menu: no "Meu perfil" (fora de `liga/:leagueId`) o menu e o pill seguem a liga ativa,
+// para dar caminho de volta ao painel.
+const navLeagueId = computed(
+  () =>
+    leagueId.value ?? (route.name === 'admin-profile' ? leagueContext.activeLeagueId : undefined),
+)
+const inLeague = computed(() => !!navLeagueId.value && !!leagueContext.activeLeague)
+
+// Num reload direto fora das rotas de liga o guard não busca as ligas, e sem elas a liga ativa
+// fica nula. `loadLeagues` não repete a busca se ela já foi feita ou está em andamento.
+onMounted(() => {
+  if (leagueContext.activeLeagueId) leagueContext.loadLeagues().catch(() => undefined)
+})
 
 // Só o coach tem "Meu time" (para o player `user.team` é o time do jogador vinculado).
 const myTeamId = computed(() => (authStore.hasRole('coach') ? authStore.user?.team?.id : undefined))
@@ -93,7 +105,7 @@ const visibleNavItems = computed(() =>
       ...item,
       to: {
         name: item.routeName,
-        params: { leagueId: leagueId.value, ...(item.myTeam ? { teamId: myTeamId.value } : {}) },
+        params: { leagueId: navLeagueId.value, ...(item.myTeam ? { teamId: myTeamId.value } : {}) },
       },
     })),
 )
@@ -164,8 +176,13 @@ async function handleLogout() {
 
     <v-app-bar>
       <v-app-bar-nav-icon v-if="inLeague && !mdAndUp" @click="mobileDrawer = !mobileDrawer" />
-      <!-- Dentro de uma liga a marca já aparece no drawer; o app bar mostra o pill de contexto. -->
-      <v-toolbar-title v-if="!inLeague" class="toolbar-title">Footfy Admin</v-toolbar-title>
+      <!-- Dentro de uma liga a marca já aparece no drawer; o app bar mostra o pill de contexto.
+           Fora dela a marca leva ao painel (dashboard da liga ativa ou seleção de liga). -->
+      <v-toolbar-title v-if="!inLeague" class="toolbar-title">
+        <RouterLink :to="{ name: 'admin-home' }" class="text-decoration-none" data-test="home-link">
+          Footfy Admin
+        </RouterLink>
+      </v-toolbar-title>
 
       <div v-if="inLeague && leagueContext.activeLeague" class="context-pill d-flex align-center ga-2 pl-3 pr-1 py-1">
         <v-icon icon="mdi-trophy-outline" size="18" color="primary" />
@@ -237,6 +254,9 @@ async function handleLogout() {
 <style scoped>
 .toolbar-title {
   flex: none;
+}
+.toolbar-title a {
+  color: inherit;
 }
 .context-pill {
   min-width: 0;

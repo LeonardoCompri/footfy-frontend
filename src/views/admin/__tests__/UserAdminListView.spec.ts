@@ -245,6 +245,64 @@ describe('UserAdminListView', () => {
     expect(rowOf(wrapper, 'Ana Admin').text()).not.toContain('Série A')
   })
 
+  describe('mobile (xs): ações da linha', () => {
+    beforeEach(() => {
+      window.innerWidth = 375
+      vi.mocked(usersService.list).mockResolvedValue([master, admin, extraAdmin, coach])
+    })
+
+    const menuItems = () =>
+      [...document.querySelectorAll('.v-overlay--active .v-list-item')] as HTMLElement[]
+
+    it('master vendo outro usuário: Ligas, Editar e Excluir num menu; Excluir pede confirmação', async () => {
+      const wrapper = await mountList('master')
+
+      const row = rowOf(wrapper, 'Ana Admin')
+      expect(row.find('[data-test="user-edit"]').exists()).toBe(false)
+      const toggle = row.find('[data-test="row-actions-menu"]')
+      expect(toggle.attributes('aria-label')).toBe('Ações de Ana Admin')
+      await toggle.trigger('click')
+      await flushPromises()
+
+      expect(menuItems().map((item) => item.dataset.test)).toEqual([
+        'user-leagues-open',
+        'user-edit',
+        'user-delete',
+      ])
+      expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
+        'Ligas do usuário',
+        'Editar usuário',
+        'Excluir usuário',
+      ])
+      menuItems()[2].click()
+      await flushPromises()
+      expect(document.querySelector('.v-dialog.v-overlay--active')?.textContent).toContain(
+        "Tem certeza que deseja excluir 'Ana Admin'?",
+      )
+      expect(usersService.remove).not.toHaveBeenCalled()
+    })
+
+    it('master vendo a si mesmo: só o botão Editar, sem menu', async () => {
+      const wrapper = await mountList('master')
+
+      const self = rowOf(wrapper, 'Dono')
+      expect(self.find('[data-test="row-actions-menu"]').exists()).toBe(false)
+      expect(self.find('[data-test="user-edit"]').attributes('aria-label')).toBe('Editar usuário')
+    })
+
+    it('admin: Editar direto em coach e em si mesmo; nenhuma ação em master ou outro admin', async () => {
+      const wrapper = await mountList('admin')
+
+      expect(wrapper.find('[data-test="row-actions-menu"]').exists()).toBe(false)
+      for (const name of ['Tite', 'Ana Admin']) {
+        expect(rowOf(wrapper, name).find('[data-test="user-edit"]').exists()).toBe(true)
+      }
+      for (const name of ['Dono', 'Beto Admin']) {
+        expect(rowOf(wrapper, name).findAll('td').at(-1)!.find('button').exists()).toBe(false)
+      }
+    })
+  })
+
   describe('CPF formatado e busca', () => {
     const withCpf = makeAppUser(4, 'Carlos Cpf', 'coach', {
       document: '12345678901',
@@ -255,21 +313,27 @@ describe('UserAdminListView', () => {
       vi.mocked(usersService.list).mockResolvedValue([master, admin, coach, withCpf])
     })
 
-    it('desktop: coluna CPF mostra o documento com máscara', async () => {
+    it('desktop: CPF com máscara fica sob o nome, sem coluna própria e sem quebrar', async () => {
       const wrapper = await mountList('master')
 
-      const row = rowOf(wrapper, 'Carlos Cpf').text()
-      expect(row).toContain('123.456.789-01')
-      expect(row).not.toContain('12345678901')
+      const headers = wrapper.findAll('[data-test="users-table"] thead th').map((th) => th.text())
+      expect(headers).not.toContain('CPF')
+      const nameCell = rowOf(wrapper, 'Carlos Cpf').findAll('td')[0]
+      expect(nameCell.text()).toContain('carlos@footfy.com')
+      const cpf = nameCell.find('[data-test="user-cpf"]')
+      expect(cpf.text()).toBe('123.456.789-01')
+      expect(cpf.classes()).toContain('text-no-wrap')
+      expect(rowOf(wrapper, 'Carlos Cpf').text()).not.toContain('12345678901')
     })
 
     it('mobile (xs): legenda sob o nome mostra o CPF com máscara', async () => {
       window.innerWidth = 375
       const wrapper = await mountList('master')
 
-      const row = rowOf(wrapper, 'Carlos Cpf').text()
-      expect(row).toContain('Técnico · 123.456.789-01')
-      expect(row).not.toContain('12345678901')
+      const row = rowOf(wrapper, 'Carlos Cpf')
+      expect(row.text()).toContain('Técnico · 123.456.789-01')
+      expect(row.text()).not.toContain('12345678901')
+      expect(row.find('[data-test="user-cpf"]').classes()).toContain('text-no-wrap')
     })
 
     it.each(['123.456.789-01', '12345678901', '456.789'])(

@@ -11,6 +11,7 @@ import { cpfDigits, formatCpf } from '@/components/common/format'
 import type { User, UserPayload } from '@/types/user'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import RowActions, { type RowAction } from '@/components/common/RowActions.vue'
 import UserFormDialog from '@/components/users/UserFormDialog.vue'
 import UserLeaguesDialog from '@/components/users/UserLeaguesDialog.vue'
 
@@ -63,14 +64,22 @@ const filteredUsers = computed(() => {
   )
 })
 
-// No mobile CPF/Papel/Ligas/Vínculo viram legenda sob o nome, para caber sem rolagem horizontal.
+// E-mail e CPF ficam sempre como legenda sob o nome (sem coluna própria); no mobile Papel e,
+// abaixo de 960px, Ligas/Vínculo também viram legenda, para caber sem rolagem horizontal.
+// Ações com padding menor: em 960px com o menu lateral aberto a tabela fica no limite.
 const headers = computed(() => [
   { title: 'Nome', key: 'name' },
-  ...(xs.value ? [] : [{ title: 'CPF', key: 'document' }]),
   ...(xs.value ? [] : [{ title: 'Papel', key: 'roles', sortable: false }]),
   ...(smAndDown.value ? [] : [{ title: 'Ligas', key: 'leagues', sortable: false }]),
   ...(smAndDown.value ? [] : [{ title: 'Vínculo', key: 'link', sortable: false }]),
-  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+  {
+    title: '',
+    key: 'actions',
+    sortable: false,
+    align: 'end' as const,
+    headerProps: { class: 'px-2' },
+    cellProps: { class: 'px-2' },
+  },
 ])
 
 function leaguesLabel(user: User): string {
@@ -88,6 +97,39 @@ function linkLabel(user: User): string {
     return user.team ? `Jogador: ${user.player.name} (${user.team.name})` : `Jogador: ${user.player.name}`
   }
   return ''
+}
+
+function rowActions(user: User): RowAction[] {
+  const actions: RowAction[] = []
+  if (can.leagues(user)) {
+    actions.push({
+      key: 'leagues',
+      icon: 'mdi-link-variant',
+      label: 'Ligas do usuário',
+      dataTest: 'user-leagues-open',
+      onClick: () => openLeagues(user),
+    })
+  }
+  if (can.edit(user)) {
+    actions.push({
+      key: 'edit',
+      icon: 'mdi-pencil',
+      label: 'Editar usuário',
+      dataTest: 'user-edit',
+      onClick: () => openForm(user),
+    })
+  }
+  if (can.delete(user)) {
+    actions.push({
+      key: 'delete',
+      icon: 'mdi-delete',
+      label: 'Excluir usuário',
+      color: 'error',
+      dataTest: 'user-delete',
+      onClick: () => askDelete(user),
+    })
+  }
+  return actions
 }
 
 function replaceUser(user: User) {
@@ -158,16 +200,25 @@ onMounted(() => fetchAll())
             <div class="py-2">
               <div class="font-weight-medium">{{ item.name }}</div>
               <div v-if="xs" class="text-caption text-medium-emphasis">
-                {{ userRoleOption(item.roles[0]).title }} · {{ formatCpf(item.document) }}
+                {{ userRoleOption(item.roles[0]).title }} ·
+                <span class="text-no-wrap" data-test="user-cpf">{{
+                  formatCpf(item.document)
+                }}</span>
               </div>
-              <div v-else class="text-caption text-medium-emphasis">{{ item.email ?? '' }}</div>
+              <template v-else>
+                <div v-if="item.email" class="text-caption text-medium-emphasis text-break">
+                  {{ item.email }}
+                </div>
+                <div class="text-caption text-medium-emphasis text-no-wrap" data-test="user-cpf">
+                  {{ formatCpf(item.document) }}
+                </div>
+              </template>
               <div v-if="smAndDown" class="text-caption text-medium-emphasis">{{ leaguesLabel(item) }}</div>
               <div v-if="smAndDown && linkLabel(item)" class="text-caption text-medium-emphasis">
                 {{ linkLabel(item) }}
               </div>
             </div>
           </template>
-          <template v-slot:[`item.document`]="{ item }">{{ formatCpf(item.document) }}</template>
           <template v-slot:[`item.roles`]="{ item }">
             <v-chip :color="userRoleOption(item.roles[0]).color" size="small" variant="tonal">
               {{ userRoleOption(item.roles[0]).title }}
@@ -180,36 +231,7 @@ onMounted(() => fetchAll())
             <span class="text-body-2" data-test="user-link">{{ linkLabel(item) || '—' }}</span>
           </template>
           <template v-slot:[`item.actions`]="{ item }">
-            <div class="d-flex justify-end">
-              <v-btn
-                v-if="can.leagues(item)"
-                icon="mdi-link-variant"
-                variant="text"
-                size="small"
-                aria-label="Ligas do usuário"
-                data-test="user-leagues-open"
-                @click="openLeagues(item)"
-              />
-              <v-btn
-                v-if="can.edit(item)"
-                icon="mdi-pencil"
-                variant="text"
-                size="small"
-                aria-label="Editar usuário"
-                data-test="user-edit"
-                @click="openForm(item)"
-              />
-              <v-btn
-                v-if="can.delete(item)"
-                icon="mdi-delete"
-                variant="text"
-                size="small"
-                color="error"
-                aria-label="Excluir usuário"
-                data-test="user-delete"
-                @click="askDelete(item)"
-              />
-            </div>
+            <RowActions :actions="rowActions(item)" :menu-label="`Ações de ${item.name}`" />
           </template>
         </v-data-table>
       </v-card-text>
