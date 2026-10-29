@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { championshipA, createTestVuetify, makeLeague, makeUser } from '@/test/utils'
+import type { AuthUser } from '@/types/auth'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/leagues.service', () => ({
@@ -13,9 +14,16 @@ vi.mock('@/services/api/leagues.service', () => ({
 }))
 
 const Stub = { render: () => null }
+// Conta as montagens da tela de detalhe do time (remonta ao trocar de time?).
+const teamDetailMounts = vi.fn()
+const TeamDetailStub = { render: () => null, mounted: teamDetailMounts }
 
 function createLayoutRouter() {
-  const leagueChild = (path: string, name: string) => ({ path, name, component: Stub })
+  const leagueChild = (path: string, name: string, component: object = Stub) => ({
+    path,
+    name,
+    component,
+  })
   return createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -31,6 +39,7 @@ function createLayoutRouter() {
             children: [
               leagueChild('', 'admin-dashboard'),
               leagueChild('times', 'admin-teams-list'),
+              leagueChild('times/:teamId', 'admin-teams-detail', TeamDetailStub),
               leagueChild('times/:teamId/jogadores/:id', 'admin-players-detail'),
               leagueChild('estadios', 'admin-stadiums-list'),
               leagueChild('partidas', 'admin-games-list'),
@@ -46,10 +55,15 @@ function createLayoutRouter() {
   })
 }
 
-async function mountAt(path: string, role = 'admin', permissions: string[] = ['game:read']) {
+async function mountAt(
+  path: string,
+  role = 'admin',
+  permissions: string[] = ['game:read'],
+  extra: Partial<AuthUser> = {},
+) {
   const auth = useAuthStore()
   auth.token = 'token'
-  auth.user = makeUser(role, permissions)
+  auth.user = makeUser(role, permissions, extra)
   const context = useLeagueContextStore()
   context.leagues = [makeLeague(1, championshipA, { name: 'Série A' })]
   context.loaded = true
@@ -62,7 +76,17 @@ async function mountAt(path: string, role = 'admin', permissions: string[] = ['g
     attachTo: document.body,
   })
   await flushPromises()
-  return wrapper
+  return Object.assign(wrapper, { router })
+}
+
+const myTeam = { team: { id: 5, name: 'Vitória FC', logo: null } }
+
+function navTitles(wrapper: VueWrapper) {
+  return wrapper.findAll('.v-navigation-drawer .v-list-item-title').map((t) => t.text())
+}
+
+function activeItems(wrapper: VueWrapper) {
+  return wrapper.findAll('.v-navigation-drawer .v-list-item--active').map((i) => i.text())
 }
 
 describe('AdminLayout — nav rail e pill de contexto', () => {
@@ -116,6 +140,55 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     const wrapper = await mountAt('/admin/liga/1/times/5/jogadores/10')
     const active = wrapper.findAll('.v-navigation-drawer .v-list-item--active').map((i) => i.text())
     expect(active).toEqual(['Times'])
+  })
+
+  it('coach com time vê "Meu time" logo após o Dashboard, apontando para o detalhe do time dele', async () => {
+    const wrapper = await mountAt('/admin/liga/1', 'coach', ['team:read'], myTeam)
+
+    expect(navTitles(wrapper).slice(0, 4)).toEqual(['Footfy', 'Dashboard', 'Meu time', 'Times'])
+    const item = wrapper
+      .findAll('.v-navigation-drawer .v-list-item')
+      .find((i) => i.text() === 'Meu time')
+    expect(item?.attributes('href')).toBe('/admin/liga/1/times/5')
+  })
+
+  it.each([
+    ['coach sem time vinculado', 'coach', {}],
+    ['admin', 'admin', {}],
+    ['player com time (do jogador vinculado)', 'player', myTeam],
+  ])('"Meu time" não aparece para %s', async (_label, role, extra) => {
+    const wrapper = await mountAt('/admin/liga/1', role, ['team:read'], extra)
+    expect(navTitles(wrapper)).not.toContain('Meu time')
+    expect(navTitles(wrapper)).toContain('Times')
+  })
+
+  it('coach: telas do próprio time destacam "Meu time"; as de outro time, "Times"', async () => {
+    const wrapper = await mountAt(
+      '/admin/liga/1/times/5/jogadores/10',
+      'coach',
+      ['team:read'],
+      myTeam,
+    )
+    expect(activeItems(wrapper)).toEqual(['Meu time'])
+
+    await wrapper.router.push('/admin/liga/1/times/7')
+    await flushPromises()
+    expect(activeItems(wrapper)).toEqual(['Times'])
+  })
+
+  it('ir de um detalhe de time para outro ("Meu time") remonta a tela', async () => {
+    teamDetailMounts.mockClear()
+    const wrapper = await mountAt('/admin/liga/1/times/7', 'coach', ['team:read'], myTeam)
+    expect(teamDetailMounts).toHaveBeenCalledTimes(1)
+
+    const item = wrapper
+      .findAll('.v-navigation-drawer .v-list-item')
+      .find((i) => i.text() === 'Meu time')
+    await item!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.router.currentRoute.value.fullPath).toBe('/admin/liga/1/times/5')
+    expect(teamDetailMounts).toHaveBeenCalledTimes(2)
   })
 
   it('fora de uma liga (seleção) não mostra menu nem pill', async () => {

@@ -32,16 +32,32 @@ interface NavItem {
   permission?: string
   // Telas internas (sem rota aninhada) que mantêm o item destacado no menu.
   activeOn?: string[]
+  // "Meu time": aponta para o time vinculado ao coach.
+  myTeam?: boolean
 }
+
+const TEAM_PAGES = [
+  'admin-teams-detail',
+  'admin-players-detail',
+  'admin-technical-committee-members-detail',
+]
 
 // Ordem definida no FOOT-0022: Dashboard é a tela inicial ao entrar na liga.
 const navItems: NavItem[] = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', routeName: 'admin-dashboard' },
   {
+    title: 'Meu time',
+    icon: 'mdi-shield-account',
+    routeName: 'admin-teams-detail',
+    roles: ['coach'],
+    activeOn: TEAM_PAGES,
+    myTeam: true,
+  },
+  {
     title: 'Times',
     icon: 'mdi-shield',
     routeName: 'admin-teams-list',
-    activeOn: ['admin-teams-detail', 'admin-players-detail', 'admin-technical-committee-members-detail'],
+    activeOn: TEAM_PAGES,
   },
   { title: 'Estádios', icon: 'mdi-stadium', routeName: 'admin-stadiums-list' },
   {
@@ -65,12 +81,29 @@ const navItems: NavItem[] = [
 const leagueId = computed(() => (route.meta.requiresLeague ? route.params.leagueId : undefined))
 const inLeague = computed(() => !!leagueId.value && !!leagueContext.activeLeague)
 
+// Só o coach tem "Meu time" (para o player `user.team` é o time do jogador vinculado).
+const myTeamId = computed(() => (authStore.hasRole('coach') ? authStore.user?.team?.id : undefined))
+
 const visibleNavItems = computed(() =>
   navItems
     .filter((item) => !item.roles || item.roles.some((role) => authStore.hasRole(role)))
     .filter((item) => !item.permission || authStore.hasPermission(item.permission))
-    .map((item) => ({ ...item, to: { name: item.routeName, params: { leagueId: leagueId.value } } })),
+    .filter((item) => !item.myTeam || myTeamId.value)
+    .map((item) => ({
+      ...item,
+      to: {
+        name: item.routeName,
+        params: { leagueId: leagueId.value, ...(item.myTeam ? { teamId: myTeamId.value } : {}) },
+      },
+    })),
 )
+
+// Telas internas do próprio time destacam "Meu time"; as dos demais times, "Times".
+function isActive(item: NavItem): true | undefined {
+  if (!item.activeOn?.includes(String(route.name))) return undefined
+  const onMyTeam = !!myTeamId.value && Number(route.params.teamId) === myTeamId.value
+  return (item.myTeam ? onMyTeam : !onMyTeam) || undefined
+}
 
 function switchContext() {
   router.push({ name: 'admin-select-championship' })
@@ -110,7 +143,7 @@ async function handleLogout() {
           :title="item.title"
           :to="item.to"
           :exact="item.routeName === 'admin-dashboard'"
-          :active="item.activeOn?.includes(String(route.name)) || undefined"
+          :active="isActive(item)"
           color="primary"
           rounded="lg"
         />
@@ -161,9 +194,14 @@ async function handleLogout() {
 
     <v-main>
       <v-container fluid class="pa-4 pa-md-6">
-        <!-- key por liga: trocar de liga sempre remonta a tela, sem dados residuais da anterior. -->
+        <!-- key por liga: trocar de liga sempre remonta a tela, sem dados residuais da anterior.
+             O teamId entra na key porque "Meu time" leva de um detalhe de time para outro, e a
+             mesma rota reaproveitaria a tela com o time anterior. -->
         <RouterView v-slot="{ Component }">
-          <component :is="Component" :key="leagueId ?? 'no-league'" />
+          <component
+            :is="Component"
+            :key="`${leagueId ?? 'no-league'}:${route.params.teamId ?? ''}`"
+          />
         </RouterView>
       </v-container>
     </v-main>

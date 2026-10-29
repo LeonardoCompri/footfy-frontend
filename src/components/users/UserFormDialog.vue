@@ -2,9 +2,15 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
+import { playersService } from '@/services/api/players.service'
+import { teamsService } from '@/services/api/teams.service'
 import { usersService } from '@/services/api/users.service'
+import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { USER_ROLE_OPTIONS } from '@/types/user'
+import { cpfDigits } from '@/components/common/format'
+import type { Player } from '@/types/player'
+import type { Team } from '@/types/team'
 import type { User, UserPayload, UserRole } from '@/types/user'
 import FormDialog from '@/components/common/FormDialog.vue'
 import CpfTextField from '@/components/common/CpfTextField.vue'
@@ -12,8 +18,6 @@ import CpfTextField from '@/components/common/CpfTextField.vue'
 const props = defineProps<{
   modelValue: boolean
   user?: User | null
-  // Só master define papel (e cria usuário); admin edita apenas os dados básicos.
-  canChangeRole: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,11 +25,20 @@ const emit = defineEmits<{
   saved: [user: User]
 }>()
 
+const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 const { loading, errorMessage, fieldErrors, save } = useCrud<User, UserPayload>(usersService)
 const snackbar = useSnackbar()
 
+// Regra do backend: admin só cria coach e player e só master troca o papel na edição.
+// Para quem não é master o vínculo do papel (time do coach, jogador do player) é obrigatório.
+const isMaster = authStore.hasRole('master')
+const roleOptions = isMaster
+  ? USER_ROLE_OPTIONS
+  : USER_ROLE_OPTIONS.filter((option) => option.value === 'coach' || option.value === 'player')
+
 const isEditing = computed(() => !!props.user)
+const canChangeRole = computed(() => isMaster || !isEditing.value)
 const showPassword = ref(false)
 const form = reactive({
   name: '',
@@ -34,7 +47,15 @@ const form = reactive({
   password: '',
   role: 'admin' as UserRole,
   leagueIds: [] as number[],
+  teamId: null as number | null,
+  playerId: null as number | null,
 })
+
+const teams = ref<Team[]>([])
+const players = ref<Player[]>([])
+const linksLoading = ref(false)
+let teamsRequest: Promise<void> | null = null
+let playersRequest: Promise<void> | null = null
 
 const leagueItems = computed(() =>
   leagueContext.leagues.map((league) => ({
@@ -42,6 +63,68 @@ const leagueItems = computed(() =>
     title: league.championship ? `${league.name} (${league.championship.name})` : league.name,
   })),
 )
+
+// Times da liga ativa; o time atual do coach entra mesmo se for de outra liga.
+const teamItems = computed(() => {
+  const items = teams.value.map((team) => ({ id: team.id, title: team.name }))
+  const current = props.user?.roles.includes('coach') ? props.user.team : null
+  if (current && !items.some((item) => item.id === current.id)) {
+    items.push({ id: current.id, title: current.name })
+  }
+  return items
+})
+
+// GET /players não filtra por liga: fica só com os jogadores dos times da liga ativa.
+const leaguePlayers = computed(() => {
+  const teamIds = new Set(teams.value.map((team) => team.id))
+  return players.value.filter((player) => player.team_id !== null && teamIds.has(player.team_id))
+})
+
+const playerItems = computed(() => {
+  const teamNames = new Map(teams.value.map((team) => [team.id, team.name]))
+  const items = leaguePlayers.value.map((player) => ({
+    id: player.id,
+    title: `${player.name} (${teamNames.get(player.team_id as number)})`,
+  }))
+  const current = props.user?.player
+  if (current && !items.some((item) => item.id === current.id)) {
+    const teamName = props.user?.team?.name
+    items.push({ id: current.id, title: teamName ? `${current.name} (${teamName})` : current.name })
+  }
+  return items
+})
+
+const requiredLink = (message: string) => (value: number | null) =>
+  isMaster || value !== null || message
+
+function loadLinkOptions() {
+  if (!props.modelValue || (form.role !== 'coach' && form.role !== 'player')) return
+  const requests: Promise<void>[] = []
+  teamsRequest ??= teamsService
+    .list({ league_id: leagueContext.activeLeagueId ?? undefined })
+    .then((data) => {
+      teams.value = data
+    })
+    .catch(() => {
+      teamsRequest = null
+      snackbar.error('Não foi possível carregar os times da liga.')
+    })
+  requests.push(teamsRequest)
+  if (form.role === 'player') {
+    playersRequest ??= playersService
+      .list()
+      .then((data) => {
+        players.value = data
+      })
+      .catch(() => {
+        playersRequest = null
+        snackbar.error('Não foi possível carregar os jogadores.')
+      })
+    requests.push(playersRequest)
+  }
+  linksLoading.value = true
+  Promise.all(requests).finally(() => (linksLoading.value = false))
+}
 
 watch(
   () => props.modelValue,
@@ -54,12 +137,29 @@ watch(
     form.document = props.user?.document ?? ''
     form.email = props.user?.email ?? ''
     form.password = ''
-    form.role = (props.user?.roles[0] as UserRole | undefined) ?? 'admin'
+    form.role = (props.user?.roles[0] as UserRole | undefined) ?? (isMaster ? 'admin' : 'coach')
     // Novo usuário já nasce vinculado à liga ativa (pode ajustar antes de salvar).
     form.leagueIds = leagueContext.activeLeagueId ? [leagueContext.activeLeagueId] : []
+    form.teamId = form.role === 'coach' ? (props.user?.team?.id ?? null) : null
+    form.playerId = props.user?.player?.id ?? null
+    // Recarrega a cada abertura: vínculos feitos desde a última vez entram nas opções.
+    teamsRequest = null
+    playersRequest = null
+    loadLinkOptions()
   },
   { immediate: true },
 )
+
+watch(() => form.role, loadLinkOptions)
+
+// Sugere o jogador com o mesmo CPF do usuário, sem sobrescrever uma escolha já feita.
+watch([() => form.document, () => form.role, leaguePlayers], () => {
+  if (form.role !== 'player' || form.playerId !== null) return
+  const digits = cpfDigits(form.document)
+  if (digits.length !== 11) return
+  const match = leaguePlayers.value.find((player) => cpfDigits(player.document) === digits)
+  if (match) form.playerId = match.id
+})
 
 async function handleSubmit() {
   const payload: UserPayload = {
@@ -68,13 +168,16 @@ async function handleSubmit() {
     email: form.email || null,
   }
   if (form.password) payload.password = form.password
-  if (props.canChangeRole) payload.role = form.role
+  if (canChangeRole.value) payload.role = form.role
+  // Só o campo do papel atual: o outro é rejeitado pelo backend (prohibited).
+  if (form.role === 'coach') payload.team_id = form.teamId
+  if (form.role === 'player') payload.player_id = form.playerId
 
   let result = await save(payload, props.user?.id)
   if (!result) return
 
-  // Master acessa todas as ligas: vínculo só faz sentido para os demais papéis.
-  if (!isEditing.value && form.role !== 'master' && form.leagueIds.length) {
+  // Coach e player herdam as ligas do time vinculado: só admin recebe ligas manualmente.
+  if (!isEditing.value && form.role === 'admin' && form.leagueIds.length) {
     try {
       result = await usersService.attachLeagues(result.id, form.leagueIds)
     } catch {
@@ -124,7 +227,7 @@ async function handleSubmit() {
     <v-select
       v-if="canChangeRole"
       v-model="form.role"
-      :items="USER_ROLE_OPTIONS"
+      :items="roleOptions"
       item-title="title"
       item-value="value"
       label="Papel"
@@ -132,8 +235,40 @@ async function handleSubmit() {
       :error-messages="fieldErrors.role"
       data-test="user-role"
     />
+    <v-select
+      v-if="form.role === 'coach'"
+      v-model="form.teamId"
+      :items="teamItems"
+      item-title="title"
+      item-value="id"
+      label="Time"
+      :loading="linksLoading"
+      :clearable="isMaster"
+      :rules="[requiredLink('Informe o time do coach.')]"
+      no-data-text="Nenhum time nesta liga."
+      :class="{ 'mt-2': !canChangeRole }"
+      :error-messages="fieldErrors.team_id"
+      data-test="user-team"
+    />
     <v-autocomplete
-      v-if="!isEditing && form.role !== 'master'"
+      v-if="form.role === 'player'"
+      v-model="form.playerId"
+      :items="playerItems"
+      item-title="title"
+      item-value="id"
+      label="Jogador"
+      hint="Sugerido pelo CPF quando há um jogador com o mesmo documento."
+      persistent-hint
+      :loading="linksLoading"
+      :clearable="isMaster"
+      :rules="[requiredLink('Informe o jogador vinculado ao usuário.')]"
+      no-data-text="Nenhum jogador nesta liga."
+      :class="{ 'mt-2': !canChangeRole }"
+      :error-messages="fieldErrors.player_id"
+      data-test="user-player"
+    />
+    <v-autocomplete
+      v-if="!isEditing && form.role === 'admin'"
       v-model="form.leagueIds"
       :items="leagueItems"
       item-title="title"
