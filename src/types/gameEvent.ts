@@ -2,12 +2,22 @@ import type { Player } from './player'
 
 export type GameEventType = 'goal' | 'yellow_card' | 'red_card'
 
+// Jogador do evento como o backend devolve; `removed` = excluído do elenco (soft delete).
+export interface GameEventPlayer {
+  id: number
+  name: string
+  removed: boolean
+}
+
 export interface GameEvent {
   id: number
   game_id: number
   team_id: number
   player_id: number
   related_player_id: number | null
+  // Ausentes quando a relação não foi carregada; `related_player` é null sem assistência.
+  player?: GameEventPlayer | null
+  related_player?: GameEventPlayer | null
   league_id: number
   type: GameEventType
   minute: number | null

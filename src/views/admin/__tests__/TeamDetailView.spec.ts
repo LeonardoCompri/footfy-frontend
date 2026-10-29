@@ -211,6 +211,38 @@ describe('TeamDetailView', () => {
     expect(router.currentRoute.value.name).toBe('admin-teams-detail')
   })
 
+  it('remover jogador do elenco avisa que as estatísticas são mantidas', async () => {
+    vi.mocked(playersService.remove).mockResolvedValue({} as never)
+    const { wrapper } = await mountDetail()
+
+    await wrapper.findAll('[data-test="player-delete"]')[0].trigger('click')
+    await flushPromises()
+    const dialog = document.querySelector('.v-overlay--active .v-card') as HTMLElement
+    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Remover do elenco')
+    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
+      "Remover 'Goleiro Um' do elenco (as estatísticas são mantidas).",
+    )
+    const confirm = [...dialog.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Remover')
+    confirm!.click()
+    await flushPromises()
+
+    expect(playersService.remove).toHaveBeenCalledWith(10)
+    expect(useSnackbar().message.value).toBe('Jogador removido do elenco.')
+  })
+
+  it('excluir membro da comissão mantém o texto de exclusão', async () => {
+    const { wrapper } = await mountDetail(ALL_WRITE, '?tab=comissao')
+
+    await wrapper.find('[data-test="member-delete"]').trigger('click')
+    await flushPromises()
+    const dialog = document.querySelector('.v-overlay--active .v-card') as HTMLElement
+    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Excluir membro')
+    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
+      "Tem certeza que deseja excluir 'Técnico Fulano'?",
+    )
+    expect([...dialog.querySelectorAll('button')].map((b) => b.textContent?.trim())).toContain('Excluir')
+  })
+
   it('vincula e desvincula o time de outra liga pelo dialog de ligas', async () => {
     vi.mocked(teamsService.get).mockResolvedValue({
       ...team,

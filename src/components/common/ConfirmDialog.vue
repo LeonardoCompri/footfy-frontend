@@ -3,6 +3,8 @@ defineProps<{
   modelValue: boolean
   title?: string
   message?: string
+  // Texto do botão de confirmação (padrão "Excluir").
+  confirmText?: string
 }>()
 
 const emit = defineEmits<{
@@ -34,7 +36,7 @@ function cancel() {
       <v-card-actions>
         <v-spacer />
         <v-btn variant="text" @click="cancel">Cancelar</v-btn>
-        <v-btn color="error" variant="flat" @click="confirm">Excluir</v-btn>
+        <v-btn color="error" variant="flat" @click="confirm">{{ confirmText ?? 'Excluir' }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

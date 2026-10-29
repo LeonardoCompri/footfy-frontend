@@ -132,14 +132,20 @@ describe('PlayerDetailView', () => {
     expect(wrapper.find('[data-test="player-title"]').text()).toBe('Fulano Editado')
   })
 
-  it('excluir confirma e volta para o time', async () => {
+  it('remover do elenco confirma (estatísticas mantidas) e volta para o time', async () => {
     vi.mocked(playersService.remove).mockResolvedValue({} as never)
     const { wrapper, router } = await mountDetail(['player:delete'])
 
+    expect(wrapper.find('[data-test="player-delete"]').text()).toBe('Remover')
     await wrapper.find('[data-test="player-delete"]').trigger('click')
     await flushPromises()
-    const confirm = [...document.querySelectorAll('.v-overlay--active button')].find((b) =>
-      b.textContent?.includes('Excluir'),
+    const dialog = document.querySelector('.v-overlay--active') as HTMLElement
+    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Remover do elenco')
+    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
+      "Remover 'Fulano da Silva' do elenco (as estatísticas são mantidas).",
+    )
+    const confirm = [...dialog.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Remover',
     ) as HTMLButtonElement
     confirm.click()
     await flushPromises()

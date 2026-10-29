@@ -7,9 +7,10 @@ import { useAuthStore } from '@/stores/auth'
 import { gameEventsService } from '@/services/api/gameEvents.service'
 import { teamsService } from '@/services/api/teams.service'
 import type { Game } from '@/types/game'
-import type { GameEvent, GameEventPayload, SummaryTeam } from '@/types/gameEvent'
+import type { GameEvent, GameEventPayload, GameEventPlayer, SummaryTeam } from '@/types/gameEvent'
 import { useChartPalette } from '@/components/charts/chartPalette'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import RemovedBadge from '@/components/common/RemovedBadge.vue'
 import GameEventFormDialog from './GameEventFormDialog.vue'
 
 const props = defineProps<{ game: Game }>()
@@ -65,18 +66,33 @@ function teamName(teamId: number): string {
   return teams.value.find((team) => team.id === teamId)?.name ?? '—'
 }
 
-function playerName(playerId: number | null): string {
-  if (!playerId) return '—'
+// O nome vem do próprio evento (inclusive de jogador removido do elenco); sem a relação
+// carregada, procura nos elencos dos dois times.
+function eventPlayer(
+  player: GameEventPlayer | null | undefined,
+  playerId: number | null,
+): Pick<GameEventPlayer, 'name' | 'removed'> | null {
+  if (!playerId) return null
+  if (player) return player
   for (const team of teams.value) {
-    const player = team.players.find((p) => p.id === playerId)
-    if (player) return player.name
+    const found = team.players.find((p) => p.id === playerId)
+    if (found) return { name: found.name, removed: false }
   }
-  return 'Jogador fora do elenco'
+  return { name: 'Jogador fora do elenco', removed: false }
+}
+
+function mainPlayer(event: GameEvent) {
+  return eventPlayer(event.player, event.player_id)
+}
+
+function assistPlayer(event: GameEvent) {
+  return eventPlayer(event.related_player, event.related_player_id)
 }
 
 function eventSubtitle(event: GameEvent): string {
   const parts = [eventMeta.value[event.type].label, teamName(event.team_id)]
-  if (event.related_player_id) parts.push(`Assistência: ${playerName(event.related_player_id)}`)
+  const assist = assistPlayer(event)
+  if (assist) parts.push(`Assistência: ${assist.name}`)
   return parts.join(' · ')
 }
 
@@ -171,8 +187,16 @@ onMounted(() => {
               class="mr-3"
             />
           </template>
-          <v-list-item-title>{{ playerName(event.player_id) }}</v-list-item-title>
-          <v-list-item-subtitle>{{ eventSubtitle(event) }}</v-list-item-subtitle>
+          <!-- Só o nome trunca: no mobile o selo continua visível. -->
+          <v-list-item-title class="d-flex align-center ga-1" data-test="event-player">
+            <span class="text-truncate">{{ mainPlayer(event)?.name ?? '—' }}</span>
+            <RemovedBadge v-if="mainPlayer(event)?.removed" />
+          </v-list-item-title>
+          <!-- A assistência é a última parte do subtítulo, então o selo fica logo após o nome dela. -->
+          <v-list-item-subtitle data-test="event-subtitle">
+            {{ eventSubtitle(event) }}
+            <RemovedBadge v-if="assistPlayer(event)?.removed" />
+          </v-list-item-subtitle>
           <template v-if="can.update || can.delete" #append>
             <v-btn
               v-if="can.update"
