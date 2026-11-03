@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "value": "Treinador",
+      "title": "Treinador"
+    },
+    {
+      "value": "Auxiliar Técnico",
+      "title": "Auxiliar Técnico"
+    },
+    {
+      "value": "Preparador Físico",
+      "title": "Preparador Físico"
+    },
+    {
+      "value": "Preparador de Goleiros",
+      "title": "Preparador de Goleiros"
+    },
+    {
+      "value": "Fisioterapeuta",
+      "title": "Fisioterapeuta"
+    },
+    {
+      "value": "Médico",
+      "title": "Médico"
+    },
+    {
+      "value": "Analista de Desempenho",
+      "title": "Analista de Desempenho"
+    },
+    {
+      "value": "Roupeiro",
+      "title": "Roupeiro"
+    }
+  ]
+}

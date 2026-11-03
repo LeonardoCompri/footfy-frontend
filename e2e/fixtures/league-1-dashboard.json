@@ -1,0 +1,170 @@
+{
+  "data": {
+    "counters": {
+      "teams": 4,
+      "games": 6,
+      "stadiums": 2,
+      "season": "2026"
+    },
+    "last_results": [
+      {
+        "id": 4,
+        "home_team": {
+          "id": 2,
+          "name": "Clube Ribeirinho",
+          "nickname": "Ribeirinho",
+          "logo": null
+        },
+        "away_team": {
+          "id": 4,
+          "name": "União Central",
+          "nickname": "União",
+          "logo": null
+        },
+        "home_score": 2,
+        "away_score": 2,
+        "status": "finished",
+        "match_date": "2026-03-15 18:00:00",
+        "round": 2,
+        "phase": null
+      },
+      {
+        "id": 3,
+        "home_team": {
+          "id": 1,
+          "name": "Atlético Serrano",
+          "nickname": "Serrano",
+          "logo": null
+        },
+        "away_team": {
+          "id": 3,
+          "name": "Estrela do Vale",
+          "nickname": "Estrela",
+          "logo": null
+        },
+        "home_score": 1,
+        "away_score": 3,
+        "status": "finished",
+        "match_date": "2026-03-15 16:00:00",
+        "round": 2,
+        "phase": null
+      },
+      {
+        "id": 2,
+        "home_team": {
+          "id": 3,
+          "name": "Estrela do Vale",
+          "nickname": "Estrela",
+          "logo": null
+        },
+        "away_team": {
+          "id": 4,
+          "name": "União Central",
+          "nickname": "União",
+          "logo": null
+        },
+        "home_score": 0,
+        "away_score": 0,
+        "status": "finished",
+        "match_date": "2026-03-08 18:00:00",
+        "round": 1,
+        "phase": null
+      },
+      {
+        "id": 1,
+        "home_team": {
+          "id": 1,
+          "name": "Atlético Serrano",
+          "nickname": "Serrano",
+          "logo": null
+        },
+        "away_team": {
+          "id": 2,
+          "name": "Clube Ribeirinho",
+          "nickname": "Ribeirinho",
+          "logo": null
+        },
+        "home_score": 2,
+        "away_score": 1,
+        "status": "finished",
+        "match_date": "2026-03-08 16:00:00",
+        "round": 1,
+        "phase": null
+      }
+    ],
+    "upcoming_games": [
+      {
+        "id": 5,
+        "home_team": {
+          "id": 1,
+          "name": "Atlético Serrano",
+          "nickname": "Serrano",
+          "logo": null
+        },
+        "away_team": {
+          "id": 4,
+          "name": "União Central",
+          "nickname": "União",
+          "logo": null
+        },
+        "home_score": null,
+        "away_score": null,
+        "status": "scheduled",
+        "match_date": "2026-03-22 16:00:00",
+        "round": 3,
+        "phase": null
+      },
+      {
+        "id": 6,
+        "home_team": {
+          "id": 2,
+          "name": "Clube Ribeirinho",
+          "nickname": "Ribeirinho",
+          "logo": null
+        },
+        "away_team": {
+          "id": 3,
+          "name": "Estrela do Vale",
+          "nickname": "Estrela",
+          "logo": null
+        },
+        "home_score": null,
+        "away_score": null,
+        "status": "scheduled",
+        "match_date": "2026-03-22 18:00:00",
+        "round": 3,
+        "phase": null
+      }
+    ],
+    "goals_by_bucket": [
+      {
+        "type": "round",
+        "round": 1,
+        "phase": null,
+        "phase_order": null,
+        "goals": 3
+      },
+      {
+        "type": "round",
+        "round": 2,
+        "phase": null,
+        "phase_order": null,
+        "goals": 8
+      }
+    ],
+    "results_split": {
+      "home_wins": 1,
+      "draws": 2,
+      "away_wins": 1
+    },
+    "cards_split": {
+      "yellow": 1,
+      "red": 1
+    },
+    "totals": {
+      "goals": 11,
+      "finished_games": 4,
+      "goals_average": 2.75
+    }
+  }
+}

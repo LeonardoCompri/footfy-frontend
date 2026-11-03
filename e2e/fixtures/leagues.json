@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Série A",
+      "start_date": "2026-03-01",
+      "end_date": "2026-11-29",
+      "organizer": "Federação Footfy",
+      "season": "2026",
+      "format": "round_robin",
+      "championship": {
+        "id": 1,
+        "name": "Copa Footfy",
+        "image": null
+      }
+    },
+    {
+      "id": 2,
+      "name": "Série B",
+      "start_date": "2026-03-08",
+      "end_date": "2026-11-29",
+      "organizer": "Federação Footfy",
+      "season": "2026",
+      "format": "round_robin",
+      "championship": {
+        "id": 1,
+        "name": "Copa Footfy",
+        "image": null
+      }
+    },
+    {
+      "id": 3,
+      "name": "Copa de Verão",
+      "start_date": "2026-01-10",
+      "end_date": "2026-02-20",
+      "organizer": "Liga Litoral",
+      "season": "2026",
+      "format": "knockout",
+      "championship": {
+        "id": 2,
+        "name": "Torneio de Verão",
+        "image": null
+      }
+    }
+  ]
+}
