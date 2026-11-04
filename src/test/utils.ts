@@ -6,9 +6,10 @@ import type { Championship, League } from '@/types/championship'
 import type { AuthUser } from '@/types/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
+import { vuetifyLocale } from '@/plugins/vuetify-locale'
 
 export function createTestVuetify() {
-  return createVuetify({ components, directives })
+  return createVuetify({ components, directives, locale: vuetifyLocale })
 }
 
 const Stub = { render: () => null }

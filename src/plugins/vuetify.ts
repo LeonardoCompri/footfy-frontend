@@ -2,8 +2,10 @@ import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import { vuetifyLocale } from './vuetify-locale'
 
 export default createVuetify({
+  locale: vuetifyLocale,
   icons: {
     defaultSet: 'mdi',
     aliases,
