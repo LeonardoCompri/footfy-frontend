@@ -81,7 +81,8 @@ describe('GameEventsPanel (Súmula)', () => {
     // Ordem cronológica pelo minuto.
     expect(rows[0]).toContain("30'")
     expect(rows[0]).toContain('Renato')
-    expect(rows[0]).toContain('Gol · Vitória · Assistência: Matheuzinho')
+    expect(rows[0]).toContain('Gol · Vitória')
+    expect(rows[0]).toContain('Assistência: Matheuzinho')
     expect(rows[1]).toContain('Everaldo')
     expect(rows[1]).toContain('Cartão amarelo · Bahia')
   })
@@ -112,9 +113,15 @@ describe('GameEventsPanel (Súmula)', () => {
     const [removed, active] = wrapper.findAll('[data-test="event-row"]')
     expect(removed.find('[data-test="event-player"] .text-truncate').text()).toBe('Zé Removido')
     expect(removed.find('[data-test="event-player"] [data-test="removed-badge"]').exists()).toBe(true)
-    expect(removed.find('[data-test="event-subtitle"]').text()).toBe(
-      'Gol · Vitória · Assistência: Assis Removido removido',
+    // A assistência fica numa linha própria e sem corte (BUG-032), com o selo logo depois.
+    expect(removed.find('[data-test="event-subtitle"]').text()).toBe('Gol · Vitória')
+    expect(removed.find('[data-test="event-assist-line"]').classes()).toContain('d-block')
+    expect(removed.find('[data-test="event-assist-line"]').text()).toBe(
+      'Assistência: Assis Removido removido',
     )
+    expect(
+      removed.find('[data-test="event-assist-line"] [data-test="removed-badge"]').exists(),
+    ).toBe(true)
     expect(removed.findAll('[data-test="removed-badge"]')).toHaveLength(2)
     expect(active.find('[data-test="event-player"]').text()).toBe('Renato')
     expect(active.find('[data-test="removed-badge"]').exists()).toBe(false)
@@ -129,8 +136,9 @@ describe('GameEventsPanel (Súmula)', () => {
 
     const row = wrapper.find('[data-test="event-row"]')
     expect(row.find('[data-test="event-player"]').text()).toBe('Renato')
-    expect(row.find('[data-test="event-subtitle"]').text()).toBe(
-      'Gol · Vitória · Assistência: Jogador fora do elenco',
+    expect(row.find('[data-test="event-subtitle"]').text()).toBe('Gol · Vitória')
+    expect(row.find('[data-test="event-assist-line"]').text()).toBe(
+      'Assistência: Jogador fora do elenco',
     )
     expect(row.find('[data-test="removed-badge"]').exists()).toBe(false)
   })
