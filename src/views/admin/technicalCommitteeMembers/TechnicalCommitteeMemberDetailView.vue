@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
+import { useLeagueContextStore } from '@/stores/leagueContext'
 import { teamsService } from '@/services/api/teams.service'
 import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { optionTitle, type SelectOption } from '@/types/api'
@@ -20,6 +21,8 @@ const props = defineProps<{ teamId: string; id: string }>()
 
 const router = useRouter()
 const authStore = useAuthStore()
+// Capturado no setup: o logout zera o store antes de navegar (BUG-034).
+const leagueId = useLeagueContextStore().activeLeagueId as number
 const snackbar = useSnackbar()
 const { errorMessage, fetchOne, destroy } = useCrud<
   TechnicalCommitteeMember,
@@ -38,7 +41,7 @@ const canDelete = authStore.hasPermission('technical_committee_member:delete')
 
 const teamRoute = computed(() => ({
   name: 'admin-teams-detail',
-  params: { teamId: props.teamId },
+  params: { leagueId, teamId: props.teamId },
   query: { tab: 'comissao' },
 }))
 
