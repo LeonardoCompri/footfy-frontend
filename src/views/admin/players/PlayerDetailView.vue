@@ -44,7 +44,10 @@ const canDelete = computed(
   () => !!player.value && authStore.canManagePlayersOf('player:delete', player.value.team_id),
 )
 
-const teamRoute = computed(() => ({ name: 'admin-teams-detail', params: { teamId: props.teamId } }))
+const teamRoute = computed(() => ({
+  name: 'admin-teams-detail',
+  params: { leagueId, teamId: props.teamId },
+}))
 
 const profile = computed(() => {
   if (!player.value) return []

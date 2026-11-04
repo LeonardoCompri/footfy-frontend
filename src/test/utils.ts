@@ -6,9 +6,10 @@ import type { Championship, League } from '@/types/championship'
 import type { AuthUser } from '@/types/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
+import { vuetifyLocale } from '@/plugins/vuetify-locale'
 
 export function createTestVuetify() {
-  return createVuetify({ components, directives })
+  return createVuetify({ components, directives, locale: vuetifyLocale })
 }
 
 const Stub = { render: () => null }
@@ -25,6 +26,7 @@ export function createTestRouter(history: RouterHistory = createMemoryHistory())
       { path: '/campeonatos/:id', name: 'championships-detail', component: Stub },
       { path: '/ligas/:id', name: 'leagues-detail', component: Stub },
       { path: '/times/:id', name: 'teams-detail', component: Stub },
+      { path: '/partidas/:id', name: 'games-detail', component: Stub },
       { path: '/admin', name: 'admin-home', component: Stub },
       { path: '/admin/selecionar', name: 'admin-select-championship', component: Stub },
       { path: '/admin/selecionar/:championshipId', name: 'admin-select-league', component: Stub },

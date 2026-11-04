@@ -42,9 +42,14 @@ test.describe('Telas públicas', () => {
     await expect(page.getByRole('cell', { name: 'Carlos Andrade' })).toBeVisible()
   })
 
-  test('partida (placeholder até a rota pública existir)', async ({ page }) => {
+  test('partida (placeholder): Voltar sem histórico vai para os campeonatos', async ({ page }) => {
     await page.goto('/partidas/1')
     await expect(page.getByText('Detalhes da partida em breve')).toBeVisible()
+
+    // BUG-030: aberta direto, o Voltar saía do app.
+    await page.getByRole('button', { name: 'Voltar' }).click()
+    await expect(page).toHaveURL(/\/campeonatos$/)
+    await expect(page.getByText('Torneio de Verão')).toBeVisible()
   })
 
   test('login com CPF e senha leva à seleção de campeonato', async ({ page }) => {

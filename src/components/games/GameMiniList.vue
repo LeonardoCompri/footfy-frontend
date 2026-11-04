@@ -3,8 +3,11 @@ import { useAuthStore } from '@/stores/auth'
 import { formatMatchDate, gameStageLabel } from '@/types/game'
 import type { DashboardGame } from '@/types/dashboard'
 
+// `leagueId` explícito no link: ao sair da liga, o Vuetify resolve o `:to` de novo antes de
+// desmontar a lista, e o param implícito da rota atual já não existe (BUG-034).
 defineProps<{
   games: DashboardGame[]
+  leagueId: number
   emptyMessage: string
 }>()
 
@@ -23,7 +26,9 @@ function teamLabel(team: DashboardGame['home_team']): string {
       <v-list-item
         v-for="game in games"
         :key="game.id"
-        :to="canOpen ? { name: 'admin-games-detail', params: { id: game.id } } : undefined"
+        :to="
+          canOpen ? { name: 'admin-games-detail', params: { leagueId, id: game.id } } : undefined
+        "
         data-test="mini-game"
       >
         <v-list-item-title>

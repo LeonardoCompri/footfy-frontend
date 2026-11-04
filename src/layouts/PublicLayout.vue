@@ -1,8 +1,24 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRoute, type RouteRecordNameGeneric } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
+const route = useRoute()
+// "Campeonatos" é a única entrada do menu para as telas públicas: fica ativo também nas que se
+// abrem a partir dele (liga, time, partida). Precisa de `:active` porque o link só casaria a lista.
+const CHAMPIONSHIPS_ROUTES = new Set<RouteRecordNameGeneric>([
+  'championships-list',
+  'championships-detail',
+  'leagues-detail',
+  'teams-detail',
+  'games-detail',
+])
+const championshipsActive = computed(() => CHAMPIONSHIPS_ROUTES.has(route.name))
+// No xs os botões com texto não cabem no app bar: "Início" some (o logo já leva para a home)
+// e "Campeonatos" vira ícone.
+const { xs } = useDisplay()
 </script>
 
 <template>
@@ -16,8 +32,29 @@ const authStore = useAuthStore()
 
         <v-spacer />
 
-        <v-btn variant="text" color="white" :to="{ name: 'home' }">Início</v-btn>
-        <v-btn variant="text" color="white" :to="{ name: 'championships-list' }">Campeonatos</v-btn>
+        <v-btn
+          v-if="xs"
+          icon="mdi-trophy"
+          variant="text"
+          color="white"
+          aria-label="Campeonatos"
+          :to="{ name: 'championships-list' }"
+          :active="championshipsActive"
+          :aria-current="championshipsActive ? 'page' : undefined"
+        />
+        <template v-else>
+          <!-- `exact`: a home é filha de path vazio e ficaria ativa em toda tela (BUG-036). -->
+          <v-btn variant="text" color="white" exact :to="{ name: 'home' }">Início</v-btn>
+          <v-btn
+            variant="text"
+            color="white"
+            :to="{ name: 'championships-list' }"
+            :active="championshipsActive"
+            :aria-current="championshipsActive ? 'page' : undefined"
+          >
+            Campeonatos
+          </v-btn>
+        </template>
 
         <v-btn
           v-if="authStore.isAuthenticated"
@@ -25,7 +62,7 @@ const authStore = useAuthStore()
           class="text-primary ml-2"
           :to="{ name: 'admin-home' }"
         >
-          Painel Admin
+          {{ xs ? 'Painel' : 'Painel Admin' }}
         </v-btn>
         <v-btn v-else variant="elevated" class="text-primary ml-2" :to="{ name: 'login' }"> Entrar </v-btn>
       </v-container>

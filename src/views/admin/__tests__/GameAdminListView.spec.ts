@@ -115,7 +115,9 @@ async function search(wrapper: VueWrapper) {
 }
 
 async function nextPage(wrapper: VueWrapper) {
-  await wrapper.find('[data-test="games-table"] button[aria-label="Next page"]').trigger('click')
+  await wrapper
+    .find('[data-test="games-table"] button[aria-label="Próxima página"]')
+    .trigger('click')
   await flushPromises()
 }
 
@@ -167,7 +169,7 @@ describe('GameAdminListView', () => {
     // Time embutido na resposta tem prioridade sobre a lista de times carregada.
     expect(rows[2]).toContain('Final · Ida')
     expect(rows[2]).toContain('Sport Club do Recife × Bahia')
-    expect(wrapper.find('[data-test="games-table"]').text()).toContain('1-20 of 45')
+    expect(wrapper.find('[data-test="games-table"]').text()).toContain('1-20 de 45')
   })
 
   it('itens por página não oferecem "Todos" (per_page=-1 daria 422)', async () => {

@@ -78,7 +78,13 @@ onMounted(load)
             {{ league.championship?.name }}<template v-for="fact in leagueFacts" :key="fact"> · {{ fact }}</template>
           </p>
         </div>
-        <v-btn variant="outlined" size="small" :to="{ name: 'admin-league-table' }">Ver tabela</v-btn>
+        <v-btn
+          variant="outlined"
+          size="small"
+          :to="{ name: 'admin-league-table', params: { leagueId } }"
+        >
+          Ver tabela
+        </v-btn>
       </v-card-text>
     </v-card>
 
@@ -132,11 +138,19 @@ onMounted(load)
       <v-row class="mt-2">
         <v-col cols="12" md="6">
           <h2 class="text-subtitle-1 font-weight-bold mb-2">Últimos resultados</h2>
-          <GameMiniList :games="dashboard.last_results" empty-message="Nenhuma partida finalizada ainda." />
+          <GameMiniList
+            :games="dashboard.last_results"
+            :league-id="leagueId"
+            empty-message="Nenhuma partida finalizada ainda."
+          />
         </v-col>
         <v-col cols="12" md="6">
           <h2 class="text-subtitle-1 font-weight-bold mb-2">Próximas partidas</h2>
-          <GameMiniList :games="dashboard.upcoming_games" empty-message="Nenhuma partida agendada." />
+          <GameMiniList
+            :games="dashboard.upcoming_games"
+            :league-id="leagueId"
+            empty-message="Nenhuma partida agendada."
+          />
         </v-col>
       </v-row>
     </template>

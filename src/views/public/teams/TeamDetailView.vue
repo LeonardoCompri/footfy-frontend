@@ -62,7 +62,7 @@ onMounted(() => fetchOne(props.id))
     <template v-else-if="team">
       <v-card class="mb-6">
         <v-card-item>
-          <v-card-title class="text-h4">{{ team.name }}</v-card-title>
+          <h1 class="text-h4 font-weight-bold text-wrap text-break">{{ team.name }}</h1>
           <v-card-subtitle v-if="team.nickname">{{ team.nickname }}</v-card-subtitle>
         </v-card-item>
         <v-card-text v-if="team.logo">
