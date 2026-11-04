@@ -90,10 +90,7 @@ function assistPlayer(event: GameEvent) {
 }
 
 function eventSubtitle(event: GameEvent): string {
-  const parts = [eventMeta.value[event.type].label, teamName(event.team_id)]
-  const assist = assistPlayer(event)
-  if (assist) parts.push(`Assistência: ${assist.name}`)
-  return parts.join(' · ')
+  return `${eventMeta.value[event.type].label} · ${teamName(event.team_id)}`
 }
 
 function openForm(event: GameEvent | null) {
@@ -177,14 +174,20 @@ onMounted(() => {
         Nenhum evento registrado nesta partida.
       </div>
       <v-list v-else lines="two" class="pa-0" data-test="events-list">
-        <v-list-item v-for="event in timeline" :key="event.id" class="px-0" data-test="event-row">
+        <!-- prepend-gap menor que o padrão (32px): sobra largura para os nomes no mobile. -->
+        <v-list-item
+          v-for="event in timeline"
+          :key="event.id"
+          prepend-gap="12"
+          class="px-0"
+          data-test="event-row"
+        >
           <template #prepend>
             <div class="minute text-medium-emphasis tabular">{{ event.minute != null ? `${event.minute}'` : '—' }}</div>
             <v-icon
               :icon="eventMeta[event.type].icon"
               :color="eventMeta[event.type].color"
               :aria-label="eventMeta[event.type].label"
-              class="mr-3"
             />
           </template>
           <!-- Só o nome trunca: no mobile o selo continua visível. -->
@@ -192,9 +195,17 @@ onMounted(() => {
             <span class="text-truncate">{{ mainPlayer(event)?.name ?? '—' }}</span>
             <RemovedBadge v-if="mainPlayer(event)?.removed" />
           </v-list-item-title>
-          <!-- A assistência é a última parte do subtítulo, então o selo fica logo após o nome dela. -->
           <v-list-item-subtitle data-test="event-subtitle">
             {{ eventSubtitle(event) }}
+          </v-list-item-subtitle>
+          <!-- Linha própria e sem line-clamp (d-block): no mobile o nome da assistência quebra
+            linha em vez de sumir, e o selo vem logo depois dele. -->
+          <v-list-item-subtitle
+            v-if="assistPlayer(event)"
+            class="d-block mt-1"
+            data-test="event-assist-line"
+          >
+            Assistência: {{ assistPlayer(event)?.name }}
             <RemovedBadge v-if="assistPlayer(event)?.removed" />
           </v-list-item-subtitle>
           <template v-if="can.update || can.delete" #append>

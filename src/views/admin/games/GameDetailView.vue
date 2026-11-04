@@ -107,7 +107,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-2" :to="{ name: 'admin-games-list' }">
+    <v-btn
+      variant="text"
+      prepend-icon="mdi-arrow-left"
+      class="mb-2"
+      :to="{ name: 'admin-games-list', params: { leagueId } }"
+    >
       Partidas
     </v-btn>
 

@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { fixture } from './support/mock-api'
 import { DESKTOP, expect, MOBILE, signIn, test } from './support/test'
 
 // Checagens de estrutura que o jsdom do Vitest não enxerga (layout real no Chromium).
@@ -49,18 +50,52 @@ test.describe('Menu lateral no desktop', () => {
     await expect(page.locator('[data-test=championship-card]')).toHaveCount(2)
   })
 
-  test('"Trocar" a partir do dashboard sai da liga sem erro no console', async ({ page }) => {
-    test.fail(
-      true,
-      'BUG-034: v-btn com :to sem leagueId lança "Missing required param" ao sair da liga',
-    )
-    await page.goto('/admin/liga/1')
-    await expect(page.locator('[data-test=dashboard-header]')).toBeVisible()
+  // BUG-034: links com `:to` sem leagueId lançavam "Missing required param" ao sair da liga
+  // (o fixture `api` falha o teste com qualquer pageerror).
+  const LEAGUE_SCREENS = [
+    { name: 'dashboard', path: '/admin/liga/1', ready: '[data-test=dashboard-header]' },
+    { name: 'detalhe do time', path: '/admin/liga/1/times/1', ready: '[data-test=team-title]' },
+    {
+      name: 'detalhe da partida',
+      path: '/admin/liga/1/partidas/1',
+      ready: '[data-test=game-score]',
+    },
+    {
+      name: 'detalhe do jogador',
+      path: '/admin/liga/1/times/1/jogadores/4',
+      ready: '[data-test=player-title]',
+    },
+    {
+      name: 'detalhe da comissão técnica',
+      path: '/admin/liga/1/times/1/comissao-tecnica/1',
+      ready: '[data-test=member-title]',
+    },
+  ]
 
-    await page.locator('.context-pill').getByRole('button', { name: 'Trocar' }).click()
-    await expect(page).toHaveURL(/\/admin\/selecionar$/)
-    await expect(page.locator('[data-test=championship-card]')).toHaveCount(2)
-  })
+  for (const screen of LEAGUE_SCREENS) {
+    test(`"Trocar" a partir do ${screen.name} sai da liga sem erro no console`, async ({
+      page,
+    }) => {
+      await page.goto(screen.path)
+      await expect(page.locator(screen.ready)).toBeVisible()
+
+      await page.locator('.context-pill').getByRole('button', { name: 'Trocar' }).click()
+      await expect(page).toHaveURL(/\/admin\/selecionar$/)
+      await expect(page.locator('[data-test=championship-card]')).toHaveCount(2)
+    })
+
+    test(`"Sair" a partir do ${screen.name} vai para o login sem erro no console`, async ({
+      page,
+    }) => {
+      await page.goto(screen.path)
+      await expect(page.locator(screen.ready)).toBeVisible()
+
+      await page.locator('[data-test=account-menu]').click()
+      await page.locator('[data-test=logout]').click()
+      await expect(page).toHaveURL(/\/login$/)
+      await expect(page.getByRole('textbox', { name: 'CPF' })).toBeVisible()
+    })
+  }
 
   test('tooltip do gráfico de gols aparece no hover', async ({ page }) => {
     await page.goto('/admin/liga/1')
@@ -114,12 +149,7 @@ const MOBILE_SCREENS: MobileScreen[] = [
   { path: '/ligas/1', ready: 'text=Atlético Serrano' },
   { path: '/times/1', ready: 'text=Lucas Ferreira' },
   { path: '/admin/selecionar', ready: '[data-test=championship-card]', role: 'admin' },
-  {
-    path: '/admin/selecionar',
-    ready: '[data-test=championship-card]',
-    role: 'master',
-    knownBug: 'BUG-035: botão "Gerenciar campeonatos" estoura a largura no mobile',
-  },
+  { path: '/admin/selecionar', ready: '[data-test=championship-card]', role: 'master' },
   { path: '/admin/liga/1', ready: '[data-test=dashboard-counter]', role: 'master' },
   { path: '/admin/liga/1/times', ready: '[data-test=team-card]', role: 'master' },
   { path: '/admin/liga/1/times/1', ready: '[data-test=players-table] tbody tr', role: 'master' },
@@ -151,4 +181,81 @@ test.describe('Sem rolagem horizontal no mobile', () => {
       )
     })
   }
+})
+
+// BUG-013: em telas estreitas os três botões com texto estouravam o app bar público.
+test.describe('App bar pública no mobile', () => {
+  for (const width of [320, 400]) {
+    for (const loggedIn of [false, true]) {
+      test(`${width}px ${loggedIn ? 'logado' : 'deslogado'}: todos os botões cabem`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 })
+        if (loggedIn) await signIn(page)
+        await page.goto('/')
+        await expect(page.getByText('Campeonatos em destaque')).toBeVisible()
+
+        const appBar = page.locator('.v-app-bar')
+        await expect(appBar.getByRole('link', { name: 'Campeonatos' })).toBeInViewport({ ratio: 1 })
+        const last = appBar.getByRole('link', { name: loggedIn ? 'Painel' : 'Entrar' })
+        await expect(last).toHaveText(loggedIn ? 'Painel' : 'Entrar')
+        await expect(last).toBeInViewport({ ratio: 1 })
+      })
+    }
+  }
+})
+
+// BUG-036: "Início" ficava ativo em toda tela pública. Confere também que o destaque aparece de
+// fato (overlay do v-btn), coisa que o jsdom não calcula.
+test.describe('App bar pública marca a página atual', () => {
+  // No mobile "Início" não aparece (o logo leva à home) e "Campeonatos" é só o ícone.
+  const SCREENS = [
+    { path: '/', ready: 'text=Campeonatos em destaque', desktop: ['Início'], mobile: [] },
+    { path: '/campeonatos', ready: 'text=Torneio de Verão', desktop: ['Campeonatos'] },
+    { path: '/ligas/1', ready: 'text=Atlético Serrano', desktop: ['Campeonatos'] },
+    { path: '/times/1', ready: 'text=Lucas Ferreira', desktop: ['Campeonatos'] },
+  ]
+
+  for (const [mode, viewport] of [
+    ['desktop', DESKTOP],
+    ['mobile', MOBILE],
+  ] as const) {
+    for (const screen of SCREENS) {
+      const expected = (mode === 'mobile' && screen.mobile) || screen.desktop
+
+      test(`${mode} ${screen.path}: ativo ${expected.join() || 'nenhum'}`, async ({ page }) => {
+        await page.setViewportSize(viewport)
+        await page.goto(screen.path)
+        await expect(page.locator(screen.ready).first()).toBeVisible()
+
+        const buttons = await page.locator('.v-app-bar a.v-btn').evaluateAll((links) =>
+          links.map((link) => ({
+            label: link.textContent?.trim() || link.getAttribute('aria-label'),
+            current: link.getAttribute('aria-current'),
+            highlighted:
+              Number(getComputedStyle(link.querySelector('.v-btn__overlay')!).opacity) > 0,
+          })),
+        )
+        expect(buttons.filter((b) => b.current === 'page').map((b) => b.label)).toEqual(expected)
+        expect(buttons.filter((b) => b.highlighted).map((b) => b.label)).toEqual(expected)
+      })
+    }
+  }
+})
+
+// BUG-031: o v-card-title cortava o nome do time com reticências.
+test('detalhe público do time mostra o nome longo inteiro em 390px', async ({ page, api }) => {
+  const longName = 'Sport Club Corinthians Paulista'
+  const team = fixture<{ data: { name: string } }>('public-team-1')
+  team.data.name = longName
+  api.on('GET', '/public/teams/1', { body: team })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/times/1')
+  const title = page.getByRole('heading', { name: longName })
+  await expect(title).toHaveText(longName)
+  await expect(title).toBeInViewport({ ratio: 1 })
+
+  const overflow = await title.evaluate((el) => el.scrollWidth - el.clientWidth)
+  expect(overflow, 'o título não pode ter texto escondido na horizontal').toBeLessThanOrEqual(0)
 })

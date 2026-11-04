@@ -56,16 +56,21 @@ async function mountDashboard(permissions: string[] = ['game:read']) {
 
   const router = createTestRouter()
   await router.push('/admin/liga/1')
-  const wrapper = mount(DashboardView, { global: { plugins: [createTestVuetify(), router] } })
+  const wrapper = mount(DashboardView, {
+    global: { plugins: [createTestVuetify(), router], config: { errorHandler } },
+  })
   await flushPromises()
-  return wrapper
+  return Object.assign(wrapper, { router })
 }
+
+const errorHandler = vi.fn()
 
 describe('DashboardView', () => {
   beforeEach(() => {
     localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(leaguesService.dashboard).mockReset().mockResolvedValue(dashboardData)
+    errorHandler.mockClear()
   })
 
   it('busca o Dashboard da liga ativa e mostra cabeçalho e contadores', async () => {
@@ -152,6 +157,18 @@ describe('DashboardView', () => {
     setActivePinia(createPinia())
     wrapper = await mountDashboard([])
     expect(wrapper.find('[data-test="mini-game"]').attributes('href')).toBeUndefined()
+  })
+
+  // BUG-034: o Vuetify resolve o `:to` dos links de novo antes de desmontar a tela; sem o
+  // leagueId explícito, sair da liga ("Sair" zera o store antes) lançava "Missing required param".
+  it('sair da liga com a tela ainda montada não quebra os links', async () => {
+    const wrapper = await mountDashboard()
+
+    useLeagueContextStore().reset()
+    await wrapper.router.push('/admin/selecionar')
+    await flushPromises()
+
+    expect(errorHandler).not.toHaveBeenCalled()
   })
 
   it('mostra a mensagem do backend quando o Dashboard falha', async () => {
