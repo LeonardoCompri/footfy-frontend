@@ -11,4 +11,7 @@ export const leaguesService = {
   dashboard: (id: number | string) => unwrap<LeagueDashboard>(http.get(`${baseUrl}/${id}/dashboard`)),
   table: (id: number | string) => unwrap<LeagueTable>(http.get(`${baseUrl}/${id}/table`)),
   statistics: (id: number | string) => unwrap<LeagueStatistics>(http.get(`${baseUrl}/${id}/statistics`)),
+  // Exclusão definitiva (apaga partidas, estádios e vínculos da liga): exige a senha do master.
+  removeWithPassword: (id: number | string, password: string) =>
+    http.delete(`${baseUrl}/${id}`, { data: { password } }),
 }
