@@ -2,23 +2,33 @@
 import { ref, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import { extractErrorMessage } from '@/composables/useCrud'
-import { leaguesService } from '@/services/api/leagues.service'
 import type { ApiErrorResponse } from '@/types/api'
 
-const props = defineProps<{
-  modelValue: boolean
-  league: { id: number; name: string } | null
-}>()
+// Exclusão definitiva em 2 passos: aviso do que cai junto e, depois, a senha do usuário.
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean
+    title: string
+    confirmText: string
+    removed: string[]
+    kept: string
+    request: (password: string) => Promise<unknown>
+    warning?: string
+    // Aviso ainda carregando (ex.: buscando as ligas): segura o "Continuar".
+    loading?: boolean
+  }>(),
+  { warning: 'A exclusão é imediata e não pode ser desfeita.', loading: false },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  deleted: [leagueId: number]
+  deleted: []
 }>()
 
 const step = ref<1 | 2>(1)
 const password = ref('')
 const errorMessage = ref<string | null>(null)
-const loading = ref(false)
+const deleting = ref(false)
 
 watch(
   () => props.modelValue,
@@ -35,12 +45,12 @@ function close() {
 }
 
 async function confirmDelete() {
-  if (!props.league || !password.value) return
-  loading.value = true
+  if (!password.value) return
+  deleting.value = true
   errorMessage.value = null
   try {
-    await leaguesService.removeWithPassword(props.league.id, password.value)
-    emit('deleted', props.league.id)
+    await props.request(password.value)
+    emit('deleted')
     close()
   } catch (err) {
     const response = (err as AxiosError<ApiErrorResponse>).response
@@ -52,32 +62,36 @@ async function confirmDelete() {
       errorMessage.value = extractErrorMessage(err)
     }
   } finally {
-    loading.value = false
+    deleting.value = false
   }
 }
 </script>
 
 <template>
   <v-dialog :model-value="modelValue" max-width="480" @update:model-value="close">
-    <v-card data-test="league-delete-dialog">
-      <v-card-title class="text-wrap">Excluir liga {{ league?.name }}</v-card-title>
+    <v-card data-test="password-delete-dialog">
+      <v-card-title class="text-wrap">{{ title }}</v-card-title>
       <template v-if="step === 1">
         <v-card-text>
-          <v-alert type="warning" variant="tonal" class="mb-4">
-            A exclusão é imediata e não depende do botão Salvar do formulário.
-          </v-alert>
-          <p class="mb-2">Serão apagados todos os dados da liga:</p>
-          <ul class="pl-6 mb-2">
-            <li>partidas e súmulas;</li>
-            <li>estádios da liga;</li>
-            <li>vínculos dos times e dos usuários com a liga.</li>
+          <v-alert type="warning" variant="tonal" class="mb-4">{{ warning }}</v-alert>
+          <slot />
+          <p class="mb-2">Serão apagados:</p>
+          <ul class="pl-6 mb-2" data-test="password-delete-removed">
+            <li v-for="item in removed" :key="item">{{ item }}</li>
           </ul>
-          <p>Times, jogadores, comissão técnica e usuários continuam no sistema.</p>
+          <p>{{ kept }}</p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="close">Cancelar</v-btn>
-          <v-btn color="error" variant="flat" data-test="league-delete-continue" @click="step = 2">
+          <v-btn
+            color="error"
+            variant="flat"
+            :loading="loading"
+            :disabled="loading"
+            data-test="password-delete-continue"
+            @click="step = 2"
+          >
             Continuar
           </v-btn>
         </v-card-actions>
@@ -93,7 +107,7 @@ async function confirmDelete() {
             autocomplete="current-password"
             autofocus
             :error-messages="errorMessage ?? undefined"
-            data-test="league-delete-password"
+            data-test="password-delete-password"
           />
         </v-card-text>
         <v-card-actions>
@@ -103,11 +117,11 @@ async function confirmDelete() {
             type="submit"
             color="error"
             variant="flat"
-            :loading="loading"
+            :loading="deleting"
             :disabled="!password"
-            data-test="league-delete-confirm"
+            data-test="password-delete-confirm"
           >
-            Excluir liga
+            {{ confirmText }}
           </v-btn>
         </v-card-actions>
       </v-form>

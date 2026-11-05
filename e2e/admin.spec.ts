@@ -177,16 +177,40 @@ test.describe('Formulários de criação e edição', () => {
     await expect(openDialog(page).getByLabel('Nome')).toHaveValue('Estádio Municipal')
   })
 
-  test('nova e editar partida', async ({ page }) => {
+  test('nova partida sem status e gols; editar mostra os dois', async ({ page, api }) => {
+    let created: Record<string, unknown> = {}
+    api.on('POST', '/games', ({ request }) => {
+      created = request.postDataJSON() as Record<string, unknown>
+      return { status: 201, body: fixture('game-1') }
+    })
     await page.goto('/admin/liga/1/partidas')
 
     await page.locator('[data-test=game-create]').click()
-    await expect(openDialog(page)).toContainText('Nova partida')
-    await page.keyboard.press('Escape')
-    await expect(openDialog(page)).toHaveCount(0)
+    const dialog = openDialog(page)
+    await expect(dialog).toContainText('Nova partida')
+    await expect(dialog.locator('[data-test=game-status]')).toHaveCount(0)
+    await expect(dialog.locator('[data-test=game-home-score]')).toHaveCount(0)
+    await expect(dialog.locator('[data-test=game-away-score]')).toHaveCount(0)
+    await dialog.locator('[data-test=game-home-team]').click()
+    await page.getByRole('option', { name: 'Atlético Serrano' }).click()
+    await dialog.locator('[data-test=game-away-team]').click()
+    await page.getByRole('option', { name: 'Clube Ribeirinho' }).click()
+    await dialog.locator('[data-test=form-submit]').click()
 
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\/1$/)
+    expect(created).toMatchObject({
+      home_team_id: 1,
+      away_team_id: 2,
+      status: 'scheduled',
+      home_score: null,
+      away_score: null,
+    })
+
+    await page.goto('/admin/liga/1/partidas')
     await page.locator('[data-test=game-edit]').first().click()
     await expect(openDialog(page)).toContainText('Editar partida')
+    await expect(openDialog(page).locator('[data-test=game-status]')).toBeVisible()
+    await expect(openDialog(page).locator('[data-test=game-home-score]')).toBeVisible()
   })
 
   test('registrar evento na súmula', async ({ page }) => {
@@ -300,15 +324,24 @@ test.describe('Campeonatos (master)', () => {
     expect(body).not.toContain('name="image"')
   })
 
-  test('imagem salva: visualizar aplicação, trocar e descartar a nova', async ({ page, api }) => {
+  test('imagem salva: visualizar aplicação, trocar e remover (image vazio)', async ({
+    page,
+    api,
+  }) => {
     const championship = fixture<{ data: { image: string | null } }>('championship-1')
     championship.data.image = sampleImageUrl('Copa Footfy', '#2e7d32')
-    api.on('GET', '/championships/1', { body: championship })
+    let body = ''
+    api
+      .on('GET', '/championships/1', { body: championship })
+      .on('POST', '/championships/1', ({ request }) => {
+        body = request.postData() ?? ''
+        return { body: { data: { id: 1, name: 'Copa Footfy', image: null, leagues: [] } } }
+      })
 
     await page.goto('/admin/campeonatos/1/editar')
     const preview = page.locator(PREVIEW_IMG)
     await expect(preview).toHaveAttribute('src', /^data:image\/svg/)
-    await expect(page.getByRole('button', { name: 'Remover imagem' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Remover imagem' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Visualizar aplicação' }).click()
     const dialog = openDialog(page)
@@ -330,9 +363,15 @@ test.describe('Campeonatos (master)', () => {
     })
     await expect(preview).toHaveAttribute('src', /^blob:/)
 
+    // Lixeira na imagem nova escolhida sobre a salva: o campeonato fica sem imagem.
     await page.getByRole('button', { name: 'Remover imagem' }).click()
-    await expect(preview).toHaveAttribute('src', /^data:image\/svg/)
-    await expect(page.getByRole('button', { name: 'Remover imagem' })).toHaveCount(0)
+    await expect(page.locator('[data-test=championship-image-empty]')).toBeVisible()
+    await expect(page.locator('[data-test=championship-image-preview-open]')).toBeDisabled()
+    await page.locator('[data-test=championship-submit]').click()
+
+    await expect(page).toHaveURL(/\/admin\/campeonatos$/)
+    expect(body).toContain('name="image"\r\n\r\n\r\n')
+    expect(body).not.toContain('filename=')
   })
 
   test('arquivo de imagem inválido não entra na prévia e mostra o erro', async ({ page }) => {
@@ -390,17 +429,73 @@ test.describe('Campeonatos (master)', () => {
 
     const dialog = openDialog(page)
     await expect(dialog).toContainText('A exclusão é imediata')
-    await dialog.locator('[data-test=league-delete-continue]').click()
-    await dialog.locator('[data-test=league-delete-password] input').fill('errada')
-    await dialog.locator('[data-test=league-delete-confirm]').click()
+    await dialog.locator('[data-test=password-delete-continue]').click()
+    await dialog.locator('[data-test=password-delete-password] input').fill('errada')
+    await dialog.locator('[data-test=password-delete-confirm]').click()
     await expect(dialog).toContainText('Senha incorreta.')
 
-    await dialog.locator('[data-test=league-delete-password] input').fill('123456')
-    await dialog.locator('[data-test=league-delete-confirm]').click()
+    await dialog.locator('[data-test=password-delete-password] input').fill('123456')
+    await dialog.locator('[data-test=password-delete-confirm]').click()
 
     await expect(openDialog(page)).toHaveCount(0)
     await expect(page.getByText('Liga excluída com sucesso.')).toBeVisible()
     await expect(page.locator('[data-test=league-panel-title]')).toHaveText(['Série A'])
+    expect(passwords).toEqual(['errada', '123456'])
+    expect(await page.evaluate(() => localStorage.getItem('footfy_active_league'))).toBeNull()
+  })
+
+  test('excluir campeonato pela lista pede a senha: errada e depois a certa', async ({
+    page,
+    api,
+  }) => {
+    // Liga 2 (Série B) é a ativa e pertence ao campeonato: o contexto precisa ser limpo.
+    await signIn(page, { leagueId: 2 })
+    const passwords: string[] = []
+    let deleted = false
+    api
+      .allowConsoleError(/status of 422/)
+      .on('DELETE', '/championships/1', ({ request }) => {
+        const { password } = request.postDataJSON() as { password: string }
+        passwords.push(password)
+        if (password !== '123456') {
+          return {
+            status: 422,
+            body: { message: 'Senha incorreta.', errors: { password: ['Senha incorreta.'] } },
+          }
+        }
+        deleted = true
+        return { status: 204 }
+      })
+      .on('GET', '/championships', () => {
+        const list = fixture<{ data: { id: number }[] }>('championships')
+        if (deleted) list.data = list.data.filter((item) => item.id !== 1)
+        return { body: list }
+      })
+
+    await page.goto('/admin/campeonatos')
+    await page
+      .getByRole('row', { name: /Copa Footfy/ })
+      .getByRole('button', { name: 'Excluir campeonato' })
+      .click()
+
+    const dialog = openDialog(page)
+    await expect(dialog).toContainText('Excluir campeonato Copa Footfy')
+    await expect(dialog.locator('[data-test=championship-delete-leagues]')).toHaveText(
+      'Serão apagadas 2 ligas: Série A, Série B.',
+    )
+    await expect(dialog).toContainText('a imagem do campeonato')
+    await expect(dialog).toContainText('Times, jogadores, comissão técnica e usuários')
+    await dialog.locator('[data-test=password-delete-continue]').click()
+    await dialog.locator('[data-test=password-delete-password] input').fill('errada')
+    await dialog.locator('[data-test=password-delete-confirm]').click()
+    await expect(dialog).toContainText('Senha incorreta.')
+
+    await dialog.locator('[data-test=password-delete-password] input').fill('123456')
+    await dialog.locator('[data-test=password-delete-confirm]').click()
+
+    await expect(openDialog(page)).toHaveCount(0)
+    await expect(page.getByText('Campeonato excluído com sucesso.')).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Copa Footfy' })).toHaveCount(0)
     expect(passwords).toEqual(['errada', '123456'])
     expect(await page.evaluate(() => localStorage.getItem('footfy_active_league'))).toBeNull()
   })

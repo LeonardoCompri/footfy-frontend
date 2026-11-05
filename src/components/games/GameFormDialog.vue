@@ -111,9 +111,10 @@ async function handleSubmit() {
     away_team_id: form.away_team_id as number,
     stadium_id: form.stadium_id,
     match_date: form.match_date || null,
-    status: form.status,
-    home_score: toNullableNumber(form.home_score),
-    away_score: toNullableNumber(form.away_score),
+    // Partida nova nasce agendada e sem placar: status e gols só na edição.
+    status: isEditing.value ? form.status : 'scheduled',
+    home_score: isEditing.value ? toNullableNumber(form.home_score) : null,
+    away_score: isEditing.value ? toNullableNumber(form.away_score) : null,
     round: usesPhase ? null : toNullableNumber(form.round),
     phase: usesPhase ? form.phase?.trim() || null : null,
     phase_order: usesPhase ? toNullableNumber(form.phase_order) : null,
@@ -250,34 +251,39 @@ async function handleSubmit() {
           :error-messages="fieldErrors.stadium_id"
         />
       </v-col>
-      <v-col cols="12" sm="6">
-        <v-select
-          v-model="form.status"
-          :items="GAME_STATUS_OPTIONS"
-          item-title="title"
-          item-value="value"
-          label="Status"
-          :error-messages="fieldErrors.status"
-        />
-      </v-col>
-      <v-col cols="6" sm="3">
-        <v-text-field
-          v-model="form.home_score"
-          label="Gols mandante"
-          type="number"
-          min="0"
-          :error-messages="fieldErrors.home_score"
-        />
-      </v-col>
-      <v-col cols="6" sm="3">
-        <v-text-field
-          v-model="form.away_score"
-          label="Gols visitante"
-          type="number"
-          min="0"
-          :error-messages="fieldErrors.away_score"
-        />
-      </v-col>
+      <template v-if="isEditing">
+        <v-col cols="12" sm="6">
+          <v-select
+            v-model="form.status"
+            :items="GAME_STATUS_OPTIONS"
+            item-title="title"
+            item-value="value"
+            label="Status"
+            :error-messages="fieldErrors.status"
+            data-test="game-status"
+          />
+        </v-col>
+        <v-col cols="6" sm="3">
+          <v-text-field
+            v-model="form.home_score"
+            label="Gols mandante"
+            type="number"
+            min="0"
+            :error-messages="fieldErrors.home_score"
+            data-test="game-home-score"
+          />
+        </v-col>
+        <v-col cols="6" sm="3">
+          <v-text-field
+            v-model="form.away_score"
+            label="Gols visitante"
+            type="number"
+            min="0"
+            :error-messages="fieldErrors.away_score"
+            data-test="game-away-score"
+          />
+        </v-col>
+      </template>
     </v-row>
   </FormDialog>
 </template>
