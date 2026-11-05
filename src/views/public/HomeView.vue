@@ -4,6 +4,7 @@ import { usePublicList } from '@/composables/usePublicList'
 import { publicChampionshipsService } from '@/services/api/publicChampionships.service'
 import type { Championship } from '@/types/championship'
 import ChampionshipCard from '@/components/championships/ChampionshipCard.vue'
+import logoSlogan from '@/assets/brand/futy-com-slogan-noite.svg'
 
 // errorMessage é ignorado de propósito: na Home, falha da API cai no estado vazio, sem alerta.
 const { items, loading, fetchAll } = usePublicList<Championship>(publicChampionshipsService)
@@ -38,10 +39,9 @@ onMounted(fetchAll)
   <div>
     <section class="hero">
       <div class="hero-pattern" />
-      <v-icon icon="mdi-soccer-field" class="hero-icon" />
       <v-container class="hero-content">
         <v-row>
-          <v-col cols="12" md="9" lg="7">
+          <v-col cols="12" md="8" lg="7">
             <v-chip
               color="secondary"
               variant="flat"
@@ -55,7 +55,7 @@ onMounted(fetchAll)
               <span class="text-secondary">Comemore.</span>
             </h1>
             <p class="hero-subtitle mb-8">
-              O Footfy reúne campeonatos, times, jogos e artilharia em um só lugar — para
+              O Futy reúne campeonatos, times, jogos e artilharia em um só lugar — para
               organizadores e para quem só quer acompanhar o jogo.
             </p>
             <div class="d-flex flex-wrap ga-4">
@@ -80,6 +80,10 @@ onMounted(fetchAll)
                 Acessar painel
               </v-btn>
             </div>
+          </v-col>
+          <!-- O nome já está no texto do hero: a marca aqui é decorativa. -->
+          <v-col md="4" lg="5" class="d-none d-md-flex align-center justify-center">
+            <img :src="logoSlogan" alt="" aria-hidden="true" width="300" class="hero-logo" />
           </v-col>
         </v-row>
       </v-container>
@@ -193,13 +197,8 @@ onMounted(fetchAll)
   pointer-events: none;
 }
 
-.hero-icon {
-  position: absolute;
-  right: -60px;
-  bottom: -80px;
-  font-size: 420px !important;
-  color: rgba(255, 255, 255, 0.05);
-  pointer-events: none;
+.hero-logo {
+  max-width: 100%;
 }
 
 .hero-content {

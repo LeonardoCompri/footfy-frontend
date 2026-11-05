@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import CpfTextField from '@/components/common/CpfTextField.vue'
+import logo from '@/assets/brand/futy-com-slogan.svg'
 import type { SubmitEventPromise } from 'vuetify'
 import type { AxiosError } from 'axios'
 import type { ApiErrorResponse } from '@/types/api'
@@ -49,7 +50,9 @@ async function handleSubmit(event: SubmitEventPromise) {
     <v-row justify="center" align="center" class="fill-height">
       <v-col cols="12" sm="8" md="5" lg="4">
         <v-card elevation="4">
-          <v-card-title class="text-h5 text-center py-4">Entrar</v-card-title>
+          <div class="d-flex justify-center pt-6 pb-2">
+            <img :src="logo" alt="Futy" width="150" />
+          </div>
           <v-card-text>
             <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
               {{ errorMessage }}
