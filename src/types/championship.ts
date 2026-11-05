@@ -27,13 +27,16 @@ export interface League {
   stadiums?: Stadium[]
 }
 
+// Liga dentro do formulário de campeonato: com `id` é atualizada, sem `id` é criada.
 export interface LeaguePayload {
+  id?: number
   name: string
+  format: LeagueFormat | null
   start_date: string | null
   end_date: string | null
   organizer: string | null
   season: string | null
-  championship_id: number
+  championship_id?: number
 }
 
 export interface Championship {
@@ -46,4 +49,6 @@ export interface Championship {
 export interface ChampionshipPayload {
   name: string
   image: File | null
+  // Ligas ausentes do payload continuam intactas no backend.
+  leagues?: LeaguePayload[]
 }

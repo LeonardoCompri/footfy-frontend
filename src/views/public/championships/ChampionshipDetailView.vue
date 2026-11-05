@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { usePublicItem } from '@/composables/usePublicItem'
 import { publicChampionshipsService } from '@/services/api/publicChampionships.service'
 import type { Championship } from '@/types/championship'
+import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 import LeagueCard from '@/components/leagues/LeagueCard.vue'
 
 const props = defineProps<{ id: string }>()
@@ -38,7 +39,7 @@ onMounted(() => fetchOne(props.id))
 
     <template v-else-if="championship">
       <v-card class="mb-6">
-        <v-img v-if="championship.image" :src="championship.image" height="200" cover />
+        <ChampionshipImage :src="championship.image" height="200" />
         <v-card-item>
           <v-card-title class="text-h4">{{ championship.name }}</v-card-title>
         </v-card-item>

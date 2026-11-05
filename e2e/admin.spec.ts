@@ -1,4 +1,10 @@
+import { samplePng, sampleImageUrl } from './support/images'
+import { fixture } from './support/mock-api'
 import { expect, openDialog, signIn, test } from './support/test'
+
+// Camada da frente (imagem inteira) da prévia; atrás dela fica a cópia desfocada.
+const PREVIEW_IMG =
+  '[data-test=championship-image-preview] [data-test=championship-image-front] img'
 
 // Smoke do painel: cada tela abre com os dados mockados e sem erro no console.
 test.describe('Seleção de campeonato e liga', () => {
@@ -219,15 +225,207 @@ test.describe('Campeonatos (master)', () => {
     await expect(page.getByRole('cell', { name: 'Copa Footfy' })).toBeVisible()
   })
 
-  test('novo campeonato', async ({ page }) => {
+  test('novo campeonato com duas ligas', async ({ page, api }) => {
+    let body = ''
+    api.on('POST', '/championships', ({ request }) => {
+      body = request.postData() ?? ''
+      return { status: 201, body: { data: { id: 9, name: 'Copa Nova', image: null, leagues: [] } } }
+    })
+
     await page.goto('/admin/campeonatos/novo')
     await expect(page.getByRole('heading', { name: 'Novo Campeonato' })).toBeVisible()
-    await expect(page.getByLabel('Nome')).toHaveValue('')
+    await expect(page.locator('[data-test=championship-name] input')).toHaveValue('')
+    await expect(page.locator('[data-test=leagues-empty]')).toBeVisible()
+
+    await page.locator('[data-test=championship-name] input').fill('Copa Nova')
+    await expect(page.locator('[data-test=championship-image-preview-open]')).toBeDisabled()
+    await page.locator('[data-test=championship-image-input]').setInputFiles({
+      name: 'copa.png',
+      mimeType: 'image/png',
+      buffer: await samplePng(page, 'Copa Nova', '#1565c0'),
+    })
+    await expect(page.locator(PREVIEW_IMG)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Remover imagem' })).toBeVisible()
+    await expect(page.locator('[data-test=championship-image-preview-open]')).toBeEnabled()
+
+    await page.locator('[data-test=league-add]').click()
+    await page.locator('[data-test=league-add]').click()
+    await expect(page.locator('[data-test=leagues-count]')).toHaveText('2')
+
+    const names = page.locator('[data-test=league-name] input')
+    await names.nth(0).fill('Liga Ouro')
+    await names.nth(1).fill('Liga Prata')
+    await page.locator('[data-test=league-format]').nth(1).click()
+    await page.getByRole('option', { name: 'Mata-mata', exact: true }).click()
+    await page.locator('[data-test=league-start-date] input').nth(1).fill('2026-04-01')
+    await page.locator('[data-test=league-end-date] input').nth(1).fill('2026-06-30')
+    await page.locator('[data-test=championship-submit]').click()
+
+    await expect(page).toHaveURL(/\/admin\/campeonatos$/)
+    await expect(page.getByText('Campeonato criado com sucesso.')).toBeVisible()
+    expect(body).toContain('name="leagues[0][name]"\r\n\r\nLiga Ouro')
+    expect(body).toContain('name="leagues[0][format]"\r\n\r\nround_robin')
+    expect(body).toContain('name="leagues[1][name]"\r\n\r\nLiga Prata')
+    expect(body).toContain('name="leagues[1][format]"\r\n\r\nknockout')
+    expect(body).toContain('name="leagues[1][end_date]"\r\n\r\n2026-06-30')
+    expect(body).not.toContain('[id]')
+    expect(body).toContain('name="image"; filename="copa.png"')
   })
 
-  test('editar campeonato', async ({ page }) => {
+  test('editar campeonato e adicionar uma liga', async ({ page, api }) => {
+    let body = ''
+    let method = ''
+    api.on('POST', '/championships/1', ({ request, url }) => {
+      body = request.postData() ?? ''
+      method = url.searchParams.get('_method') ?? ''
+      return { body: { data: { id: 1, name: 'Copa Footfy', image: null, leagues: [] } } }
+    })
+
     await page.goto('/admin/campeonatos/1/editar')
     await expect(page.getByRole('heading', { name: 'Editar Campeonato' })).toBeVisible()
-    await expect(page.getByLabel('Nome')).toHaveValue('Copa Footfy')
+    await expect(page.locator('[data-test=championship-name] input')).toHaveValue('Copa Footfy')
+    await expect(page.locator('[data-test=league-panel-title]')).toHaveText(['Série A', 'Série B'])
+
+    await page.locator('[data-test=league-add]').click()
+    await page.locator('[data-test=league-name] input').nth(2).fill('Série C')
+    await expect(page.locator('[data-test=league-panel-title]').nth(2)).toHaveText('Série C')
+    await page.locator('[data-test=championship-submit]').click()
+
+    await expect(page).toHaveURL(/\/admin\/campeonatos$/)
+    expect(method).toBe('PUT')
+    expect(body).toContain('name="leagues[0][id]"\r\n\r\n1')
+    expect(body).toContain('name="leagues[1][id]"\r\n\r\n2')
+    expect(body).toContain('name="leagues[2][name]"\r\n\r\nSérie C')
+    expect(body).not.toContain('leagues[2][id]')
+    expect(body).not.toContain('name="image"')
+  })
+
+  test('imagem salva: visualizar aplicação, trocar e descartar a nova', async ({ page, api }) => {
+    const championship = fixture<{ data: { image: string | null } }>('championship-1')
+    championship.data.image = sampleImageUrl('Copa Footfy', '#2e7d32')
+    api.on('GET', '/championships/1', { body: championship })
+
+    await page.goto('/admin/campeonatos/1/editar')
+    const preview = page.locator(PREVIEW_IMG)
+    await expect(preview).toHaveAttribute('src', /^data:image\/svg/)
+    await expect(page.getByRole('button', { name: 'Remover imagem' })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Visualizar aplicação' }).click()
+    const dialog = openDialog(page)
+    await expect(dialog).toContainText('Como a imagem aparece')
+    await expect(dialog.locator('[data-test=preview-dashboard]')).toContainText('Série A')
+    await expect(dialog.locator('[data-test=championship-image-front] img')).toHaveCount(4)
+    await expect(dialog.locator('.championship-image__backdrop')).toHaveCount(4)
+    await dialog.getByRole('button', { name: 'Fechar' }).click()
+    await expect(openDialog(page)).toHaveCount(0)
+
+    const chooser = page.waitForEvent('filechooser')
+    await page.getByRole('button', { name: 'Trocar imagem' }).click()
+    await (
+      await chooser
+    ).setFiles({
+      name: 'nova.png',
+      mimeType: 'image/png',
+      buffer: await samplePng(page, 'Nova', '#c62828'),
+    })
+    await expect(preview).toHaveAttribute('src', /^blob:/)
+
+    await page.getByRole('button', { name: 'Remover imagem' }).click()
+    await expect(preview).toHaveAttribute('src', /^data:image\/svg/)
+    await expect(page.getByRole('button', { name: 'Remover imagem' })).toHaveCount(0)
+  })
+
+  test('arquivo de imagem inválido não entra na prévia e mostra o erro', async ({ page }) => {
+    await page.goto('/admin/campeonatos/novo')
+    const input = page.locator('[data-test=championship-image-input]')
+    const error = page.locator('[data-test=championship-image-error]')
+    await expect(input).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp')
+
+    await input.setInputFiles({
+      name: 'copa.gif',
+      mimeType: 'image/gif',
+      buffer: Buffer.from('GIF89a'),
+    })
+    await expect(error).toHaveText('Use uma imagem JPG, PNG ou WebP.')
+    await expect(page.locator('[data-test=championship-image-empty]')).toBeVisible()
+
+    await input.setInputFiles({
+      name: 'grande.png',
+      mimeType: 'image/png',
+      buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
+    })
+    await expect(error).toHaveText('A imagem deve ter no máximo 2 MB.')
+    await expect(page.locator('[data-test=championship-image-empty]')).toBeVisible()
+    await expect(page.locator('[data-test=championship-image-preview-open]')).toBeDisabled()
+
+    await input.setInputFiles({
+      name: 'copa.png',
+      mimeType: 'image/png',
+      buffer: await samplePng(page, 'Copa', '#1565c0'),
+    })
+    await expect(page.locator(PREVIEW_IMG)).toBeVisible()
+    await expect(error).toHaveCount(0)
+  })
+
+  test('excluir liga pede a senha: errada e depois a certa', async ({ page, api }) => {
+    // Liga 2 é a ativa: depois da exclusão o contexto precisa ser limpo.
+    await signIn(page, { leagueId: 2 })
+    const passwords: string[] = []
+    api.allowConsoleError(/status of 422/).on('DELETE', '/leagues/2', ({ request }) => {
+      const { password } = request.postDataJSON() as { password: string }
+      passwords.push(password)
+      if (password !== '123456') {
+        return {
+          status: 422,
+          body: { message: 'Senha incorreta.', errors: { password: ['Senha incorreta.'] } },
+        }
+      }
+      return { status: 204 }
+    })
+
+    await page.goto('/admin/campeonatos/1/editar')
+    const panel = page.locator('[data-test=league-panel]', { hasText: 'Série B' })
+    await panel.locator('.v-expansion-panel-title').click()
+    await panel.locator('[data-test=league-remove]').click()
+
+    const dialog = openDialog(page)
+    await expect(dialog).toContainText('A exclusão é imediata')
+    await dialog.locator('[data-test=league-delete-continue]').click()
+    await dialog.locator('[data-test=league-delete-password] input').fill('errada')
+    await dialog.locator('[data-test=league-delete-confirm]').click()
+    await expect(dialog).toContainText('Senha incorreta.')
+
+    await dialog.locator('[data-test=league-delete-password] input').fill('123456')
+    await dialog.locator('[data-test=league-delete-confirm]').click()
+
+    await expect(openDialog(page)).toHaveCount(0)
+    await expect(page.getByText('Liga excluída com sucesso.')).toBeVisible()
+    await expect(page.locator('[data-test=league-panel-title]')).toHaveText(['Série A'])
+    expect(passwords).toEqual(['errada', '123456'])
+    expect(await page.evaluate(() => localStorage.getItem('footfy_active_league'))).toBeNull()
+  })
+
+  test('campeonato sem ligas: card, mensagem e atalho para gerenciar', async ({ page, api }) => {
+    const empty = { id: 3, name: 'Copa Sem Ligas', image: null }
+    api
+      .on('GET', '/championships', {
+        body: { data: [...fixture<{ data: object[] }>('championships').data, empty] },
+      })
+      .on('GET', '/championships/3', { body: { data: { ...empty, leagues: [] } } })
+
+    await page.goto('/admin/selecionar')
+    const card = page.locator('[data-test=championship-card]', { hasText: 'Copa Sem Ligas' })
+    await expect(card).toContainText('Sem ligas')
+    await card.click()
+
+    await expect(page).toHaveURL(/\/admin\/selecionar\/3$/)
+    await expect(page.locator('[data-test=no-leagues]')).toContainText(
+      'Sem ligas para esse campeonato.',
+    )
+    await page.getByRole('link', { name: 'Gerenciar campeonato' }).click()
+
+    await expect(page).toHaveURL(/\/admin\/campeonatos\/3\/editar$/)
+    await expect(page.locator('[data-test=championship-name] input')).toHaveValue('Copa Sem Ligas')
+    await expect(page.locator('[data-test=leagues-empty]')).toBeVisible()
   })
 })

@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
+import { sampleImageUrl } from './support/images'
 import { fixture } from './support/mock-api'
-import { DESKTOP, expect, MOBILE, signIn, test } from './support/test'
+import { DESKTOP, expect, MOBILE, openDialog, signIn, test } from './support/test'
 
 // Checagens de estrutura que o jsdom do Vitest não enxerga (layout real no Chromium).
 
@@ -160,6 +161,12 @@ const MOBILE_SCREENS: MobileScreen[] = [
   { path: '/admin/liga/1/tabela', ready: '[data-test=standings-row]', role: 'master' },
   { path: '/admin/liga/1/estatisticas', ready: '[data-test=top-scorers]', role: 'master' },
   { path: '/admin/perfil', ready: '[data-test=account-card]', role: 'master' },
+  { path: '/admin/campeonatos/1/editar', ready: '[data-test=league-panel]', role: 'master' },
+  {
+    path: '/admin/campeonatos/novo',
+    ready: '[data-test=championship-image-empty]',
+    role: 'master',
+  },
 ]
 
 test.describe('Sem rolagem horizontal no mobile', () => {
@@ -181,6 +188,58 @@ test.describe('Sem rolagem horizontal no mobile', () => {
       )
     })
   }
+})
+
+async function horizontalOverflow(page: Page) {
+  return page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+}
+
+test.describe('Imagem do campeonato no mobile', () => {
+  test.use({ viewport: MOBILE })
+
+  test('área da imagem em largura total, botões com alvo de 44px e diálogo sem rolagem', async ({
+    page,
+    api,
+  }) => {
+    const championship = fixture<{ data: { image: string | null } }>('championship-1')
+    championship.data.image = sampleImageUrl('Copa Footfy', '#2e7d32')
+    api.on('GET', '/championships/1', { body: championship })
+    await signIn(page)
+    await page.goto('/admin/campeonatos/1/editar')
+
+    const name = page.locator('[data-test=championship-name]')
+    const area = page.locator('[data-test=championship-image-preview]')
+    await expect(area.locator('[data-test=championship-image-front] img')).toBeVisible()
+    const nameBox = (await name.boundingBox())!
+    const areaBox = (await area.boundingBox())!
+    expect(areaBox.y, 'a imagem fica abaixo do nome').toBeGreaterThan(nameBox.y + nameBox.height)
+    expect(areaBox.width).toBeCloseTo(nameBox.width, 0)
+    expect(areaBox.height).toBe(200)
+
+    for (const button of [
+      page.getByRole('button', { name: 'Trocar imagem' }),
+      page.getByRole('button', { name: 'Visualizar aplicação' }),
+    ]) {
+      await expect(button).toBeInViewport({ ratio: 1 })
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    }
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+
+    await page.getByRole('button', { name: 'Visualizar aplicação' }).click()
+    const dialog = openDialog(page).locator('[data-test=image-preview-dialog]')
+    await expect(dialog).toContainText('Como a imagem aparece')
+    // A transição de abertura escala o diálogo: espera ela terminar.
+    await expect
+      .poll(async () => (await dialog.boundingBox())!.width, { message: 'diálogo em tela cheia' })
+      .toBe(MOBILE.width)
+    const overflow = await dialog
+      .locator(':scope > .v-card-text')
+      .evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(overflow, 'conteúdo do diálogo sem rolagem horizontal').toBeLessThanOrEqual(0)
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
 })
 
 // BUG-013: em telas estreitas os três botões com texto estouravam o app bar público.
