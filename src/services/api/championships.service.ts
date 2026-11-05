@@ -31,4 +31,7 @@ export const championshipsService = {
   // POST com o override `_method=PUT` para permitir o upload de imagem na edição.
   update: (id: number | string, payload: ChampionshipPayload) =>
     unwrap<Championship>(http.post(`${baseUrl}/${id}?_method=PUT`, toFormData(payload))),
+  // Exclusão definitiva (apaga as ligas e tudo o que é delas): exige a senha do master.
+  removeWithPassword: (id: number | string, password: string) =>
+    http.delete(`${baseUrl}/${id}`, { data: { password } }),
 }

@@ -1,22 +1,39 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { championshipsService } from '@/services/api/championships.service'
-import type { Championship, ChampionshipPayload } from '@/types/championship'
+import { useLeagueContextStore } from '@/stores/leagueContext'
+import type { Championship, ChampionshipPayload, League } from '@/types/championship'
 import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import PasswordDeleteDialog from '@/components/common/PasswordDeleteDialog.vue'
 
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<
-  Championship,
-  ChampionshipPayload
->(championshipsService)
+const { items, loading, errorMessage, fetchAll } = useCrud<Championship, ChampionshipPayload>(
+  championshipsService,
+)
 const snackbar = useSnackbar()
+const leagueContext = useLeagueContextStore()
 
 const search = ref('')
-const confirmDialog = ref(false)
+const deleteDialog = ref(false)
 const championshipToDelete = ref<Championship | null>(null)
+const leaguesToDelete = ref<League[]>([])
+const loadingLeagues = ref(false)
+
+const CHAMPIONSHIP_REMOVED = [
+  'partidas e súmulas das ligas',
+  'estádios das ligas',
+  'vínculos dos times e dos usuários com as ligas',
+  'a imagem do campeonato',
+]
+
+const leaguesSummary = computed(() => {
+  const names = leaguesToDelete.value.map((league) => league.name).join(', ')
+  if (leaguesToDelete.value.length === 0) return 'Nenhuma liga neste campeonato.'
+  if (leaguesToDelete.value.length === 1) return `Será apagada 1 liga: ${names}.`
+  return `Serão apagadas ${leaguesToDelete.value.length} ligas: ${names}.`
+})
 
 const headers = [
   { title: 'Imagem', key: 'image', sortable: false },
@@ -24,20 +41,39 @@ const headers = [
   { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
 ]
 
-function askDelete(championship: Championship) {
+// A lista não traz as ligas: o aviso busca o campeonato para mostrar o que cai junto.
+async function askDelete(championship: Championship) {
   championshipToDelete.value = championship
-  confirmDialog.value = true
+  leaguesToDelete.value = []
+  loadingLeagues.value = true
+  deleteDialog.value = true
+  try {
+    const { leagues } = await championshipsService.get(championship.id)
+    // Ignora a resposta se, nesse meio-tempo, o diálogo foi aberto para outro campeonato.
+    if (championshipToDelete.value?.id === championship.id) leaguesToDelete.value = leagues ?? []
+  } catch {
+    if (championshipToDelete.value?.id !== championship.id) return
+    deleteDialog.value = false
+    snackbar.error('Não foi possível carregar o campeonato.')
+  } finally {
+    if (championshipToDelete.value?.id === championship.id) loadingLeagues.value = false
+  }
 }
 
-async function handleDelete() {
-  if (!championshipToDelete.value) return
-  const ok = await destroy(championshipToDelete.value.id)
-  if (ok) {
-    snackbar.success('Campeonato excluído com sucesso.')
-  } else {
-    snackbar.error('Não foi possível excluir o campeonato.')
+async function deleteChampionship(password: string) {
+  if (championshipToDelete.value) {
+    await championshipsService.removeWithPassword(championshipToDelete.value.id, password)
   }
-  championshipToDelete.value = null
+}
+
+function onChampionshipDeleted() {
+  const ids = leaguesToDelete.value.map((league) => league.id)
+  if (leagueContext.activeLeagueId !== null && ids.includes(leagueContext.activeLeagueId)) {
+    leagueContext.clearActiveLeague()
+  }
+  leagueContext.loadLeagues(true).catch(() => undefined)
+  snackbar.success('Campeonato excluído com sucesso.')
+  fetchAll()
 }
 
 onMounted(fetchAll)
@@ -95,17 +131,34 @@ onMounted(fetchAll)
               size="small"
               :to="{ name: 'admin-championships-edit', params: { id: item.id } }"
             />
-            <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="askDelete(item)" />
+            <v-btn
+              icon="mdi-delete"
+              variant="text"
+              size="small"
+              color="error"
+              aria-label="Excluir campeonato"
+              data-test="championship-delete"
+              @click="askDelete(item)"
+            />
           </template>
         </v-data-table>
       </v-card-text>
     </v-card>
 
-    <ConfirmDialog
-      v-model="confirmDialog"
-      title="Excluir campeonato"
-      :message="`Tem certeza que deseja excluir '${championshipToDelete?.name}'?`"
-      @confirm="handleDelete"
-    />
+    <PasswordDeleteDialog
+      v-model="deleteDialog"
+      :title="`Excluir campeonato ${championshipToDelete?.name ?? ''}`"
+      confirm-text="Excluir campeonato"
+      :removed="CHAMPIONSHIP_REMOVED"
+      kept="Times, jogadores, comissão técnica e usuários continuam no sistema."
+      :request="deleteChampionship"
+      :loading="loadingLeagues"
+      @deleted="onChampionshipDeleted"
+    >
+      <v-progress-linear v-if="loadingLeagues" indeterminate color="error" class="mb-4" />
+      <p v-else class="mb-4 font-weight-medium" data-test="championship-delete-leagues">
+        {{ leaguesSummary }}
+      </p>
+    </PasswordDeleteDialog>
   </div>
 </template>

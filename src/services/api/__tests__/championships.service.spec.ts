@@ -92,3 +92,13 @@ describe('leaguesService.removeWithPassword', () => {
     expect(http.delete).toHaveBeenCalledWith('/leagues/7', { data: { password: 'segredo' } })
   })
 })
+
+describe('championshipsService.removeWithPassword', () => {
+  it('manda a senha no corpo do DELETE', async () => {
+    vi.mocked(http.delete).mockResolvedValue({ status: 204 })
+
+    await championshipsService.removeWithPassword(5, 'segredo')
+
+    expect(http.delete).toHaveBeenCalledWith('/championships/5', { data: { password: 'segredo' } })
+  })
+})
