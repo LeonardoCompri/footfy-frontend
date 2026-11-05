@@ -8,8 +8,11 @@ const LEAGUE_FIELDS = ['name', 'format', 'season', 'organizer', 'start_date', 'e
 function toFormData(payload: ChampionshipPayload): FormData {
   const formData = new FormData()
   formData.append('name', payload.name)
+  // Sem o campo `image` o backend mantém a imagem salva; `image=''` remove.
   if (payload.image) {
     formData.append('image', payload.image)
+  } else if (payload.removeImage) {
+    formData.append('image', '')
   }
   // Multipart não tem null: opcional vazio vai como '' e o backend converte para null.
   payload.leagues?.forEach((league, index) => {

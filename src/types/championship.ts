@@ -49,6 +49,8 @@ export interface Championship {
 export interface ChampionshipPayload {
   name: string
   image: File | null
+  // Edição: remove a imagem salva (vale só sem arquivo novo).
+  removeImage?: boolean
   // Ligas ausentes do payload continuam intactas no backend.
   leagues?: LeaguePayload[]
 }

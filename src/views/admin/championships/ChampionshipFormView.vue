@@ -140,6 +140,8 @@ const newImageUrl = ref<string | null>(null)
 const imagePreview = computed(() => newImageUrl.value ?? existingImageUrl.value)
 const previewDialog = ref(false)
 const imageError = ref<string | null>(null)
+// Lixeira sobre a imagem salva: o update manda `image=''` (se não vier um arquivo novo).
+const removeImage = ref(false)
 
 // Mesmas regras do backend (mimes:jpeg,png,jpg,webp|max:2048): arquivo inválido nem entra na prévia.
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -151,8 +153,6 @@ function validateImage(file: File): string | null {
   return null
 }
 
-// Só troca ou descarta a imagem nova: enviar `image` vazio na edição apaga a imagem salva
-// no backend (BUG-037), então não há como remover a imagem existente por aqui.
 function selectImage(file: File | null) {
   if (newImageUrl.value) URL.revokeObjectURL(newImageUrl.value)
   selectedFile.value = file
@@ -168,6 +168,14 @@ function onFileChange(event: Event) {
   }
   // Limpa o input para que escolher o mesmo arquivo de novo dispare o change.
   input.value = ''
+}
+
+function clearImage() {
+  selectImage(null)
+  if (existingImageUrl.value) {
+    existingImageUrl.value = null
+    removeImage.value = true
+  }
 }
 
 onBeforeUnmount(() => selectImage(null))
@@ -201,6 +209,7 @@ async function handleSubmit(event: SubmitEventPromise) {
   const payload: ChampionshipPayload = {
     name: form.name,
     image: selectedFile.value,
+    removeImage: removeImage.value,
     leagues: form.leagues,
   }
   const result = await save(payload, props.id)
@@ -276,12 +285,11 @@ async function handleSubmit(event: SubmitEventPromise) {
                 <template #overlay>
                   <div class="d-flex flex-column align-end fill-height pa-2">
                     <v-btn
-                      v-if="selectedFile"
                       icon="mdi-delete"
                       color="error"
                       aria-label="Remover imagem"
                       data-test="championship-image-remove"
-                      @click="selectImage(null)"
+                      @click="clearImage"
                     />
                     <v-spacer />
                     <v-btn

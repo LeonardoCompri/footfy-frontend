@@ -65,15 +65,29 @@ describe('championshipsService', () => {
     expect(data.get('leagues[1][name]')).toBe('Série B')
   })
 
-  // BUG-037 (backend): `image` vazio na edição apaga a imagem do campeonato.
-  it('update sem arquivo novo não manda o campo image; com arquivo, manda', async () => {
+  // `image` vazio apaga a imagem no backend (BUG-037): só vai quando a remoção foi pedida.
+  it('update sem arquivo novo e sem removeImage não manda o campo image', async () => {
     await championshipsService.update(5, { name: 'Copa', image: null })
     expect(sentFormData().has('image')).toBe(false)
 
     vi.mocked(http.post).mockClear()
+    await championshipsService.update(5, { name: 'Copa', image: null, removeImage: false })
+    expect(sentFormData().has('image')).toBe(false)
+  })
+
+  it('update com removeImage e sem arquivo manda image vazio', async () => {
+    await championshipsService.update(5, { name: 'Copa', image: null, removeImage: true })
+
+    expect(sentFormData().getAll('image')).toEqual([''])
+  })
+
+  it('update com arquivo manda o arquivo, mesmo com removeImage', async () => {
     const file = new File(['x'], 'copa.png', { type: 'image/png' })
-    await championshipsService.update(5, { name: 'Copa', image: file })
-    expect(sentFormData().get('image')).toBeInstanceOf(File)
+    await championshipsService.update(5, { name: 'Copa', image: file, removeImage: true })
+
+    const sent = sentFormData().getAll('image')
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toBeInstanceOf(File)
   })
 
   it('sem ligas não manda nenhum campo leagues', async () => {
