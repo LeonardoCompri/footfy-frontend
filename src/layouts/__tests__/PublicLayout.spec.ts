@@ -129,4 +129,17 @@ describe('PublicLayout — app bar', () => {
       expect(activeLinks(wrapper)).toEqual({ active: route[screen], current: route[screen] })
     })
   })
+
+  it('mostra a marca Futy no app bar (levando à home) e no rodapé', async () => {
+    const wrapper = await mountLayout(1366)
+
+    const home = wrapper.find('.v-app-bar a[href="/"] img')
+    expect(home.attributes('alt')).toBe('Futy')
+    expect(home.attributes('src')).toContain('futy-mono-branco')
+    const footer = wrapper.find('.v-footer')
+    expect(footer.find('img[alt="Futy"]').exists()).toBe(true)
+    expect(footer.text()).toContain(
+      `© ${new Date().getFullYear()} Futy — Gestão de campeonatos de futebol`,
+    )
+  })
 })

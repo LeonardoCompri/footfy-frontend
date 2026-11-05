@@ -13,6 +13,10 @@ async function openScreen(page: Page, path: string, ready: string, theme: Sessio
   await page.goto(path)
   await expect(page.locator(ready).first()).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
+  // O logo do menu é <img>: sem esperar, a captura pode sair sem ele.
+  await page.evaluate(() =>
+    Promise.all(Array.from(document.images, (img) => img.decode().catch(() => undefined))),
+  )
 }
 
 const SCREENS = [

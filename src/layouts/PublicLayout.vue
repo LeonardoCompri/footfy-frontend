@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute, type RouteRecordNameGeneric } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
+import logoWhite from '@/assets/brand/futy-mono-branco.svg'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -25,9 +26,8 @@ const { xs } = useDisplay()
   <v-app>
     <v-app-bar color="primary" elevation="0">
       <v-container class="d-flex align-center">
-        <RouterLink to="/" class="d-flex align-center text-white text-decoration-none">
-          <v-icon icon="mdi-soccer" size="28" class="mr-2" />
-          <span class="text-h6 font-weight-bold font-heading">Footfy</span>
+        <RouterLink to="/" class="d-flex align-center">
+          <img :src="logoWhite" alt="Futy" height="40" class="d-block" />
         </RouterLink>
 
         <v-spacer />
@@ -73,12 +73,9 @@ const { xs } = useDisplay()
     </v-main>
 
     <v-footer color="primary" class="d-flex flex-column align-center py-6">
-      <div class="d-flex align-center mb-2">
-        <v-icon icon="mdi-soccer" class="mr-2" />
-        <span class="text-subtitle-1 font-weight-bold font-heading">Footfy</span>
-      </div>
+      <img :src="logoWhite" alt="Futy" height="56" class="d-block mb-2" />
       <span class="text-white text-caption" style="opacity: 0.8">
-        &copy; {{ new Date().getFullYear() }} Footfy — Gestão de campeonatos de futebol
+        &copy; {{ new Date().getFullYear() }} Futy — Gestão de campeonatos de futebol
       </span>
     </v-footer>
   </v-app>
