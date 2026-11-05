@@ -4,6 +4,7 @@ import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { championshipsService } from '@/services/api/championships.service'
 import type { Championship, ChampionshipPayload } from '@/types/championship'
+import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 
@@ -76,12 +77,16 @@ onMounted(fetchAll)
         />
         <v-data-table :headers="headers" :items="items" :search="search" :loading="loading" item-value="id">
           <template v-slot:[`item.image`]="{ item }">
-            <v-avatar v-if="item.image" size="40" rounded="lg">
-              <v-img :src="item.image" cover />
-            </v-avatar>
-            <v-avatar v-else size="40" rounded="lg" color="grey-lighten-3">
-              <v-icon icon="mdi-trophy-outline" />
-            </v-avatar>
+            <ChampionshipImage :src="item.image" width="40" height="40" rounded="lg">
+              <v-avatar
+                size="40"
+                rounded="lg"
+                color="grey-lighten-3"
+                data-test="championship-image-fallback"
+              >
+                <v-icon icon="mdi-trophy-outline" />
+              </v-avatar>
+            </ChampionshipImage>
           </template>
           <template v-slot:[`item.actions`]="{ item }">
             <v-btn

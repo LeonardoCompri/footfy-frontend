@@ -45,12 +45,12 @@ const dashboardData: LeagueDashboard = {
   totals: { goals: 10, finished_games: 7, goals_average: 1.43 },
 }
 
-async function mountDashboard(permissions: string[] = ['game:read']) {
+async function mountDashboard(permissions: string[] = ['game:read'], championship = championshipA) {
   const auth = useAuthStore()
   auth.token = 'token'
   auth.user = makeUser('admin', permissions)
   const context = useLeagueContextStore()
-  context.leagues = [makeLeague(1, championshipA, { name: 'Série A', organizer: 'CBF' })]
+  context.leagues = [makeLeague(1, championship, { name: 'Série A', organizer: 'CBF' })]
   context.loaded = true
   context.setActiveLeague(1)
 
@@ -84,6 +84,23 @@ describe('DashboardView', () => {
 
     const counters = wrapper.findAll('[data-test="dashboard-counter"]').map((c) => c.text())
     expect(counters).toEqual(['6Times', '12Partidas', '3Estádios', '2026Temporada'])
+  })
+
+  it('mostra a imagem do campeonato inteira em 56px e o troféu quando não há imagem', async () => {
+    const withImage = await mountDashboard(undefined, {
+      ...championshipA,
+      image: 'http://api/copa.png',
+    })
+    const image = withImage.find('[data-test="dashboard-header"]').findComponent({
+      name: 'ChampionshipImage',
+    })
+    expect(image.props()).toMatchObject({ src: 'http://api/copa.png', width: '56', height: '56' })
+    expect(image.find('.v-img').attributes('style')).toContain('width: 56px')
+    withImage.unmount()
+
+    const header = (await mountDashboard()).find('[data-test="dashboard-header"]')
+    expect(header.find('.v-img').exists()).toBe(false)
+    expect(header.find('.v-avatar .mdi-trophy').exists()).toBe(true)
   })
 
   it('renderiza os 3 gráficos com os dados da liga', async () => {
