@@ -108,6 +108,32 @@ test.describe('Menu lateral no desktop', () => {
     await expect(tooltip).toHaveText(/3 gols\s*· Rodada 1/)
     await expect(tooltip).toBeInViewport()
   })
+
+  // O cabeçalho do menu recolhido crescia ~370px (o subtítulo quebrava letra a letra) e a
+  // navegação só começava no meio da tela.
+  test('recolhido, o cabeçalho mostra só o símbolo e a navegação começa no topo', async ({
+    page,
+  }) => {
+    await page.goto('/admin/liga/1')
+    await expect(page.locator('[data-test=dashboard-header]')).toBeVisible()
+
+    await drawer(page).getByText('Recolher').click()
+    await expect(drawer(page)).toHaveClass(/v-navigation-drawer--rail/)
+    await expect(page.getByText('Painel Administrativo')).toHaveCount(0)
+    // Espera a transição de largura terminar antes de medir.
+    await expect.poll(async () => (await drawer(page).boundingBox())!.width).toBe(56)
+
+    const brand = drawer(page).locator('[data-test=drawer-brand]')
+    await expect.poll(async () => (await brand.boundingBox())!.height).toBeLessThanOrEqual(64)
+    const symbol = await brand.getByRole('img', { name: 'Futy' }).boundingBox()
+    const firstItem = await drawer(page).locator('.v-list-item[href]').first().boundingBox()
+    expect(firstItem!.y).toBeLessThan(130)
+    // Símbolo no mesmo eixo dos ícones da navegação.
+    const itemIcon = await drawer(page).locator('.v-list-item[href] .v-icon').first().boundingBox()
+    expect(
+      Math.abs(symbol!.x + symbol!.width / 2 - (itemIcon!.x + itemIcon!.width / 2)),
+    ).toBeLessThanOrEqual(2)
+  })
 })
 
 test.describe('Menu lateral no mobile', () => {

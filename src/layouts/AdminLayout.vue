@@ -5,6 +5,10 @@ import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { useAppTheme } from '@/composables/useAppTheme'
+import logoLight from '@/assets/brand/futy-verde-classico.svg'
+import logoDark from '@/assets/brand/futy-verde-noite.svg'
+import symbolLight from '@/assets/brand/futy-simbolo.svg'
+import symbolDark from '@/assets/brand/futy-simbolo-noite.svg'
 
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
@@ -15,8 +19,10 @@ const { themeName, isDark, toggleTheme } = useAppTheme()
 const rail = ref(false)
 const mobileDrawer = ref(false)
 
-// No desktop o drawer é permanente e precisa ficar sempre ativo; `mobileDrawer` só controla
-// a abertura temporária no mobile (um drawer `permanent` com v-model false fica escondido).
+const isRail = computed(() => mdAndUp.value && rail.value)
+const logo = computed(() => (isDark.value ? logoDark : logoLight))
+const symbol = computed(() => (isDark.value ? symbolDark : symbolLight))
+
 const drawerOpen = computed({
   get: () => mdAndUp.value || mobileDrawer.value,
   set: (value: boolean) => {
@@ -30,9 +36,7 @@ interface NavItem {
   routeName: string
   roles?: string[]
   permission?: string
-  // Telas internas (sem rota aninhada) que mantêm o item destacado no menu.
   activeOn?: string[]
-  // "Meu time": aponta para o time vinculado ao coach.
   myTeam?: boolean
 }
 
@@ -42,7 +46,6 @@ const TEAM_PAGES = [
   'admin-technical-committee-members-detail',
 ]
 
-// Ordem definida no FOOT-0022: Dashboard é a tela inicial ao entrar na liga.
 const navItems: NavItem[] = [
   { title: 'Dashboard', icon: 'mdi-view-dashboard', routeName: 'admin-dashboard' },
   {
@@ -77,23 +80,18 @@ const navItems: NavItem[] = [
   },
 ]
 
-// Liga da rota: só as rotas escopadas por liga têm; é ela que entra na key da tela.
 const leagueId = computed(() => (route.meta.requiresLeague ? route.params.leagueId : undefined))
-// Liga do menu: no "Meu perfil" (fora de `liga/:leagueId`) o menu e o pill seguem a liga ativa,
-// para dar caminho de volta ao painel.
+
 const navLeagueId = computed(
   () =>
     leagueId.value ?? (route.name === 'admin-profile' ? leagueContext.activeLeagueId : undefined),
 )
 const inLeague = computed(() => !!navLeagueId.value && !!leagueContext.activeLeague)
 
-// Num reload direto fora das rotas de liga o guard não busca as ligas, e sem elas a liga ativa
-// fica nula. `loadLeagues` não repete a busca se ela já foi feita ou está em andamento.
 onMounted(() => {
   if (leagueContext.activeLeagueId) leagueContext.loadLeagues().catch(() => undefined)
 })
 
-// Só o coach tem "Meu time" (para o player `user.team` é o time do jogador vinculado).
 const myTeamId = computed(() => (authStore.hasRole('coach') ? authStore.user?.team?.id : undefined))
 
 const visibleNavItems = computed(() =>
@@ -110,7 +108,6 @@ const visibleNavItems = computed(() =>
     })),
 )
 
-// Telas internas do próprio time destacam "Meu time"; as dos demais times, "Times".
 function isActive(item: NavItem): true | undefined {
   if (!item.activeOn?.includes(String(route.name))) return undefined
   const onMyTeam = !!myTeamId.value && Number(route.params.teamId) === myTeamId.value
@@ -132,20 +129,22 @@ async function handleLogout() {
     <v-navigation-drawer
       v-if="inLeague"
       v-model="drawerOpen"
-      :rail="mdAndUp && rail"
+      :rail="isRail"
       :permanent="mdAndUp"
       :temporary="!mdAndUp"
       color="surface"
     >
-      <v-list-item class="py-3">
-        <template #prepend>
-          <v-avatar color="primary" variant="flat">
-            <v-icon icon="mdi-soccer" />
-          </v-avatar>
+      <div
+        class="drawer-brand d-flex flex-column align-center justify-center"
+        :class="isRail ? 'drawer-brand--rail' : 'py-4 px-3'"
+        data-test="drawer-brand"
+      >
+        <img v-if="isRail" :src="symbol" alt="Futy" height="30" class="d-block" />
+        <template v-else>
+          <img :src="logo" alt="Futy" height="54" class="d-block" />
+          <span class="text-caption text-medium-emphasis mt-1">Painel Administrativo</span>
         </template>
-        <v-list-item-title class="font-weight-bold">Footfy</v-list-item-title>
-        <v-list-item-subtitle>Painel Administrativo</v-list-item-subtitle>
-      </v-list-item>
+      </div>
       <v-divider />
       <v-list density="compact" nav>
         <v-list-item
@@ -179,8 +178,13 @@ async function handleLogout() {
       <!-- Dentro de uma liga a marca já aparece no drawer; o app bar mostra o pill de contexto.
            Fora dela a marca leva ao painel (dashboard da liga ativa ou seleção de liga). -->
       <v-toolbar-title v-if="!inLeague" class="toolbar-title">
-        <RouterLink :to="{ name: 'admin-home' }" class="text-decoration-none" data-test="home-link">
-          Footfy Admin
+        <RouterLink
+          :to="{ name: 'admin-home' }"
+          class="d-flex align-center ga-2 text-decoration-none"
+          data-test="home-link"
+        >
+          <img :src="logo" alt="Futy" height="34" class="d-block" />
+          <span class="font-heading font-weight-bold">Admin</span>
         </RouterLink>
       </v-toolbar-title>
 
@@ -203,7 +207,7 @@ async function handleLogout() {
         variant="text"
         @click="toggleTheme"
       />
-      <!-- Menu da conta: fica no app bar para existir dentro e fora de uma liga. -->
+
       <v-menu location="bottom end">
         <template #activator="{ props: menuProps }">
           <v-btn
@@ -237,9 +241,6 @@ async function handleLogout() {
 
     <v-main>
       <v-container fluid class="pa-4 pa-md-6">
-        <!-- key por liga: trocar de liga sempre remonta a tela, sem dados residuais da anterior.
-             O teamId entra na key porque "Meu time" leva de um detalhe de time para outro, e a
-             mesma rota reaproveitaria a tela com o time anterior. -->
         <RouterView v-slot="{ Component }">
           <component
             :is="Component"
@@ -257,6 +258,12 @@ async function handleLogout() {
 }
 .toolbar-title a {
   color: inherit;
+}
+.drawer-brand {
+  overflow: hidden;
+}
+.drawer-brand--rail {
+  height: 64px;
 }
 .context-pill {
   min-width: 0;

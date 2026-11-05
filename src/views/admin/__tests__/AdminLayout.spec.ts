@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
+import { useAppTheme } from '@/composables/useAppTheme'
 import { championshipA, createTestVuetify, makeLeague, makeUser } from '@/test/utils'
 import type { AuthUser } from '@/types/auth'
 
@@ -120,6 +121,8 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     window.innerWidth = 1366
+    // O tema é um ref de módulo: volta ao claro para não vazar entre os testes.
+    useAppTheme().themeName.value = 'footfyLight'
   })
 
   it('no desktop o menu lateral fica aberto dentro de uma liga, na ordem do card', async () => {
@@ -128,7 +131,6 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     const drawer = wrapper.find('.v-navigation-drawer')
     expect(drawer.classes()).toContain('v-navigation-drawer--active')
     expect(drawer.findAll('.v-list-item-title').map((t) => t.text())).toEqual([
-      'Footfy',
       'Dashboard',
       'Times',
       'Estádios',
@@ -170,7 +172,7 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
   it('coach com time vê "Meu time" logo após o Dashboard, apontando para o detalhe do time dele', async () => {
     const wrapper = await mountAt('/admin/liga/1', 'coach', ['team:read'], myTeam)
 
-    expect(navTitles(wrapper).slice(0, 4)).toEqual(['Footfy', 'Dashboard', 'Meu time', 'Times'])
+    expect(navTitles(wrapper).slice(0, 3)).toEqual(['Dashboard', 'Meu time', 'Times'])
     const item = wrapper
       .findAll('.v-navigation-drawer .v-list-item')
       .find((i) => i.text() === 'Meu time')
@@ -222,7 +224,9 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     const wrapper = await mountAt('/admin/selecionar')
     expect(wrapper.find('.v-navigation-drawer').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Trocar')
-    expect(wrapper.text()).toContain('Footfy Admin')
+    const home = wrapper.find('[data-test="home-link"]')
+    expect(home.find('img[alt="Futy"]').attributes('src')).toContain('futy-verde-classico')
+    expect(home.text()).toBe('Admin')
   })
 
   it.each([
@@ -246,7 +250,7 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     expect(wrapper.find('.v-navigation-drawer').classes()).toContain('v-navigation-drawer--active')
     expect(activeItems(wrapper)).toEqual([])
     expect(wrapper.text()).toContain('Série A')
-    expect(wrapper.text()).not.toContain('Footfy Admin')
+    expect(wrapper.find('[data-test="home-link"]').exists()).toBe(false)
     const hrefs = wrapper
       .findAll('.v-navigation-drawer .v-list-item[href]')
       .map((i) => [i.text(), i.attributes('href')])
@@ -296,7 +300,8 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
 
     expect(wrapper.find('.v-navigation-drawer').exists()).toBe(false)
     const home = wrapper.find('[data-test="home-link"]')
-    expect(home.text()).toBe('Footfy Admin')
+    expect(home.find('img[alt="Futy"]').exists()).toBe(true)
+    expect(home.text()).toBe('Admin')
     expect(home.attributes('href')).toBe('/admin')
     await home.trigger('click')
     await vi.waitFor(() =>
@@ -317,5 +322,69 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
 
     await vi.waitFor(() => expect(wrapper.router.currentRoute.value.name).toBe('login'))
     expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  describe('marca no menu lateral', () => {
+    function brand(wrapper: VueWrapper) {
+      const block = wrapper.find('[data-test="drawer-brand"]')
+      const img = block.find('img')
+      return { src: img.attributes('src'), alt: img.attributes('alt'), text: block.text() }
+    }
+
+    it('mostra o logo do tema claro com "Painel Administrativo" embaixo', async () => {
+      const wrapper = await mountAt('/admin/liga/1')
+      const { src, alt, text } = brand(wrapper)
+      expect(src).toContain('futy-verde-classico')
+      expect(alt).toBe('Futy')
+      expect(text).toBe('Painel Administrativo')
+    })
+
+    it('no tema escuro usa a versão noite do logo', async () => {
+      useAppTheme().themeName.value = 'footfyDark'
+      const wrapper = await mountAt('/admin/liga/1')
+      expect(brand(wrapper).src).toContain('futy-verde-noite')
+    })
+
+    it('no tema escuro o app bar fora da liga também usa a versão noite', async () => {
+      useAppTheme().themeName.value = 'footfyDark'
+      const wrapper = await mountAt('/admin/selecionar')
+      expect(wrapper.find('[data-test="home-link"] img').attributes('src')).toContain(
+        'futy-verde-noite',
+      )
+    })
+
+    it.each([
+      ['claro', 'footfyLight', 'futy-simbolo.svg'],
+      ['escuro', 'footfyDark', 'futy-simbolo-noite.svg'],
+    ] as const)('recolhido no desktop (%s) mostra só o símbolo', async (_label, theme, file) => {
+      useAppTheme().themeName.value = theme
+      const wrapper = await mountAt('/admin/liga/1')
+
+      const collapse = wrapper
+        .findAll('.v-navigation-drawer .v-list-item')
+        .find((i) => i.text() === 'Recolher')
+      await collapse!.trigger('click')
+
+      expect(wrapper.find('.v-navigation-drawer').classes()).toContain('v-navigation-drawer--rail')
+      const { src, alt, text } = brand(wrapper)
+      expect(src).toContain(file)
+      expect(alt).toBe('Futy')
+      expect(text).toBe('')
+    })
+
+    it('no mobile o menu aberto mostra o logo inteiro', async () => {
+      window.innerWidth = 375
+      const wrapper = await mountAt('/admin/liga/1')
+
+      await wrapper.find('.v-app-bar-nav-icon').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('.v-navigation-drawer').classes()).not.toContain(
+        'v-navigation-drawer--rail',
+      )
+      const { src, text } = brand(wrapper)
+      expect(src).toContain('futy-verde-classico')
+      expect(text).toBe('Painel Administrativo')
+    })
   })
 })
