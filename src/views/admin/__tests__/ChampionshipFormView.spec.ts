@@ -109,7 +109,12 @@ describe('ChampionshipFormView', () => {
     await wrapper.find('[data-test="championship-name"] input').setValue('Copa Nova')
     await submit(wrapper)
 
-    expect(service.create).toHaveBeenCalledWith({ name: 'Copa Nova', image: null, leagues: [] })
+    expect(service.create).toHaveBeenCalledWith({
+      name: 'Copa Nova',
+      image: null,
+      removeImage: false,
+      leagues: [],
+    })
     expect(leagues.list).toHaveBeenCalled()
     await vi.waitFor(() =>
       expect(wrapper.router.currentRoute.value.name).toBe('admin-championships-list'),
@@ -221,12 +226,13 @@ describe('ChampionshipFormView', () => {
     expect(rows[1].find('[data-test="league-error"]').exists()).toBe(false)
   })
 
-  it('edição sem trocar a imagem não envia arquivo', async () => {
+  it('edição sem tocar na imagem salva não envia arquivo nem pede a remoção', async () => {
+    service.get.mockResolvedValue({ ...savedChampionship(), image: 'http://api/copa.png' })
     const wrapper = await mountForm('5')
 
     await submit(wrapper)
 
-    expect(service.update.mock.calls[0][1].image).toBeNull()
+    expect(service.update.mock.calls[0][1]).toMatchObject({ image: null, removeImage: false })
   })
 
   it('sem imagem mostra a zona de envio e "Visualizar aplicação" desabilitado', async () => {
@@ -281,26 +287,61 @@ describe('ChampionshipFormView', () => {
     expect(service.create.mock.calls[0][0].image).toBe(file)
   })
 
-  it('na edição a imagem salva não tem lixeira; a lixeira só descarta a imagem nova', async () => {
+  it('lixeira na imagem salva volta para a zona de envio e pede a remoção (BUG-037)', async () => {
     service.get.mockResolvedValue({ ...savedChampionship(), image: 'http://api/copa.png' })
     const wrapper = await mountForm('5')
-
     expect(previewSrc(wrapper)).toBe('http://api/copa.png')
-    expect(wrapper.find('[data-test="championship-image-remove"]').exists()).toBe(false)
-
-    await chooseImage(wrapper, new File(['png'], 'nova.png', { type: 'image/png' }))
-    expect(previewSrc(wrapper)).toBe('blob:nova-imagem')
     const remove = wrapper.find('[data-test="championship-image-remove"]')
     expect(remove.attributes('aria-label')).toBe('Remover imagem')
 
     await remove.trigger('click')
 
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:nova-imagem')
-    expect(previewSrc(wrapper)).toBe('http://api/copa.png')
-    expect(wrapper.find('[data-test="championship-image-remove"]').exists()).toBe(false)
-
+    expect(wrapper.find('[data-test="championship-image-preview"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="championship-image-empty"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-test="championship-image-preview-open"]').attributes('disabled'),
+    ).toBeDefined()
     await submit(wrapper)
-    expect(service.update.mock.calls[0][1].image).toBeNull()
+    expect(service.update.mock.calls[0][1]).toMatchObject({ image: null, removeImage: true })
+  })
+
+  it('lixeira na imagem nova escolhida sobre a salva deixa o campeonato sem imagem', async () => {
+    service.get.mockResolvedValue({ ...savedChampionship(), image: 'http://api/copa.png' })
+    const wrapper = await mountForm('5')
+    await chooseImage(wrapper, new File(['png'], 'nova.png', { type: 'image/png' }))
+    expect(previewSrc(wrapper)).toBe('blob:nova-imagem')
+
+    await wrapper.find('[data-test="championship-image-remove"]').trigger('click')
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:nova-imagem')
+    expect(wrapper.find('[data-test="championship-image-empty"]').exists()).toBe(true)
+    await submit(wrapper)
+    expect(service.update.mock.calls[0][1]).toMatchObject({ image: null, removeImage: true })
+  })
+
+  it('depois da lixeira, uma imagem escolhida de novo é a que vale', async () => {
+    service.get.mockResolvedValue({ ...savedChampionship(), image: 'http://api/copa.png' })
+    const wrapper = await mountForm('5')
+    await wrapper.find('[data-test="championship-image-remove"]').trigger('click')
+    const file = new File(['png'], 'outra.png', { type: 'image/png' })
+
+    await chooseImage(wrapper, file)
+
+    expect(previewSrc(wrapper)).toBe('blob:nova-imagem')
+    await submit(wrapper)
+    expect(service.update.mock.calls[0][1].image).toBe(file)
+  })
+
+  it('lixeira na imagem nova de um campeonato novo só descarta a escolha', async () => {
+    const wrapper = await mountForm()
+    await chooseImage(wrapper, new File(['png'], 'nova.png', { type: 'image/png' }))
+
+    await wrapper.find('[data-test="championship-image-remove"]').trigger('click')
+
+    expect(wrapper.find('[data-test="championship-image-empty"]').exists()).toBe(true)
+    await wrapper.find('[data-test="championship-name"] input').setValue('Copa Nova')
+    await submit(wrapper)
+    expect(service.create.mock.calls[0][0]).toMatchObject({ image: null, removeImage: false })
   })
 
   it('erro 422 da imagem aparece abaixo da área da imagem', async () => {
@@ -422,15 +463,15 @@ describe('ChampionshipFormView', () => {
     await flushPromises()
     const dialog = document.querySelector('.v-dialog.v-overlay--active')
     expect(dialog?.textContent).toContain('Excluir liga Série A')
-    ;(document.querySelector('[data-test="league-delete-continue"]') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-test="password-delete-continue"]') as HTMLButtonElement).click()
     await flushPromises()
     const password = document.querySelector(
-      '[data-test="league-delete-password"] input',
+      '[data-test="password-delete-password"] input',
     ) as HTMLInputElement
     password.value = 'senha'
     password.dispatchEvent(new Event('input'))
     await flushPromises()
-    ;(document.querySelector('[data-test="league-delete-confirm"]') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-test="password-delete-confirm"]') as HTMLButtonElement).click()
     await flushPromises()
 
     expect(leagues.removeWithPassword).toHaveBeenCalledWith(7, 'senha')
@@ -448,7 +489,8 @@ describe('ChampionshipFormView', () => {
     context.setActiveLeague(8)
     const wrapper = await mountForm('5')
 
-    wrapper.findComponent({ name: 'LeagueDeleteDialog' }).vm.$emit('deleted', 7)
+    await panels(wrapper)[0].find('[data-test="league-remove"]').trigger('click')
+    wrapper.findComponent({ name: 'PasswordDeleteDialog' }).vm.$emit('deleted')
     await flushPromises()
 
     expect(panelTitles(wrapper)).toEqual(['Série B'])
