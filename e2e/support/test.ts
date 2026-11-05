@@ -19,7 +19,9 @@ export const test = base.extend<{ api: MockApi }>({
 
       const errors: string[] = []
       page.on('console', (message) => {
-        if (message.type() === 'error') errors.push(`console.error: ${message.text()}`)
+        if (message.type() !== 'error') return
+        if (api.allowedConsoleErrors.some((pattern) => pattern.test(message.text()))) return
+        errors.push(`console.error: ${message.text()}`)
       })
       page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
 
