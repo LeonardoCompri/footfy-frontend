@@ -6,6 +6,7 @@ import { leaguesService } from '@/services/api/leagues.service'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { ApiErrorResponse } from '@/types/api'
 import type { LeagueDashboard } from '@/types/dashboard'
+import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import GoalsBarChart from '@/components/charts/GoalsBarChart.vue'
 import ResultsSplitBar from '@/components/charts/ResultsSplitBar.vue'
@@ -68,10 +69,11 @@ onMounted(load)
   <div :class="{ 'is-refreshing': loading && dashboard }">
     <v-card v-if="league" class="hero mb-6 pa-2" data-test="dashboard-header">
       <v-card-text class="d-flex flex-wrap align-center ga-4">
-        <v-avatar color="primary" size="56" rounded="lg">
-          <v-img v-if="league.championship?.image" :src="league.championship.image" cover />
-          <v-icon v-else icon="mdi-trophy" size="28" />
-        </v-avatar>
+        <ChampionshipImage :src="league.championship?.image" width="56" height="56" rounded="lg">
+          <v-avatar color="primary" size="56" rounded="lg">
+            <v-icon icon="mdi-trophy" size="28" />
+          </v-avatar>
+        </ChampionshipImage>
         <div class="flex-grow-1">
           <h1 class="text-h5 font-weight-bold">{{ league.name }}</h1>
           <p class="text-medium-emphasis">

@@ -48,6 +48,14 @@ export class MockApi {
   private readonly handlers: Handler[] = []
   readonly unmocked: string[] = []
   readonly unexpected: string[] = []
+  // O Chromium loga toda resposta 4xx/5xx como console.error: o teste que simula um erro de
+  // propósito libera só aquela mensagem.
+  readonly allowedConsoleErrors: RegExp[] = []
+
+  allowConsoleError(pattern: RegExp): this {
+    this.allowedConsoleErrors.push(pattern)
+    return this
+  }
 
   /** Registra (ou sobrescreve) uma rota: o registro mais recente vence. */
   on(method: Method, path: string | RegExp, resolve: Resolver): this {

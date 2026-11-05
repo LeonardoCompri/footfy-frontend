@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { League } from '@/types/championship'
@@ -9,6 +10,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 const props = defineProps<{ championshipId: string }>()
 
 const router = useRouter()
+const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 
 const group = computed(() =>
@@ -64,7 +66,23 @@ onMounted(async () => {
     <template v-else>
       <PageHeader :title="group.championship.name" subtitle="Escolha a liga que deseja gerenciar." />
 
-      <v-row>
+      <!-- Só o master chega aqui com 0 ligas: os demais papéis só veem campeonatos de ligas vinculadas. -->
+      <v-alert v-if="group.leagues.length === 0" type="info" variant="tonal" data-test="no-leagues">
+        <p>Sem ligas para esse campeonato.</p>
+        <v-btn
+          v-if="authStore.hasRole('master')"
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-pencil"
+          class="mt-3"
+          :to="{ name: 'admin-championships-edit', params: { id: group.championship.id } }"
+          data-test="manage-championship"
+        >
+          Gerenciar campeonato
+        </v-btn>
+      </v-alert>
+
+      <v-row v-else>
         <v-col v-for="league in group.leagues" :key="league.id" cols="12" sm="6" md="4" lg="3">
           <v-card
             :to="{ name: 'admin-dashboard', params: { leagueId: league.id } }"

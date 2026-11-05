@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
+import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 
 const route = useRoute()
@@ -13,6 +14,7 @@ const leagueContext = useLeagueContextStore()
 const accessDenied = computed(() => route.query.negado === '1')
 
 function leaguesLabel(count: number): string {
+  if (count === 0) return 'Sem ligas'
   return count === 1 ? '1 liga disponível' : `${count} ligas disponíveis`
 }
 
@@ -75,12 +77,17 @@ onMounted(async () => {
           :to="{ name: 'admin-select-league', params: { championshipId: group.championship.id } }"
           data-test="championship-card"
         >
-          <v-img v-if="group.championship.image" :src="group.championship.image" height="140" cover />
-          <v-sheet v-else height="140" color="surface-variant" class="d-flex align-center justify-center">
-            <v-avatar color="primary" variant="tonal" size="56">
-              <v-icon icon="mdi-trophy-outline" size="28" />
-            </v-avatar>
-          </v-sheet>
+          <ChampionshipImage :src="group.championship.image" height="140">
+            <v-sheet
+              height="140"
+              color="surface-variant"
+              class="d-flex align-center justify-center"
+            >
+              <v-avatar color="primary" variant="tonal" size="56">
+                <v-icon icon="mdi-trophy-outline" size="28" />
+              </v-avatar>
+            </v-sheet>
+          </ChampionshipImage>
           <v-card-item>
             <v-card-title>{{ group.championship.name }}</v-card-title>
             <v-card-subtitle>{{ leaguesLabel(group.leagues.length) }}</v-card-subtitle>
