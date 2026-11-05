@@ -422,15 +422,15 @@ describe('ChampionshipFormView', () => {
     await flushPromises()
     const dialog = document.querySelector('.v-dialog.v-overlay--active')
     expect(dialog?.textContent).toContain('Excluir liga Série A')
-    ;(document.querySelector('[data-test="league-delete-continue"]') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-test="password-delete-continue"]') as HTMLButtonElement).click()
     await flushPromises()
     const password = document.querySelector(
-      '[data-test="league-delete-password"] input',
+      '[data-test="password-delete-password"] input',
     ) as HTMLInputElement
     password.value = 'senha'
     password.dispatchEvent(new Event('input'))
     await flushPromises()
-    ;(document.querySelector('[data-test="league-delete-confirm"]') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-test="password-delete-confirm"]') as HTMLButtonElement).click()
     await flushPromises()
 
     expect(leagues.removeWithPassword).toHaveBeenCalledWith(7, 'senha')
@@ -448,7 +448,8 @@ describe('ChampionshipFormView', () => {
     context.setActiveLeague(8)
     const wrapper = await mountForm('5')
 
-    wrapper.findComponent({ name: 'LeagueDeleteDialog' }).vm.$emit('deleted', 7)
+    await panels(wrapper)[0].find('[data-test="league-remove"]').trigger('click')
+    wrapper.findComponent({ name: 'PasswordDeleteDialog' }).vm.$emit('deleted')
     await flushPromises()
 
     expect(panelTitles(wrapper)).toEqual(['Série B'])

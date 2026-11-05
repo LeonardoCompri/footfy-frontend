@@ -6,13 +6,14 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { championshipsService } from '@/services/api/championships.service'
+import { leaguesService } from '@/services/api/leagues.service'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { Championship, ChampionshipPayload, League, LeaguePayload } from '@/types/championship'
 import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 import ChampionshipImagePreviewDialog from '@/components/championships/ChampionshipImagePreviewDialog.vue'
-import LeagueDeleteDialog from '@/components/championships/LeagueDeleteDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import PasswordDeleteDialog from '@/components/common/PasswordDeleteDialog.vue'
 
 // `key` identifica o painel na tela, porque a liga nova ainda não tem id.
 interface LeagueForm extends LeaguePayload {
@@ -111,7 +112,20 @@ function removeLeague(league: LeagueForm) {
   else dropLeague(league.key)
 }
 
-function onLeagueDeleted(leagueId: number) {
+const LEAGUE_REMOVED = [
+  'partidas e súmulas',
+  'estádios da liga',
+  'vínculos dos times e dos usuários com a liga',
+]
+
+async function deleteLeague(password: string) {
+  if (leagueToDelete.value) {
+    await leaguesService.removeWithPassword(leagueToDelete.value.id, password)
+  }
+}
+
+function onLeagueDeleted() {
+  const leagueId = leagueToDelete.value?.id
   const league = form.leagues.find((item) => item.id === leagueId)
   if (league) dropLeague(league.key)
   snackbar.success('Liga excluída com sucesso.')
@@ -470,9 +484,14 @@ async function handleSubmit(event: SubmitEventPromise) {
       </div>
     </v-form>
 
-    <LeagueDeleteDialog
+    <PasswordDeleteDialog
       v-model="deleteDialog"
-      :league="leagueToDelete"
+      :title="`Excluir liga ${leagueToDelete?.name ?? ''}`"
+      confirm-text="Excluir liga"
+      warning="A exclusão é imediata e não depende do botão Salvar do formulário."
+      :removed="LEAGUE_REMOVED"
+      kept="Times, jogadores, comissão técnica e usuários continuam no sistema."
+      :request="deleteLeague"
       @deleted="onLeagueDeleted"
     />
 
