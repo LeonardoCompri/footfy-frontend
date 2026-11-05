@@ -81,7 +81,7 @@ onMounted(fetchAll)
               <v-avatar
                 size="40"
                 rounded="lg"
-                color="grey-lighten-3"
+                color="surface-variant"
                 data-test="championship-image-fallback"
               >
                 <v-icon icon="mdi-trophy-outline" />
