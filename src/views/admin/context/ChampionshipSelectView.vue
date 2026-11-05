@@ -14,6 +14,7 @@ const leagueContext = useLeagueContextStore()
 const accessDenied = computed(() => route.query.negado === '1')
 
 function leaguesLabel(count: number): string {
+  if (count === 0) return 'Sem ligas'
   return count === 1 ? '1 liga disponível' : `${count} ligas disponíveis`
 }
 
