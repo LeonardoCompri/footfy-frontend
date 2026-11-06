@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import { API_BASE_URL } from './support/env'
 import { samplePng, sampleImageUrl } from './support/images'
 import { fixture } from './support/mock-api'
-import { expect, openDialog, signIn, test } from './support/test'
+import { DESKTOP, expect, MOBILE, openDialog, pickOption, signIn, test } from './support/test'
 
 function apiCalls(page: Page) {
   const calls: string[] = []
@@ -191,7 +191,7 @@ test.describe('Lista de partidas', () => {
     await expect(page.locator('[data-test=games-table] tbody tr')).toHaveCount(6)
 
     await page.locator('[data-test=game-status-filter]').click()
-    await page.getByRole('option', { name: 'Finalizada' }).click()
+    await pickOption(page, 'Finalizada')
     await page.locator('[data-test=game-search]').click()
     await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\?status=finished$/)
 
@@ -293,9 +293,9 @@ test.describe('Formulários de criação e edição', () => {
     await expect(dialog.locator('[data-test=game-home-score]')).toHaveCount(0)
     await expect(dialog.locator('[data-test=game-away-score]')).toHaveCount(0)
     await dialog.locator('[data-test=game-home-team]').click()
-    await page.getByRole('option', { name: 'Atlético Serrano' }).click()
+    await pickOption(page, 'Atlético Serrano')
     await dialog.locator('[data-test=game-away-team]').click()
-    await page.getByRole('option', { name: 'Clube Ribeirinho' }).click()
+    await pickOption(page, 'Clube Ribeirinho')
     await dialog.locator('[data-test=form-submit]').click()
 
     await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\/1$/)
@@ -338,9 +338,9 @@ test.describe('Formulários de criação e edição', () => {
     await expect(dialog).toContainText('o evento conta para o adversário')
     await expect(dialog.locator('[data-test=event-assist]')).toHaveCount(0)
     await dialog.locator('[data-test=event-team]').click()
-    await page.getByRole('option', { name: 'Ribeirinho' }).click()
+    await pickOption(page, 'Ribeirinho')
     await dialog.locator('[data-test=event-player]').click()
-    await page.getByRole('option', { name: 'Gustavo Pires' }).click()
+    await pickOption(page, '10 · Gustavo Pires')
     await dialog.locator('[data-test=form-submit]').click()
 
     await expect(openDialog(page)).toHaveCount(0)
@@ -416,7 +416,7 @@ test.describe('Campeonatos (master)', () => {
     await names.nth(0).fill('Liga Ouro')
     await names.nth(1).fill('Liga Prata')
     await page.locator('[data-test=league-format]').nth(1).click()
-    await page.getByRole('option', { name: 'Mata-mata', exact: true }).click()
+    await pickOption(page, 'Mata-mata')
     await page.locator('[data-test=league-start-date] input').nth(1).fill('2026-04-01')
     await page.locator('[data-test=league-end-date] input').nth(1).fill('2026-06-30')
     await page.locator('[data-test=championship-submit]').click()
@@ -656,4 +656,184 @@ test.describe('Campeonatos (master)', () => {
     await expect(page.locator('[data-test=championship-name] input')).toHaveValue('Copa Sem Ligas')
     await expect(page.locator('[data-test=leagues-empty]')).toBeVisible()
   })
+})
+
+test.describe('Regulamento da liga', () => {
+  type Body<T = Record<string, unknown>> = { data: T }
+  interface GroupsBody {
+    fixture_mode: string
+    groups_count: number
+    locked: boolean
+    groups: { group_number: number; teams: { id: number; name: string }[] }[]
+    unassigned: { id: number; name: string }[]
+  }
+
+  function leagueBody(extra: Record<string, unknown> = {}): Body {
+    const body = fixture<Body>('league-1')
+    return { data: { ...body.data, format: 'hybrid', ...extra } }
+  }
+
+  function groupsBody(extra: Partial<GroupsBody> = {}): Body<GroupsBody> {
+    const body = fixture<Body<GroupsBody>>('league-1-groups')
+    return { data: { ...body.data, ...extra } }
+  }
+
+  function assignedGroups(extra: Partial<GroupsBody> = {}): Body<GroupsBody> {
+    const teams = groupsBody().data.unassigned
+    return groupsBody({
+      fixture_mode: 'draw',
+      groups_count: 2,
+      groups: [
+        { group_number: 1, teams: teams.slice(0, 2) },
+        { group_number: 2, teams: teams.slice(2) },
+      ],
+      unassigned: [],
+      ...extra,
+    })
+  }
+
+  const HYBRID_DRAW = {
+    fixture_mode: 'draw',
+    groups_count: 2,
+    group_legs: 1,
+    qualifiers_per_group: 1,
+    knockout_size: 2,
+    knockout_legs: 1,
+    final_legs: 1,
+    third_place: false,
+    tiebreakers: null,
+    knockout_tiebreakers: ['penalties'],
+  }
+
+  async function choose(page: Page, field: string, option: string) {
+    await page.locator(`[data-test=${field}]`).click()
+    await pickOption(page, option)
+  }
+
+  function teamRow(page: Page, name: string) {
+    return page.locator('[data-test=group-team]', { hasText: name })
+  }
+
+  test('admin configura o sorteio, salva só o regulamento e monta os grupos', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page, { role: 'admin' })
+    let groups = groupsBody()
+    let sent: Record<string, unknown> = {}
+    let assignments: unknown = null
+    api
+      .on('GET', '/leagues/1', { body: leagueBody() })
+      .on('GET', '/leagues/1/groups', () => ({ body: groups }))
+      .on('PUT', '/leagues/1', ({ request }) => {
+        sent = request.postDataJSON() as Record<string, unknown>
+        groups = groupsBody({
+          fixture_mode: 'draw',
+          groups_count: 2,
+          groups: [
+            { group_number: 1, teams: [] },
+            { group_number: 2, teams: [] },
+          ],
+        })
+        return { body: leagueBody(sent) }
+      })
+      .on('POST', '/leagues/1/groups/shuffle', () => ({ body: assignedGroups() }))
+      .on('PUT', '/leagues/1/groups', ({ request }) => {
+        assignments = (request.postDataJSON() as { groups: unknown }).groups
+        return { body: assignedGroups() }
+      })
+
+    await page.goto('/admin/liga/1')
+    await page.locator('.v-navigation-drawer').getByRole('link', { name: 'Regulamento' }).click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/regulamento$/)
+    await expect(page.locator('[data-test=rules-format] input')).toHaveValue('Grupos + mata-mata')
+    await expect(page.locator('[data-test=rules-summary]')).toHaveText('4 times → 1 grupo de 4')
+
+    await choose(page, 'rules-fixture-mode', 'Sorteio')
+    await page.locator('[data-test=rules-submit]').click()
+    await expect(page.locator('[data-test=rules-qualifiers]')).toContainText(
+      'Obrigatório para o sorteio.',
+    )
+
+    await choose(page, 'rules-groups-count', '2')
+    await choose(page, 'rules-qualifiers', '1')
+    await choose(page, 'rules-knockout-size', 'Final')
+    await choose(page, 'rules-knockout-legs', 'Jogo único')
+    await choose(page, 'rules-final-legs', 'Jogo único')
+    await choose(page, 'rules-knockout-tiebreakers', 'Pênaltis')
+    await expect(page.locator('[data-test=rules-summary]')).toHaveText(
+      '4 times → 2 grupos de 2 → 2 classificados → Final',
+    )
+    await expect(page.locator('[data-test=groups-pending]')).toBeVisible()
+
+    await page.locator('[data-test=rules-submit]').click()
+    await expect(page.getByText('Regulamento salvo com sucesso.')).toBeVisible()
+    expect(sent).toEqual(HYBRID_DRAW)
+
+    await expect(page.locator('[data-test=groups-unassigned] [data-test=group-team]')).toHaveCount(4)
+    await page.locator('[data-test=groups-shuffle]').click()
+    const groupA = page.locator('[data-test=group-card]', { hasText: 'Grupo A' })
+    await expect(groupA.locator('[data-test=group-team]')).toHaveCount(2)
+    await expect(page.locator('[data-test=groups-unassigned]')).toHaveCount(0)
+
+    await teamRow(page, 'Atlético Serrano').locator('[data-test=group-team-select]').click()
+    await pickOption(page, 'Grupo B')
+    await page.locator('[data-test=groups-save]').click()
+    await expect(page.locator('[data-test=groups-error]')).toHaveText(
+      'Todos os grupos devem ter o mesmo número de times (2 por grupo).',
+    )
+
+    await teamRow(page, 'Estrela do Vale').locator('[data-test=group-team-select]').click()
+    await pickOption(page, 'Grupo A')
+    await page.locator('[data-test=groups-save]').click()
+    await expect(page.getByText('Grupos salvos com sucesso.')).toBeVisible()
+    expect(assignments).toEqual([
+      { team_id: 1, group_number: 2 },
+      { team_id: 2, group_number: 1 },
+      { team_id: 3, group_number: 1 },
+      { team_id: 4, group_number: 2 },
+    ])
+  })
+
+  test('liga com rodadas sorteadas fica travada e os grupos só leitura', async ({ page, api }) => {
+    await signIn(page)
+    api
+      .on('GET', '/leagues/1', { body: leagueBody(HYBRID_DRAW) })
+      .on('GET', '/leagues/1/groups', { body: assignedGroups({ locked: true }) })
+
+    await page.goto('/admin/liga/1/regulamento')
+    await expect(page.locator('[data-test=rules-locked]')).toBeVisible()
+    await expect(page.locator('[data-test=rules-groups-count] input')).toBeDisabled()
+    await expect(page.locator('[data-test=groups-locked]')).toContainText(
+      'A liga já tem rodadas sorteadas',
+    )
+    await expect(page.locator('[data-test=groups-shuffle]')).toHaveCount(0)
+    await expect(page.locator('[data-test=group-team-select]')).toHaveCount(0)
+  })
+
+  for (const [name, viewport] of [
+    ['mobile', MOBILE],
+    ['desktop', DESKTOP],
+  ] as const) {
+    test(`${name}: formulário e grupos sem rolagem horizontal`, async ({ page, api }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      api
+        .on('GET', '/leagues/1', { body: leagueBody(HYBRID_DRAW) })
+        .on('GET', '/leagues/1/groups', { body: assignedGroups() })
+
+      await page.goto('/admin/liga/1/regulamento')
+      await expect(page.locator('[data-test=group-card]')).toHaveCount(2)
+      await expect(page.locator('[data-test=tiebreaker-item]')).toHaveCount(6)
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+      const rightEdges = await page
+        .locator('[data-test=tiebreaker-remove], [data-test=group-team-select]')
+        .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().right))
+      expect(Math.max(...rightEdges)).toBeLessThanOrEqual(viewport.width)
+    })
+  }
 })

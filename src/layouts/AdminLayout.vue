@@ -71,6 +71,12 @@ const navItems: NavItem[] = [
     activeOn: ['admin-games-detail'],
   },
   { title: 'Tabela', icon: 'mdi-format-list-numbered', routeName: 'admin-league-table' },
+  {
+    title: 'Regulamento',
+    icon: 'mdi-file-document-edit-outline',
+    routeName: 'admin-league-rules',
+    permission: 'tournament:update',
+  },
   { title: 'Estatísticas', icon: 'mdi-chart-bar', routeName: 'admin-league-statistics' },
   {
     title: 'Usuários',

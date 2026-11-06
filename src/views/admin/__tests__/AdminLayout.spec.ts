@@ -59,6 +59,7 @@ function createLayoutRouter() {
               leagueChild('partidas', 'admin-games-list'),
               leagueChild('partidas/:id', 'admin-games-detail'),
               leagueChild('tabela', 'admin-league-table'),
+              leagueChild('regulamento', 'admin-league-rules'),
               leagueChild('estatisticas', 'admin-league-statistics'),
               leagueChild('usuarios', 'admin-users-list'),
             ],
@@ -137,6 +138,22 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     ])
     expect(wrapper.text()).toContain('Série A')
     expect(wrapper.text()).toContain('Trocar')
+  })
+
+  it('mostra "Regulamento" depois de "Tabela" para quem tem tournament:update', async () => {
+    const admin = await mountAt('/admin/liga/1', 'admin', ['game:read', 'tournament:update'])
+    const titles = navTitles(admin)
+    expect(titles.indexOf('Regulamento')).toBe(titles.indexOf('Tabela') + 1)
+    admin.unmount()
+
+    setActivePinia(createPinia())
+    const master = await mountAt('/admin/liga/1', 'master', [])
+    expect(navTitles(master)).toContain('Regulamento')
+    master.unmount()
+
+    setActivePinia(createPinia())
+    const coach = await mountAt('/admin/liga/1', 'coach', ['team:read'])
+    expect(navTitles(coach)).not.toContain('Regulamento')
   })
 
   it('esconde Usuários para quem não é master/admin', async () => {

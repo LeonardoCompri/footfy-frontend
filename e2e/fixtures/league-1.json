@@ -1,0 +1,21 @@
+{
+  "data": {
+    "id": 1,
+    "name": "Série A",
+    "start_date": "2026-03-01",
+    "end_date": "2026-11-29",
+    "organizer": "Federação Footfy",
+    "season": "2026",
+    "format": "round_robin",
+    "fixture_mode": "manual",
+    "groups_count": 1,
+    "group_legs": 1,
+    "qualifiers_per_group": null,
+    "knockout_size": null,
+    "knockout_legs": null,
+    "final_legs": null,
+    "third_place": false,
+    "tiebreakers": null,
+    "knockout_tiebreakers": null
+  }
+}

@@ -167,6 +167,12 @@ export const adminRoutes: RouteRecordRaw[] = [
             component: () => import('@/views/admin/leagues/LeagueTableView.vue'),
           },
           {
+            path: 'regulamento',
+            name: 'admin-league-rules',
+            component: () => import('@/views/admin/leagues/LeagueRulesView.vue'),
+            meta: { permission: 'tournament:update' },
+          },
+          {
             path: 'estatisticas',
             name: 'admin-league-statistics',
             component: () => import('@/views/admin/leagues/LeagueStatisticsView.vue'),
