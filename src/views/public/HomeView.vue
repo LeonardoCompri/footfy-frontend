@@ -6,7 +6,6 @@ import type { Championship } from '@/types/championship'
 import ChampionshipCard from '@/components/championships/ChampionshipCard.vue'
 import logoSlogan from '@/assets/brand/futy-com-slogan-noite.svg'
 
-// errorMessage é ignorado de propósito: na Home, falha da API cai no estado vazio, sem alerta.
 const { items, loading, fetchAll } = usePublicList<Championship>(publicChampionshipsService)
 
 const highlights = [
@@ -81,7 +80,6 @@ onMounted(fetchAll)
               </v-btn>
             </div>
           </v-col>
-          <!-- O nome já está no texto do hero: a marca aqui é decorativa. -->
           <v-col md="4" lg="5" class="d-none d-md-flex align-center justify-center">
             <img :src="logoSlogan" alt="" aria-hidden="true" width="300" class="hero-logo" />
           </v-col>

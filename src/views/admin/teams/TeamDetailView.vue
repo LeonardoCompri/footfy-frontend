@@ -10,12 +10,9 @@ import { playersService } from '@/services/api/players.service'
 import { teamsService } from '@/services/api/teams.service'
 import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { optionTitle, type SelectOption } from '@/types/api'
-import type { Player, PlayerPayload } from '@/types/player'
+import type { Player } from '@/types/player'
 import type { Team, TeamLeague, TeamPayload } from '@/types/team'
-import type {
-  TechnicalCommitteeMember,
-  TechnicalCommitteeMemberPayload,
-} from '@/types/technicalCommitteeMember'
+import type { TechnicalCommitteeMember } from '@/types/technicalCommitteeMember'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import QueryTabs from '@/components/common/QueryTabs.vue'
 import StatTiles from '@/components/common/StatTiles.vue'
@@ -34,10 +31,6 @@ const snackbar = useSnackbar()
 const { xs } = useDisplay()
 
 const teamCrud = useCrud<Team, TeamPayload>(teamsService)
-const playerCrud = useCrud<Player, PlayerPayload>(playersService)
-const memberCrud = useCrud<TechnicalCommitteeMember, TechnicalCommitteeMemberPayload>(
-  technicalCommitteeMembersService,
-)
 
 const leagueId = leagueContext.activeLeagueId as number
 const team = ref<Team | null>(null)
@@ -49,11 +42,7 @@ const can = {
   updateTeam: authStore.hasPermission('team:update'),
   deleteTeam: authStore.hasPermission('team:delete'),
   createPlayer: authStore.canManagePlayersOf('player:create', Number(props.teamId)),
-  updatePlayer: authStore.canManagePlayersOf('player:update', Number(props.teamId)),
-  deletePlayer: authStore.canManagePlayersOf('player:delete', Number(props.teamId)),
   createMember: authStore.hasPermission('technical_committee_member:create'),
-  updateMember: authStore.hasPermission('technical_committee_member:update'),
-  deleteMember: authStore.hasPermission('technical_committee_member:delete'),
 }
 
 const players = computed(() =>
@@ -61,17 +50,25 @@ const players = computed(() =>
 )
 const members = computed(() => team.value?.technicalCommitteeMembers ?? [])
 
-// No mobile a coluna Posição/Função vira legenda sob o nome, para a tabela caber sem scroll.
+const VIEW_COLUMN = {
+  title: '',
+  key: 'actions',
+  sortable: false,
+  align: 'end' as const,
+  headerProps: { class: 'px-2' },
+  cellProps: { class: 'px-2' },
+}
+
 const playerHeaders = computed(() => [
   { title: 'Nº', key: 'number', width: 56 },
   { title: 'Nome', key: 'name' },
   ...(xs.value ? [] : [{ title: 'Posição', key: 'position' }]),
-  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+  VIEW_COLUMN,
 ])
 const memberHeaders = computed(() => [
   { title: 'Nome', key: 'name' },
   ...(xs.value ? [] : [{ title: 'Função', key: 'role' }]),
-  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+  VIEW_COLUMN,
 ])
 
 const tabs = [
@@ -85,16 +82,11 @@ const tiles = computed(() => [
   { label: 'Comissão técnica', value: members.value.length },
 ])
 
-// Dialogs
 const teamDialog = ref(false)
 const leaguesDialog = ref(false)
 const deleteTeamDialog = ref(false)
 const playerDialog = ref(false)
-const playerToEdit = ref<Player | null>(null)
 const memberDialog = ref(false)
-const memberToEdit = ref<TechnicalCommitteeMember | null>(null)
-const confirmDialog = ref(false)
-const pendingDelete = ref<{ kind: 'player' | 'member'; id: number; name: string } | null>(null)
 
 const deleteTeamMessage = computed(() => {
   if (!team.value) return ''
@@ -111,7 +103,6 @@ const deleteTeamMessage = computed(() => {
     .join(' ')
 })
 
-// Recarrega após criar/editar/excluir; uma falha no reload não apaga o time já exibido.
 async function loadTeam() {
   const data = await teamCrud.fetchOne(props.teamId)
   if (data) team.value = data
@@ -121,54 +112,23 @@ function onLeaguesUpdated(leagues: TeamLeague[]) {
   if (team.value) team.value.leagues = leagues
 }
 
-function openPlayer(player: Player) {
-  router.push({ name: 'admin-players-detail', params: { teamId: props.teamId, id: player.id } })
+function playerRoute(player: Player) {
+  return { name: 'admin-players-detail', params: { leagueId, teamId: props.teamId, id: player.id } }
 }
 
-function openMember(member: TechnicalCommitteeMember) {
-  router.push({
+function memberRoute(member: TechnicalCommitteeMember) {
+  return {
     name: 'admin-technical-committee-members-detail',
-    params: { teamId: props.teamId, id: member.id },
-  })
+    params: { leagueId, teamId: props.teamId, id: member.id },
+  }
 }
 
 function onPlayerRow(_event: Event, row: { item: Player }) {
-  openPlayer(row.item)
+  router.push(playerRoute(row.item))
 }
 
 function onMemberRow(_event: Event, row: { item: TechnicalCommitteeMember }) {
-  openMember(row.item)
-}
-
-function editPlayer(player: Player | null) {
-  playerToEdit.value = player
-  playerDialog.value = true
-}
-
-function editMember(member: TechnicalCommitteeMember | null) {
-  memberToEdit.value = member
-  memberDialog.value = true
-}
-
-function askDelete(kind: 'player' | 'member', item: { id: number; name: string }) {
-  pendingDelete.value = { kind, id: item.id, name: item.name }
-  confirmDialog.value = true
-}
-
-async function handleDelete() {
-  const target = pendingDelete.value
-  if (!target) return
-  const crud = target.kind === 'player' ? playerCrud : memberCrud
-  const ok = await crud.destroy(target.id)
-  if (ok) {
-    snackbar.success(
-      target.kind === 'player' ? 'Jogador removido do elenco.' : 'Membro excluído com sucesso.',
-    )
-    await loadTeam()
-  } else {
-    snackbar.error(crud.errorMessage.value ?? 'Não foi possível excluir.')
-  }
-  pendingDelete.value = null
+  router.push(memberRoute(row.item))
 }
 
 async function handleDeleteTeam() {
@@ -178,7 +138,6 @@ async function handleDeleteTeam() {
     snackbar.success('Time excluído com sucesso.')
     router.push({ name: 'admin-teams-list' })
   } else {
-    // Ex.: 422 do backend quando o time tem partidas vinculadas.
     snackbar.error(teamCrud.errorMessage.value ?? 'Não foi possível excluir o time.')
   }
 }
@@ -271,7 +230,7 @@ onMounted(async () => {
                 size="small"
                 prepend-icon="mdi-plus"
                 data-test="player-create"
-                @click="editPlayer(null)"
+                @click="playerDialog = true"
               >
                 Jogador
               </v-btn>
@@ -296,25 +255,15 @@ onMounted(async () => {
               </template>
               <template v-slot:[`item.position`]="{ item }">{{ optionTitle(positions, item.position) }}</template>
               <template v-slot:[`item.actions`]="{ item }">
-                <div class="d-flex justify-end">
-                  <v-btn
-                    v-if="can.updatePlayer"
-                    icon="mdi-pencil"
-                    variant="text"
-                    size="small"
-                    data-test="player-edit"
-                    @click.stop="editPlayer(item)"
-                  />
-                  <v-btn
-                    v-if="can.deletePlayer"
-                    icon="mdi-delete"
-                    variant="text"
-                    size="small"
-                    color="error"
-                    data-test="player-delete"
-                    @click.stop="askDelete('player', item)"
-                  />
-                </div>
+                <v-btn
+                  icon="mdi-eye-outline"
+                  variant="text"
+                  size="small"
+                  :to="playerRoute(item)"
+                  :aria-label="`Ver jogador ${item.name}`"
+                  data-test="player-view"
+                  @click.stop
+                />
               </template>
             </v-data-table>
           </v-card>
@@ -331,7 +280,7 @@ onMounted(async () => {
                 size="small"
                 prepend-icon="mdi-plus"
                 data-test="member-create"
-                @click="editMember(null)"
+                @click="memberDialog = true"
               >
                 Membro
               </v-btn>
@@ -353,25 +302,15 @@ onMounted(async () => {
               </template>
               <template v-slot:[`item.role`]="{ item }">{{ optionTitle(roles, item.role) }}</template>
               <template v-slot:[`item.actions`]="{ item }">
-                <div class="d-flex justify-end">
-                  <v-btn
-                    v-if="can.updateMember"
-                    icon="mdi-pencil"
-                    variant="text"
-                    size="small"
-                    data-test="member-edit"
-                    @click.stop="editMember(item)"
-                  />
-                  <v-btn
-                    v-if="can.deleteMember"
-                    icon="mdi-delete"
-                    variant="text"
-                    size="small"
-                    color="error"
-                    data-test="member-delete"
-                    @click.stop="askDelete('member', item)"
-                  />
-                </div>
+                <v-btn
+                  icon="mdi-eye-outline"
+                  variant="text"
+                  size="small"
+                  :to="memberRoute(item)"
+                  :aria-label="`Ver membro ${item.name}`"
+                  data-test="member-view"
+                  @click.stop
+                />
               </template>
             </v-data-table>
           </v-card>
@@ -384,11 +323,11 @@ onMounted(async () => {
 
       <TeamFormDialog v-model="teamDialog" :league-id="leagueId" :team="team" @saved="loadTeam" />
       <TeamLeaguesDialog v-model="leaguesDialog" :team="team" @updated="onLeaguesUpdated" />
-      <PlayerFormDialog v-model="playerDialog" :team-id="team.id" :player="playerToEdit" @saved="loadTeam" />
+      <PlayerFormDialog v-if="can.createPlayer" v-model="playerDialog" :team-id="team.id" @saved="loadTeam" />
       <TechnicalCommitteeMemberFormDialog
+        v-if="can.createMember"
         v-model="memberDialog"
         :team-id="team.id"
-        :member="memberToEdit"
         @saved="loadTeam"
       />
       <ConfirmDialog
@@ -397,23 +336,11 @@ onMounted(async () => {
         :message="deleteTeamMessage"
         @confirm="handleDeleteTeam"
       />
-      <ConfirmDialog
-        v-model="confirmDialog"
-        :title="pendingDelete?.kind === 'player' ? 'Remover do elenco' : 'Excluir membro'"
-        :message="
-          pendingDelete?.kind === 'player'
-            ? `Remover '${pendingDelete.name}' do elenco (as estatísticas são mantidas).`
-            : `Tem certeza que deseja excluir '${pendingDelete?.name}'?`
-        "
-        :confirm-text="pendingDelete?.kind === 'player' ? 'Remover' : 'Excluir'"
-        @confirm="handleDelete"
-      />
     </template>
   </div>
 </template>
 
 <style scoped>
-/* Nome ao lado do avatar mesmo no mobile; as ações quebram para a linha de baixo. */
 .header-title {
   flex: 1 1 0;
   min-width: 160px;

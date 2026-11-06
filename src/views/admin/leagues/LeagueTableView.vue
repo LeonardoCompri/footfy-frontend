@@ -6,7 +6,6 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LeagueTablePanel from '@/components/leagues/LeagueTablePanel.vue'
 
 const leagueContext = useLeagueContextStore()
-// O layout remonta a tela ao trocar de liga, então a liga ativa é fixa aqui.
 const league = leagueContext.activeLeague
 const leagueId = leagueContext.activeLeagueId as number
 </script>

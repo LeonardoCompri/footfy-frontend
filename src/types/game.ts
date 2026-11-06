@@ -1,10 +1,10 @@
 import type { GameEvent } from './gameEvent'
+import type { LeagueTable } from './leagueStats'
 import type { Stadium } from './stadium'
 import type { Team } from './team'
 
 export type GameStatus = 'scheduled' | 'in_progress' | 'finished' | 'cancelled'
 
-// Perna do confronto de mata-mata: 1 = ida, 2 = volta; `null` = jogo único.
 export type GameLeg = 1 | 2
 
 export interface Game {
@@ -16,7 +16,6 @@ export interface Game {
   match_date: string | null
   home_score: number | null
   away_score: number | null
-  // Pontos corridos usam `round`; mata-mata usa `phase` (+ `phase_order`, `tie_key`, `leg`).
   round: number | null
   phase: string | null
   phase_order: number | null
@@ -25,7 +24,6 @@ export interface Game {
   status: GameStatus
   created_at: string
   updated_at: string
-  // Times e estádio vêm eager loaded em GET /games (index) e GET /games/{id}; `events` só no show.
   homeTeam?: Team
   awayTeam?: Team
   stadium?: Stadium | null
@@ -39,8 +37,6 @@ export type GamePayload = Pick<
   | 'away_team_id'
   | 'stadium_id'
   | 'match_date'
-  | 'home_score'
-  | 'away_score'
   | 'round'
   | 'phase'
   | 'phase_order'
@@ -49,7 +45,6 @@ export type GamePayload = Pick<
   | 'status'
 >
 
-// Filtros de GET /games (`league_id` obrigatório). `type` (não interface) para caber em `ListParams`.
 export type GameListParams = {
   league_id: number
   page?: number
@@ -77,7 +72,6 @@ export function gameStatusOption(status: GameStatus) {
   return GAME_STATUS_OPTIONS.find((option) => option.value === status) ?? GAME_STATUS_OPTIONS[0]
 }
 
-// Etapa da partida: "3ª rodada" ou "Semifinal · Ida".
 export function gameStageLabel(game: Pick<Game, 'round' | 'phase'> & { leg?: GameLeg | null }): string {
   if (game.round != null) return `${game.round}ª rodada`
   if (!game.phase) return '—'
@@ -85,7 +79,20 @@ export function gameStageLabel(game: Pick<Game, 'round' | 'phase'> & { leg?: Gam
   return leg ? `${game.phase} · ${leg.title}` : game.phase
 }
 
-// `match_date` chega como "YYYY-MM-DD HH:mm:ss" (sem fuso): exibe sem conversão de fuso.
+export interface KnownPhase {
+  phase: string
+  phase_order: number | null
+}
+
+export function knownPhasesOf(table: LeagueTable): KnownPhase[] {
+  const unique = new Map<string, KnownPhase>()
+  for (const item of table.phases ?? []) {
+    if (unique.has(item.phase)) continue
+    unique.set(item.phase, { phase: item.phase, phase_order: item.phase_order })
+  }
+  return [...unique.values()]
+}
+
 export function formatMatchDate(date: string | null, withTime = true): string {
   if (!date) return 'Data a definir'
   const [day, time] = date.replace('T', ' ').split(' ')

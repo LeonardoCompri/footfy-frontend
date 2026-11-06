@@ -22,7 +22,6 @@ async function type(wrapper: ReturnType<typeof mountField>, value: string) {
   return input.element as HTMLInputElement
 }
 
-// Simula uma edição do navegador: texto resultante, posição do cursor e tipo da edição.
 async function edit(wrapper: ReturnType<typeof mountField>, value: string, caret: number, inputType = 'insertText') {
   const input = wrapper.find('input').element as HTMLInputElement
   input.value = value
@@ -94,7 +93,6 @@ describe('CpfTextField', () => {
   it('backspace logo depois de um separador apaga o dígito anterior', async () => {
     const wrapper = mountField('12345678901')
 
-    // Cursor depois do primeiro "."; o navegador remove só o separador.
     const input = await edit(wrapper, '123456.789-01', 3, 'deleteContentBackward')
 
     expect(wrapper.props('modelValue')).toBe('1245678901')
@@ -123,7 +121,6 @@ describe('CpfTextField', () => {
   })
 
   it('normaliza para só dígitos um CPF recebido com pontuação', async () => {
-    // Monta sem o helper: a normalização emite já na montagem.
     const wrapper = mount(CpfTextField, {
       props: { modelValue: '123.456.789-01' },
       global: { plugins: [createTestVuetify()] },

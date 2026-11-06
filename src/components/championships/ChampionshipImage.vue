@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// Mostra a imagem inteira (contain) sobre uma cópia desfocada dela (cover), que preenche as
-// sobras sem cortar nada. Sem `src`, renderiza o slot default (fallback de cada tela).
-// O slot `overlay` fica por cima da imagem (ex.: botões da prévia no formulário).
 defineProps<{
   src: string | null | undefined
   height?: number | string

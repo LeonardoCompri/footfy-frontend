@@ -17,7 +17,6 @@ function makeActions() {
   ] satisfies RowAction[]
 }
 
-// `width` antes do mount: o useDisplay lê a largura quando o Vuetify é criado.
 function mountActions(actions: RowAction[], width: number) {
   window.innerWidth = width
   return mount(RowActions, {

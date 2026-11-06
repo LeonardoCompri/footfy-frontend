@@ -1,13 +1,7 @@
-// Date.now que nunca anda para trás: o Vue ignora um evento cujo timestamp (`_vts`, que o
-// test-utils grava com Date.now() + 1 no trigger) não é maior que o horário em que o listener foi
-// anexado. Quando o relógio de parede recua (ajustes de hora do WSL2/NTP chegam a voltar segundos),
-// cliques em componentes recém-montados eram descartados e os testes falhavam de forma intermitente.
-// Continua sendo o relógio de parede (igual a `new Date()`); só segura o valor enquanto ele recua.
 const wallClockNow = Date.now.bind(Date)
 let lastNow = 0
 Date.now = () => (lastNow = Math.max(lastNow, wallClockNow()))
 
-// Polyfills de APIs de browser que o jsdom não implementa e o Vuetify/tema usam.
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
@@ -27,7 +21,6 @@ window.matchMedia ??= ((query: string) => ({
   dispatchEvent: () => false,
 })) as typeof window.matchMedia
 
-// VOverlay (v-dialog/v-menu) observa o visualViewport para reposicionar o conteúdo.
 globalThis.visualViewport ??= Object.assign(new EventTarget(), {
   width: 1024,
   height: 768,
@@ -40,10 +33,6 @@ globalThis.visualViewport ??= Object.assign(new EventTarget(), {
   onscroll: null,
 }) as unknown as VisualViewport
 
-// No jsdom as imagens nunca carregam, então o poll de `naturalWidth` do VImg se reagenda até o
-// componente ser desmontado e quebra ("window is not defined") depois do teardown do ambiente.
-// `enableAutoUnmount` não serve: o `app.unmount` do vue-router reseta a rota antes de desmontar a
-// árvore e os links com `leagueId` implícito falham (36 testes quebrados).
 Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', {
   configurable: true,
   get: () => 1,

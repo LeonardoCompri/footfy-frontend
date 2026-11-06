@@ -15,7 +15,6 @@ import GameMiniList from '@/components/games/GameMiniList.vue'
 
 const leagueContext = useLeagueContextStore()
 
-// O layout remonta esta tela por liga (key), então a liga ativa é fixa durante a vida dela.
 const league = computed(() => leagueContext.activeLeague)
 const leagueId = leagueContext.activeLeagueId as number
 
@@ -167,7 +166,6 @@ onMounted(load)
     rgb(var(--v-theme-surface)) 65%
   );
 }
-/* Revalidação mantém o último render, só esmaecido — sem esqueleto nem salto de layout. */
 .is-refreshing :deep(.v-row) {
   opacity: 0.6;
   transition: opacity 0.15s;

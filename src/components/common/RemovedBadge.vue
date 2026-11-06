@@ -1,4 +1,3 @@
-<!-- Selo de jogador removido do elenco (soft delete): súmula, edição de evento e rankings. -->
 <template>
   <v-chip
     text="removido"

@@ -4,7 +4,6 @@ import type { AxiosError } from 'axios'
 import { extractErrorMessage } from '@/composables/useCrud'
 import type { ApiErrorResponse } from '@/types/api'
 
-// Exclusão definitiva em 2 passos: aviso do que cai junto e, depois, a senha do usuário.
 const props = withDefaults(
   defineProps<{
     modelValue: boolean
@@ -14,7 +13,6 @@ const props = withDefaults(
     kept: string
     request: (password: string) => Promise<unknown>
     warning?: string
-    // Aviso ainda carregando (ex.: buscando as ligas): segura o "Continuar".
     loading?: boolean
   }>(),
   { warning: 'A exclusão é imediata e não pode ser desfeita.', loading: false },

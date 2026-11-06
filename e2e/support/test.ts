@@ -7,10 +7,6 @@ export { expect }
 export const DESKTOP = { width: 1366, height: 768 }
 export const MOBILE = { width: 400, height: 860 }
 
-/**
- * `api` (automático em todo teste): instala a API mockada e falha o teste, no fim, se houver
- * erro no console (`console.error`/`pageerror`), chamada à API sem mock ou requisição para fora.
- */
 export const test = base.extend<{ api: MockApi }>({
   api: [
     async ({ page }, use) => {
@@ -38,15 +34,10 @@ export const test = base.extend<{ api: MockApi }>({
 
 export interface SessionOptions {
   role?: 'master' | 'admin'
-  // Liga ativa salva (como depois de entrar numa liga); null = sem liga ativa.
   leagueId?: number | null
   theme?: 'light' | 'dark'
 }
 
-/**
- * Sessão mockada: grava no localStorage o que o auth store e o contexto de liga leem ao subir
- * (mesmo formato do POST /login), sem passar pela tela de login.
- */
 export async function signIn(page: Page, options: SessionOptions = {}) {
   const { role = 'master', leagueId = 1, theme = 'light' } = options
   await page.addInitScript(
@@ -60,7 +51,6 @@ export async function signIn(page: Page, options: SessionOptions = {}) {
   )
 }
 
-/** Diálogo do Vuetify aberto (o conteúdo de um diálogo fechado continua no DOM). */
 export function openDialog(page: Page) {
   return page.locator('.v-dialog.v-overlay--active')
 }

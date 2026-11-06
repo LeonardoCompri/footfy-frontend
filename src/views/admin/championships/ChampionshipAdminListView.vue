@@ -41,7 +41,6 @@ const headers = [
   { title: 'Ações', key: 'actions', sortable: false, align: 'end' as const },
 ]
 
-// A lista não traz as ligas: o aviso busca o campeonato para mostrar o que cai junto.
 async function askDelete(championship: Championship) {
   championshipToDelete.value = championship
   leaguesToDelete.value = []
@@ -49,7 +48,6 @@ async function askDelete(championship: Championship) {
   deleteDialog.value = true
   try {
     const { leagues } = await championshipsService.get(championship.id)
-    // Ignora a resposta se, nesse meio-tempo, o diálogo foi aberto para outro campeonato.
     if (championshipToDelete.value?.id === championship.id) leaguesToDelete.value = leagues ?? []
   } catch {
     if (championshipToDelete.value?.id !== championship.id) return
@@ -81,7 +79,6 @@ onMounted(fetchAll)
 
 <template>
   <div>
-    <!-- Gestão de campeonatos fica fora do contexto de liga (sem nav rail): volta para a seleção. -->
     <v-btn
       variant="text"
       prepend-icon="mdi-arrow-left"

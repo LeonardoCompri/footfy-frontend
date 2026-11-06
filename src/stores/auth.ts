@@ -23,8 +23,6 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value.permissions.some((p) => p.name === permission || p.name === `${module}:all`)
   }
 
-  // Mesma regra do backend (access:player_write): coach só mexe no elenco do próprio time e
-  // player nunca edita jogadores. Master/admin seguem só a permissão.
   function canManagePlayersOf(permission: string, teamId: number | null): boolean {
     if (!hasPermission(permission)) return false
     if (hasRole('master') || hasRole('admin')) return true
@@ -37,8 +35,6 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: token.value, user: user.value }))
   }
 
-  // Mescla só o que mudou: o UserResource do /me traz `roles` como strings e não tem
-  // `permissions`, então substituir o usuário quebraria hasRole/hasPermission.
   function updateUser(changes: Partial<Pick<AuthUser, 'name' | 'email' | 'player'>>) {
     if (!user.value) return
     user.value = { ...user.value, ...changes }
@@ -66,7 +62,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(payload: LoginPayload) {
     const { data } = await authService.login(payload)
-    // Contexto de liga é por usuário: nunca reaproveita a liga/lista da sessão anterior.
     useLeagueContextStore().reset()
     token.value = data.token
     user.value = data.user

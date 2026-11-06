@@ -16,7 +16,6 @@ const emit = defineEmits<{
 
 const { xs } = useDisplay()
 
-// Só emite submit com o formulário válido: as rules dos campos já mostram o erro.
 async function handleSubmit(event: SubmitEventPromise) {
   const { valid } = await event
   if (valid) emit('submit')
@@ -33,14 +32,12 @@ async function handleSubmit(event: SubmitEventPromise) {
   >
     <v-card>
       <v-card-title class="d-flex align-center">
-        <span class="text-truncate">{{ title }}</span>
+        <slot name="title">
+          <span class="text-truncate">{{ title }}</span>
+        </slot>
         <v-spacer />
         <v-btn icon="mdi-close" variant="text" size="small" @click="emit('update:modelValue', false)" />
       </v-card-title>
-      <!-- O v-form fica entre o v-card e o v-card-text, o que quebra o layout `scrollable` do
-           v-dialog: por isso o form é flex column e só o conteúdo rola. Assim as ações ficam
-           fixas no rodapé (no fullscreen do mobile, no fim da tela) e não se movem quando um
-           campo muda de altura no blur — senão o primeiro toque em Salvar se perde. -->
       <v-form class="form-dialog__form" @submit.prevent="handleSubmit">
         <v-card-text class="form-dialog__content" data-test="form-content">
           <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4" data-test="form-error">

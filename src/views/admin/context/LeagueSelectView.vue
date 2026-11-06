@@ -33,7 +33,6 @@ onMounted(async () => {
   } catch {
     return
   }
-  // Campeonato com uma única liga: entra direto nela, sem a escolha intermediária.
   if (group.value?.leagues.length !== 1) return
   if (router.currentRoute.value.name !== 'admin-select-league') return
   router.replace({ name: 'admin-dashboard', params: { leagueId: group.value.leagues[0].id } })
@@ -66,7 +65,6 @@ onMounted(async () => {
     <template v-else>
       <PageHeader :title="group.championship.name" subtitle="Escolha a liga que deseja gerenciar." />
 
-      <!-- Só o master chega aqui com 0 ligas: os demais papéis só veem campeonatos de ligas vinculadas. -->
       <v-alert v-if="group.leagues.length === 0" type="info" variant="tonal" data-test="no-leagues">
         <p>Sem ligas para esse campeonato.</p>
         <v-btn

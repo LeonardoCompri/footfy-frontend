@@ -10,15 +10,10 @@ const palette = useChartPalette()
 const HEIGHT = 180
 const TOP = 22
 const BASE = 150
-// Largura mínima por barra; abaixo disso o gráfico rola na horizontal em vez de espremer.
 const MIN_SLOT = 36
 const MAX_BAR_WIDTH = 48
-// Rótulo de valor em cada barra só enquanto há espaço; acima disso o valor fica no tooltip
-// e na tabela acessível (evita "um número em cada ponto").
 const MAX_DIRECT_LABELS = 12
 
-// O SVG é desenhado na largura real do container (viewBox 1:1), para o texto não escalar
-// junto com o card.
 const container = ref<HTMLElement | null>(null)
 const containerWidth = ref(0)
 let observer: ResizeObserver | null = null
@@ -61,7 +56,6 @@ const bars = computed(() => {
 
 const showValues = computed(() => bars.value.length <= MAX_DIRECT_LABELS)
 
-// Barra com cantos de 4px só no topo, ancorada reta na linha de base.
 function roundedTopBar(x: number, y: number, w: number, h: number): string {
   if (h <= 0) return ''
   const r = Math.min(4, w / 2, h)
@@ -111,9 +105,6 @@ function shortLabel(label: string): string {
         </g>
       </svg>
 
-      <!-- Alvos de hover/foco em HTML sobre o SVG: o v-tooltip não renderiza a partir de
-           elementos SVG (o conteúdo herdaria o namespace SVG e ficaria invisível). -->
-      <!-- À direita da barra: em cima cobriria o rótulo de valor e o título do card. -->
       <v-tooltip v-for="(bar, index) in bars" :key="bar.key" location="end">
         <template #activator="{ props: activatorProps }">
           <div

@@ -21,15 +21,12 @@ const errorMessage = ref<string | null>(null)
 const requiredRule = (value: string) => !!value || 'Campo obrigatório.'
 
 async function handleSubmit(event: SubmitEventPromise) {
-  // Só chama a API com o formulário válido: as rules já mostram o erro no campo.
   const { valid } = await event
-  // Enter repetido não dispara um segundo login enquanto o primeiro está em andamento.
   if (!valid || loading.value) return
   loading.value = true
   errorMessage.value = null
   try {
     await authStore.login({ document: document.value, password: password.value })
-    // Sem redirect explícito, o fluxo pós-login começa na seleção Campeonato → Liga.
     const redirect = route.query.redirect as string | undefined
     router.push(redirect || { name: 'admin-select-championship' })
   } catch (err) {

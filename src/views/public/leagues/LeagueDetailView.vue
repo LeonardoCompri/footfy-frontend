@@ -146,7 +146,6 @@ onMounted(() => fetchOne(props.id))
           </v-row>
         </template>
 
-        <!-- Mesmos componentes da Tabela/Estatísticas do admin, consumindo as rotas públicas. -->
         <template #tabela>
           <LeagueTablePanel :format="league.format" :load="() => publicLeaguesService.table(props.id)" />
         </template>

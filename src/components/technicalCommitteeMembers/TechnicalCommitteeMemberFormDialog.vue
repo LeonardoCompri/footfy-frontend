@@ -37,7 +37,6 @@ const form = reactive<TechnicalCommitteeMemberPayload>({
 
 const isEditing = computed(() => !!props.member)
 
-// Membros antigos podem ter função em texto livre: mantém o valor atual selecionável.
 const roleItems = computed(() => {
   const current = props.member?.role
   if (!current || roles.value.some((r) => r.value === current)) return roles.value
@@ -59,7 +58,6 @@ watch(
 )
 
 async function handleSubmit() {
-  // O time nunca é perguntado: vem do contexto da tela (time aberto).
   const result = await save({ ...form, team_id: props.teamId }, props.member?.id)
   if (result) {
     snackbar.success(isEditing.value ? 'Membro atualizado com sucesso.' : 'Membro criado com sucesso.')

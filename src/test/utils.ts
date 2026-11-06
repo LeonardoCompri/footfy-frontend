@@ -14,8 +14,6 @@ export function createTestVuetify() {
 
 const Stub = { render: () => null }
 
-// Router mínimo com os nomes de rota que as telas públicas e do contexto de liga referenciam.
-// `history` permite usar createWebHistory quando o teste depende do `history.state` do navegador.
 export function createTestRouter(history: RouterHistory = createMemoryHistory()) {
   return createRouter({
     history,
@@ -74,8 +72,6 @@ export function makeLeague(id: number, championship: Championship, extra: Partia
   }
 }
 
-// `permissions` simula o retorno do login com as permissões efetivas (FOOT-0030); `extra` traz
-// o vínculo (`team`/`player`) do coach/player (FOOT-0034).
 export function makeUser(
   role: string,
   permissions: string[] = [],
@@ -92,7 +88,6 @@ export function makeUser(
   }
 }
 
-// Sessão autenticada dentro de uma liga ativa (padrão: liga 1), como o guard deixaria.
 export function setupLeagueSession(user: AuthUser, leagues: League[] = [makeLeague(1, championshipA)]) {
   const auth = useAuthStore()
   auth.token = 'token'

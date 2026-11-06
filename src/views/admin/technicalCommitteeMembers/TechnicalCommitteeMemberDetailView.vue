@@ -21,7 +21,6 @@ const props = defineProps<{ teamId: string; id: string }>()
 
 const router = useRouter()
 const authStore = useAuthStore()
-// Capturado no setup: o logout zera o store antes de navegar (BUG-034).
 const leagueId = useLeagueContextStore().activeLeagueId as number
 const snackbar = useSnackbar()
 const { errorMessage, fetchOne, destroy } = useCrud<
@@ -159,7 +158,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* Nome ao lado do avatar mesmo no mobile; as ações quebram para a linha de baixo. */
 .header-title {
   flex: 1 1 0;
   min-width: 160px;

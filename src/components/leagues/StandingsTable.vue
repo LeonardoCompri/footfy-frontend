@@ -14,7 +14,6 @@ function initials(row: StandingRow): string {
       Nenhum time vinculado a esta liga ainda.
     </v-card-text>
     <template v-else>
-      <!-- No mobile ficam só #, Time, P, J e SG, para a tabela caber sem rolagem horizontal. -->
       <v-table density="comfortable" data-test="standings-table">
         <thead>
           <tr>

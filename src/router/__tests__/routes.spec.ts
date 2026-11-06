@@ -5,7 +5,6 @@ import { adminRoutes, publicRoutes } from '@/router/routes'
 vi.mock('@/services/api/http', () => ({ default: {} }))
 
 describe('rotas públicas', () => {
-  // FOOT-0031: não há listagem pública de times no backend; /times não pode abrir uma tela que exige login.
   it('não existe tela em /times', () => {
     const router = createRouter({
       history: createMemoryHistory(),

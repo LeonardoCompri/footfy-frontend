@@ -37,7 +37,6 @@ describe('RankingTable', () => {
 
     expect(wrapper.find('.ranking-table').exists()).toBe(true)
     const widths = wrapper.findAll('col').map((col) => (col.element as HTMLElement).style.width)
-    // # e Jogador ficam a cargo do CSS (Jogador ocupa o restante); numéricas usam `width`.
     expect(widths.slice(2)).toEqual(['36px', '36px', '64px'])
     expect(wrapper.find('[data-test="ranking-row"] td:nth-child(2)').attributes('title')).toBe(rows[0].player_name)
   })

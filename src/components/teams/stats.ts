@@ -1,5 +1,7 @@
 import type { Game } from '@/types/game'
-import type { GameEvent } from '@/types/gameEvent'
+import type { EventTypeMeta, GameEvent } from '@/types/gameEvent'
+
+export type EventTypeLookup = (slug: string) => Pick<EventTypeMeta, 'counts_for' | 'card'>
 
 export interface TeamRecord {
   played: number
@@ -10,7 +12,6 @@ export interface TeamRecord {
   goalsAgainst: number
 }
 
-// Campanha do time a partir das partidas finalizadas da liga (vale para qualquer formato).
 export function teamRecord(games: Game[], teamId: number): TeamRecord {
   const record: TeamRecord = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 }
   for (const game of games) {
@@ -36,14 +37,29 @@ export interface PlayerEventCounts {
   redCards: number
 }
 
-export function playerEventCounts(events: GameEvent[], playerId: number): PlayerEventCounts {
+export function playerEventCounts(
+  events: GameEvent[],
+  playerId: number,
+  typeOf: EventTypeLookup,
+): PlayerEventCounts {
   const counts: PlayerEventCounts = { goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
   for (const event of events) {
-    if (event.type === 'goal' && event.related_player_id === playerId) counts.assists++
+    const type = typeOf(event.type)
+    const isGoal = type.counts_for === 'team'
+    if (isGoal && event.related_player_id === playerId) counts.assists++
     if (event.player_id !== playerId) continue
-    if (event.type === 'goal') counts.goals++
-    else if (event.type === 'yellow_card') counts.yellowCards++
-    else if (event.type === 'red_card') counts.redCards++
+    if (isGoal) counts.goals++
+    if (type.card === 'yellow') counts.yellowCards++
+    else if (type.card === 'red') counts.redCards++
+  }
+  return counts
+}
+
+export function cardCounts(events: GameEvent[], typeOf: EventTypeLookup) {
+  const counts = { yellow: 0, red: 0 }
+  for (const event of events) {
+    const card = typeOf(event.type).card
+    if (card) counts[card]++
   }
   return counts
 }

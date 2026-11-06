@@ -26,6 +26,8 @@ export default createVuetify({
           warning: '#FF8F00',
           error: '#D32F2F',
           info: '#0277BD',
+          'card-yellow': '#eda100',
+          'card-red': '#e34948',
           background: '#F4F6F3',
           surface: '#FFFFFF',
           'surface-variant': '#E9ECE7',
@@ -50,6 +52,8 @@ export default createVuetify({
           warning: '#FFB74D',
           error: '#EF5350',
           info: '#4FC3F7',
+          'card-yellow': '#c98500',
+          'card-red': '#d03b3b',
           background: '#121412',
           surface: '#1B1D1B',
           'surface-variant': '#262924',
@@ -84,6 +88,10 @@ export default createVuetify({
       density: 'comfortable',
     },
     VAutocomplete: {
+      variant: 'outlined',
+      density: 'comfortable',
+    },
+    VCombobox: {
       variant: 'outlined',
       density: 'comfortable',
     },

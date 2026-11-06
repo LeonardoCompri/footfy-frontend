@@ -1,6 +1,6 @@
 import type { Paginated, PaginationMeta } from '@/types/api'
 import type { Game } from '@/types/game'
-import type { GameEvent } from '@/types/gameEvent'
+import type { EventTypeMeta, GameEvent } from '@/types/gameEvent'
 import type { Player } from '@/types/player'
 import type { Team } from '@/types/team'
 import type { TechnicalCommitteeMember } from '@/types/technicalCommitteeMember'
@@ -33,7 +33,6 @@ export function makeMember(
   return { id, team_id: 1, name, role: 'Treinador', birth_date: null, created_at: '', updated_at: '', ...extra }
 }
 
-// Formato de erro do Axios que o useCrud lê (`response.status` + `response.data`).
 export function apiError(status: number, message: string, errors?: Record<string, string[]>) {
   return { response: { status, data: { message, errors } } }
 }
@@ -86,6 +85,45 @@ export function makeEvent(id: number, extra: Partial<GameEvent> = {}): GameEvent
   }
 }
 
+export function makeEventType(
+  id: number,
+  slug: string,
+  extra: Partial<EventTypeMeta> = {},
+): EventTypeMeta {
+  return {
+    id,
+    slug,
+    name: slug,
+    icon: 'mdi-soccer',
+    color: 'primary',
+    counts_for: null,
+    allows_assist: false,
+    card: null,
+    sort_order: id,
+    active: true,
+    ...extra,
+  }
+}
+
+export function defaultEventTypes(): EventTypeMeta[] {
+  return [
+    makeEventType(1, 'goal', { name: 'Gol', counts_for: 'team', allows_assist: true }),
+    makeEventType(2, 'own_goal', { name: 'Gol contra', color: 'error', counts_for: 'opponent' }),
+    makeEventType(3, 'yellow_card', {
+      name: 'Cartão amarelo',
+      icon: 'mdi-card',
+      color: 'card-yellow',
+      card: 'yellow',
+    }),
+    makeEventType(4, 'red_card', {
+      name: 'Cartão vermelho',
+      icon: 'mdi-card',
+      color: 'card-red',
+      card: 'red',
+    }),
+  ]
+}
+
 export function makeAppUser(id: number, name: string, role: string, extra: Partial<User> = {}): User {
   return {
     id,
@@ -100,7 +138,6 @@ export function makeAppUser(id: number, name: string, role: string, extra: Parti
   }
 }
 
-// Resposta paginada da API (`{ data, meta }`); por padrão uma única página com todos os itens.
 export function makePage<T>(data: T[], meta: Partial<PaginationMeta> = {}): Paginated<T> {
   return {
     data,
