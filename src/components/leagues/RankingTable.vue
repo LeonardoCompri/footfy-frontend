@@ -5,14 +5,11 @@ import RemovedBadge from '@/components/common/RemovedBadge.vue'
 export interface RankingColumn {
   key: string
   title: string
-  // Largura fixa da coluna em px, incluindo padding (padrão 72).
   width?: number
-  // Quando informado, o cabeçalho mostra só o ícone (title vira tooltip/aria-label).
   icon?: string
   iconColor?: string
 }
 
-// Ranking de jogadores da liga (artilharia, assistências, cartões): colunas numéricas por `columns`.
 defineProps<{
   title: string
   icon: string
@@ -29,8 +26,6 @@ defineProps<{
       {{ title }}
     </v-card-title>
     <v-card-text v-if="rows.length === 0" class="text-medium-emphasis">{{ emptyText }}</v-card-text>
-    <!-- table-layout fixed: as colunas numéricas têm largura fixa e o nome do jogador ocupa o
-         restante com ellipsis, então a tabela nunca passa da largura do card (sem rolagem). -->
     <v-table v-else density="compact" class="ranking-table">
       <colgroup>
         <col class="pos" />

@@ -51,7 +51,7 @@ describe('GameFormDialog', () => {
     document.body.innerHTML = ''
   })
 
-  it('nova partida não mostra status nem gols e nasce agendada, sem placar', async () => {
+  it('nova partida não mostra status nem gols e nasce agendada, sem enviar placar', async () => {
     vi.mocked(gamesService.create).mockResolvedValue(makeGame(9))
     const wrapper = await mountDialog()
 
@@ -62,27 +62,91 @@ describe('GameFormDialog', () => {
     await choose(wrapper, 'VAutocomplete', 'game-away-team', 2)
     await submit()
 
-    expect(gamesService.create).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'scheduled', home_score: null, away_score: null }),
-    )
+    const payload = vi.mocked(gamesService.create).mock.calls[0][0]
+    expect(payload).toMatchObject({ status: 'scheduled', home_team_id: 1, away_team_id: 2 })
+    expect(payload).not.toHaveProperty('home_score')
+    expect(payload).not.toHaveProperty('away_score')
   })
 
-  it('edição mostra status e gols e envia o que foi alterado', async () => {
+  it('edição mostra status, sem campos de gols, e não envia o placar (calculado pela súmula)', async () => {
     vi.mocked(gamesService.update).mockResolvedValue(makeGame(3))
     const wrapper = await mountDialog(
       makeGame(3, { league_id: 7, round: 1, status: 'in_progress', home_score: 1, away_score: 0 }),
     )
 
     expect(has('game-status')).toBe(true)
-    expect(has('game-home-score')).toBe(true)
-    expect(has('game-away-score')).toBe(true)
+    expect(has('game-home-score')).toBe(false)
+    expect(has('game-away-score')).toBe(false)
     await choose(wrapper, 'VSelect', 'game-status', 'finished')
-    await choose(wrapper, 'VTextField', 'game-home-score', '2')
     await submit()
 
-    expect(gamesService.update).toHaveBeenCalledWith(
-      3,
-      expect.objectContaining({ status: 'finished', home_score: 2, away_score: 0 }),
+    const [id, payload] = vi.mocked(gamesService.update).mock.calls[0]
+    expect(id).toBe(3)
+    expect(payload).toMatchObject({ status: 'finished', round: 1 })
+    expect(payload).not.toHaveProperty('home_score')
+    expect(payload).not.toHaveProperty('away_score')
+  })
+
+  function fieldOrder() {
+    return [...document.querySelectorAll('.v-dialog [data-test^="game-"]')].map((el) =>
+      el.getAttribute('data-test'),
     )
+  }
+
+  function colWidths(test: string) {
+    const col = document.querySelector(`[data-test="${test}"]`)!.parentElement!
+    return [...col.classList].filter((name) => /^v-col-(sm-)?\d+$/.test(name)).sort()
+  }
+
+  it('disposição: times em linhas próprias, status + data, rodada + estádio', async () => {
+    await mountDialog(makeGame(3, { league_id: 7, round: 1 }))
+
+    expect(fieldOrder()).toEqual([
+      'game-home-team',
+      'game-away-team',
+      'game-status',
+      'game-match-date',
+      'game-round',
+      'game-stadium',
+    ])
+    expect(colWidths('game-home-team')).toEqual(['v-col-12'])
+    expect(colWidths('game-away-team')).toEqual(['v-col-12'])
+    for (const test of ['game-status', 'game-match-date', 'game-round', 'game-stadium']) {
+      expect(colWidths(test)).toEqual(['v-col-12', 'v-col-sm-6'])
+    }
+  })
+
+  it('na criação, sem status, a data ocupa a linha inteira', async () => {
+    await mountDialog()
+
+    expect(fieldOrder()).toEqual([
+      'game-home-team',
+      'game-away-team',
+      'game-match-date',
+      'game-round',
+      'game-stadium',
+    ])
+    expect(colWidths('game-match-date')).toEqual(['v-col-12', 'v-col-sm-12'])
+  })
+
+  it('mata-mata: a fase fica no lugar da rodada e ordem, confronto e perna logo abaixo', async () => {
+    document.body.innerHTML = ''
+    mount(GameFormDialog, {
+      props: { modelValue: true, leagueId: 7, format: 'knockout', teams, stadiums: [], game: null },
+      global: { plugins: [createTestVuetify()] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(fieldOrder()).toEqual([
+      'game-home-team',
+      'game-away-team',
+      'game-match-date',
+      'game-phase',
+      'game-stadium',
+      'game-phase-order',
+      'game-tie-key',
+      'game-leg',
+    ])
   })
 })

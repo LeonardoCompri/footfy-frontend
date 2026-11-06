@@ -40,7 +40,6 @@ const stats: LeagueStatistics = {
   ],
   results_split: { home_wins: 2, draws: 1, away_wins: 1 },
   cards_split: { yellow: 7, red: 2 },
-  // Diverge de propósito da soma dos buckets (10) e do split (4): os tiles devem usar `totals`.
   totals: { goals: 12, finished_games: 5, goals_average: 2.4 },
 }
 

@@ -9,7 +9,6 @@ const baseUrl = '/players'
 
 export const playersService = {
   ...createResourceService<Player, PlayerPayload>(baseUrl),
-  // Lista estática do backend: busca uma vez por sessão (descarta o cache se falhar).
   positions: () =>
     (positionsCache ??= unwrap<SelectOption[]>(http.get(`${baseUrl}/positions`)).catch((err) => {
       positionsCache = null

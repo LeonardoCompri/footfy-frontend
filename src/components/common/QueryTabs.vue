@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { useQueryTab } from '@/composables/useQueryTab'
 
-// Abas de uma tela de detalhe sincronizadas com `?tab=` (URL compartilhável/recarregável).
-// Cada aba renderiza o slot de mesmo nome do seu `value`.
 const props = defineProps<{
   tabs: { value: string; title: string }[]
   defaultTab?: string

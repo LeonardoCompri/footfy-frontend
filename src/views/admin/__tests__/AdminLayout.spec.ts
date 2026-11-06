@@ -18,12 +18,9 @@ vi.mock('@/services/api/auth.service', () => ({
 }))
 
 const Stub = { render: () => null }
-// Conta as montagens da tela de detalhe do time (remonta ao trocar de time?).
 const teamDetailMounts = vi.fn()
 const TeamDetailStub = { render: () => null, mounted: teamDetailMounts }
 
-// O v-menu da conta (VOverlay com close-on-back) registra um beforeEach que adia toda navegação
-// por um setTimeout: depois de um clique em link, espere a rota com vi.waitFor.
 function createLayoutRouter() {
   const leagueChild = (path: string, name: string, component: object = Stub) => ({
     path,
@@ -88,7 +85,6 @@ async function mountAt(
   return mountLayout(path)
 }
 
-// Monta o layout sem preparar o contexto de liga (o teste define o estado antes).
 async function mountLayout(path: string) {
   const router = createLayoutRouter()
   await router.push(path)
@@ -121,7 +117,6 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     window.innerWidth = 1366
-    // O tema é um ref de módulo: volta ao claro para não vazar entre os testes.
     useAppTheme().themeName.value = 'footfyLight'
   })
 

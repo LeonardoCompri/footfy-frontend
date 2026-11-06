@@ -3,15 +3,12 @@ import { useAuthStore } from '@/stores/auth'
 import { formatMatchDate, gameStageLabel } from '@/types/game'
 import type { DashboardGame } from '@/types/dashboard'
 
-// `leagueId` explícito no link: ao sair da liga, o Vuetify resolve o `:to` de novo antes de
-// desmontar a lista, e o param implícito da rota atual já não existe (BUG-034).
 defineProps<{
   games: DashboardGame[]
   leagueId: number
   emptyMessage: string
 }>()
 
-// Sem `game:read` a tela de partida é bloqueada pelo guard: a lista fica só informativa.
 const canOpen = useAuthStore().hasPermission('game:read')
 
 function teamLabel(team: DashboardGame['home_team']): string {

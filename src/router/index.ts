@@ -7,9 +7,7 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     guestOnly?: boolean
     permission?: string
-    // Papéis aceitos (qualquer um deles libera a rota).
     roles?: string[]
-    // Rota escopada por `:leagueId`; o guard valida o acesso e ativa a liga no contexto.
     requiresLeague?: boolean
   }
 }

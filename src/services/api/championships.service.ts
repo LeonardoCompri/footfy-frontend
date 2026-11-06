@@ -8,13 +8,11 @@ const LEAGUE_FIELDS = ['name', 'format', 'season', 'organizer', 'start_date', 'e
 function toFormData(payload: ChampionshipPayload): FormData {
   const formData = new FormData()
   formData.append('name', payload.name)
-  // Sem o campo `image` o backend mantém a imagem salva; `image=''` remove.
   if (payload.image) {
     formData.append('image', payload.image)
   } else if (payload.removeImage) {
     formData.append('image', '')
   }
-  // Multipart não tem null: opcional vazio vai como '' e o backend converte para null.
   payload.leagues?.forEach((league, index) => {
     if (league.id) formData.append(`leagues[${index}][id]`, String(league.id))
     for (const field of LEAGUE_FIELDS) {
@@ -30,11 +28,8 @@ export const championshipsService = {
   ...base,
   create: (payload: ChampionshipPayload) =>
     unwrap<Championship>(http.post(baseUrl, toFormData(payload))),
-  // Laravel não faz parse de multipart/form-data em requisições PUT, então usamos
-  // POST com o override `_method=PUT` para permitir o upload de imagem na edição.
   update: (id: number | string, payload: ChampionshipPayload) =>
     unwrap<Championship>(http.post(`${baseUrl}/${id}?_method=PUT`, toFormData(payload))),
-  // Exclusão definitiva (apaga as ligas e tudo o que é delas): exige a senha do master.
   removeWithPassword: (id: number | string, password: string) =>
     http.delete(`${baseUrl}/${id}`, { data: { password } }),
 }

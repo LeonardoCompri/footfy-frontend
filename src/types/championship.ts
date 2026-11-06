@@ -18,8 +18,6 @@ export interface League {
   organizer: string | null
   season: string | null
   format?: LeagueFormat | null
-  // LeagueResource não expõe `championship_id`; o vínculo chega via `championship`,
-  // eager loaded em GET /leagues (index) e GET /public/leagues/{id}.
   championship_id?: number
   championship?: Championship
   teams?: Team[]
@@ -27,7 +25,6 @@ export interface League {
   stadiums?: Stadium[]
 }
 
-// Liga dentro do formulário de campeonato: com `id` é atualizada, sem `id` é criada.
 export interface LeaguePayload {
   id?: number
   name: string
@@ -49,8 +46,6 @@ export interface Championship {
 export interface ChampionshipPayload {
   name: string
   image: File | null
-  // Edição: remove a imagem salva (vale só sem arquivo novo).
   removeImage?: boolean
-  // Ligas ausentes do payload continuam intactas no backend.
   leagues?: LeaguePayload[]
 }

@@ -106,7 +106,6 @@ describe('DashboardView', () => {
   it('renderiza os 3 gráficos com os dados da liga', async () => {
     const wrapper = await mountDashboard()
 
-    // Gols por rodada/fase: uma barra por bucket, título conforme o tipo de bucket.
     expect(wrapper.text()).toContain('Gols por rodada/fase')
     const bars = wrapper.findAll('[data-test="goals-bar"]')
     expect(bars).toHaveLength(3)
@@ -115,7 +114,6 @@ describe('DashboardView', () => {
       'Rodada 2: 5 gols',
       'Final: 2 gols',
     ])
-    // Ativador do tooltip precisa ser HTML: a partir de um elemento SVG o v-tooltip não aparece.
     expect(bars[0].element.namespaceURI).toBe('http://www.w3.org/1999/xhtml')
     expect(wrapper.findAll('[data-test="goals-chart"] .bar-label').map((t) => t.text())).toEqual([
       'R1',
@@ -123,14 +121,12 @@ describe('DashboardView', () => {
       'Final',
     ])
 
-    // Resultados: mandante × empate × visitante com valores e percentuais visíveis.
     const split = wrapper.find('[data-test="results-split"]')
     expect(wrapper.findAll('[data-test="results-segment"]')).toHaveLength(3)
     expect(split.text()).toContain('Mandante4(57%)')
     expect(split.text()).toContain('Empate2(29%)')
     expect(split.text()).toContain('Visitante1(14%)')
 
-    // Cartões: total da liga vindo de `cards_split` do próprio Dashboard (sem /game-events).
     const cardRows = wrapper.findAll('[data-test="cards-row"]').map((r) => r.text())
     expect(cardRows[0]).toContain('Amarelos')
     expect(cardRows[0]).toMatch(/2$/)
@@ -176,8 +172,6 @@ describe('DashboardView', () => {
     expect(wrapper.find('[data-test="mini-game"]').attributes('href')).toBeUndefined()
   })
 
-  // BUG-034: o Vuetify resolve o `:to` dos links de novo antes de desmontar a tela; sem o
-  // leagueId explícito, sair da liga ("Sair" zera o store antes) lançava "Missing required param".
   it('sair da liga com a tela ainda montada não quebra os links', async () => {
     const wrapper = await mountDashboard()
 

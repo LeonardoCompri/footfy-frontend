@@ -6,10 +6,6 @@ interface PublicItemService<T> {
   get: (id: number | string) => Promise<T>
 }
 
-/**
- * Busca um único recurso público por id, seguindo o mesmo padrão de tratamento
- * de loading/erro de usePublicList e useCrud.
- */
 export function usePublicItem<T>(service: PublicItemService<T>) {
   const item = ref<T | null>(null)
   const loading = ref(false)

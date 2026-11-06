@@ -37,7 +37,6 @@ watch(
 )
 
 async function handleSubmit() {
-  // Estádio pertence à liga ativa: `league_id` vem do contexto, não do formulário.
   const result = await save({ ...form, league_id: props.leagueId }, props.stadium?.id)
   if (result) {
     snackbar.success(isEditing.value ? 'Estádio atualizado com sucesso.' : 'Estádio criado com sucesso.')

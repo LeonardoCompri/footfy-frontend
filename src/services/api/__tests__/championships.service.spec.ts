@@ -65,7 +65,6 @@ describe('championshipsService', () => {
     expect(data.get('leagues[1][name]')).toBe('Série B')
   })
 
-  // `image` vazio apaga a imagem no backend (BUG-037): só vai quando a remoção foi pedida.
   it('update sem arquivo novo e sem removeImage não manda o campo image', async () => {
     await championshipsService.update(5, { name: 'Copa', image: null })
     expect(sentFormData().has('image')).toBe(false)

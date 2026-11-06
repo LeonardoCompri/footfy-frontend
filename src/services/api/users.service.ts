@@ -6,7 +6,6 @@ const baseUrl = '/users'
 
 export const usersService = {
   ...createResourceService<User, UserPayload>(baseUrl),
-  // O backend usa syncWithoutDetaching: só acrescenta vínculos, nunca remove os existentes.
   attachLeagues: (id: number | string, leagueIds: number[]) =>
     unwrap<User>(http.post(`${baseUrl}/${id}/leagues`, { league_ids: leagueIds })),
   detachLeague: (id: number | string, leagueId: number | string) =>

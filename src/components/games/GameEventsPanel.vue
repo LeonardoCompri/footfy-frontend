@@ -1,26 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
-import { extractErrorMessage, useCrud } from '@/composables/useCrud'
+import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
+import { useEventTypesStore } from '@/stores/eventTypes'
 import { gameEventsService } from '@/services/api/gameEvents.service'
-import { teamsService } from '@/services/api/teams.service'
 import type { Game } from '@/types/game'
+import type { Team } from '@/types/team'
 import type { GameEvent, GameEventPayload, GameEventPlayer, SummaryTeam } from '@/types/gameEvent'
-import { useChartPalette } from '@/components/charts/chartPalette'
+import ActionCard from '@/components/common/ActionCard.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import RemovedBadge from '@/components/common/RemovedBadge.vue'
 import GameEventFormDialog from './GameEventFormDialog.vue'
 
 const props = defineProps<{ game: Game }>()
 
+const emit = defineEmits<{ changed: [] }>()
+
 const authStore = useAuthStore()
 const snackbar = useSnackbar()
-const palette = useChartPalette()
-const { items: events, loading, errorMessage, fetchAll, destroy } = useCrud<GameEvent, GameEventPayload>(
-  gameEventsService,
-)
+const eventTypes = useEventTypesStore()
+const { errorMessage, destroy } = useCrud<GameEvent, GameEventPayload>(gameEventsService)
 
 const can = {
   create: authStore.hasPermission('game_event:create'),
@@ -28,46 +29,60 @@ const can = {
   delete: authStore.hasPermission('game_event:delete'),
 }
 
-const teams = ref<SummaryTeam[]>([])
-const playersError = ref<string | null>(null)
+function byMinuteDesc(a: GameEvent, b: GameEvent): number {
+  const minuteA = a.minute ?? null
+  const minuteB = b.minute ?? null
+  if (minuteA === minuteB) return b.id - a.id
+  if (minuteA === null) return 1
+  if (minuteB === null) return -1
+  return minuteB - minuteA
+}
+
+const events = computed(() => [...(props.game.events ?? [])].sort(byMinuteDesc))
 const formDialog = ref(false)
+const formType = ref('')
 const eventToEdit = ref<GameEvent | null>(null)
 const { open: confirmOpen, target: eventToDelete, ask: askDelete } = useConfirmDialog<GameEvent>()
 
-// Minuto em ordem crescente; eventos sem minuto vão para o fim, na ordem de registro.
-const timeline = computed(() =>
-  [...events.value].sort((a, b) => (a.minute ?? Infinity) - (b.minute ?? Infinity) || a.id - b.id),
+const typesPending = computed(() => !eventTypes.loaded && !eventTypes.errorMessage)
+
+const teams = computed<SummaryTeam[]>(() =>
+  [props.game.homeTeam, props.game.awayTeam]
+    .filter((team): team is Team => !!team)
+    .map((team) => ({
+      id: team.id,
+      name: team.nickname || team.name,
+      players: [...(team.players ?? [])].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)),
+    })),
 )
 
 const goalsByTeam = computed(() => {
-  const goals = events.value.filter((event) => event.type === 'goal')
-  return {
-    home: goals.filter((event) => event.team_id === props.game.home_team_id).length,
-    away: goals.filter((event) => event.team_id === props.game.away_team_id).length,
+  const { home_team_id: home, away_team_id: away } = props.game
+  const goals = { home: 0, away: 0 }
+  for (const event of events.value) {
+    const countsFor = eventTypes.bySlug(event.type).counts_for
+    if (!countsFor || (event.team_id !== home && event.team_id !== away)) continue
+    const isHome = event.team_id === home
+    if (countsFor === 'team' ? isHome : !isHome) goals.home++
+    else goals.away++
   }
+  return goals
 })
 
-// Aviso (não bloqueia): placar finalizado diferente dos gols lançados na súmula.
 const scoreMismatch = computed(
   () =>
+    eventTypes.loaded &&
     props.game.status === 'finished' &&
     props.game.home_score !== null &&
     props.game.away_score !== null &&
     (goalsByTeam.value.home !== props.game.home_score || goalsByTeam.value.away !== props.game.away_score),
 )
 
-const eventMeta = computed(() => ({
-  goal: { icon: 'mdi-soccer', color: undefined, label: 'Gol' },
-  yellow_card: { icon: 'mdi-card', color: palette.value.yellowCard, label: 'Cartão amarelo' },
-  red_card: { icon: 'mdi-card', color: palette.value.redCard, label: 'Cartão vermelho' },
-}))
-
 function teamName(teamId: number): string {
-  return teams.value.find((team) => team.id === teamId)?.name ?? '—'
+  const team = [props.game.homeTeam, props.game.awayTeam].find((t) => t?.id === teamId)
+  return team ? team.nickname || team.name : '—'
 }
 
-// O nome vem do próprio evento (inclusive de jogador removido do elenco); sem a relação
-// carregada, procura nos elencos dos dois times.
 function eventPlayer(
   player: GameEventPlayer | null | undefined,
   playerId: number | null,
@@ -90,25 +105,30 @@ function assistPlayer(event: GameEvent) {
 }
 
 function eventSubtitle(event: GameEvent): string {
-  return `${eventMeta.value[event.type].label} · ${teamName(event.team_id)}`
+  return `${eventTypes.bySlug(event.type).name} · ${teamName(event.team_id)}`
 }
 
-function openForm(event: GameEvent | null) {
-  eventToEdit.value = event
+function loadTypes() {
+  eventTypes.load().catch(() => undefined)
+}
+
+function openCreate(type: string) {
+  eventToEdit.value = null
+  formType.value = type
   formDialog.value = true
 }
 
-// Atualiza a lista local com a resposta do backend, sem refazer o GET.
-function onSaved(saved: GameEvent) {
-  const index = events.value.findIndex((event) => event.id === saved.id)
-  if (index === -1) events.value.push(saved)
-  else events.value[index] = saved
+function openEdit(event: GameEvent) {
+  eventToEdit.value = event
+  formType.value = event.type
+  formDialog.value = true
 }
 
 async function handleDelete() {
   if (!eventToDelete.value) return
   if (await destroy(eventToDelete.value.id)) {
     snackbar.success('Evento excluído com sucesso.')
+    emit('changed')
   } else {
     snackbar.error(errorMessage.value ?? 'Não foi possível excluir o evento.')
     errorMessage.value = null
@@ -116,67 +136,77 @@ async function handleDelete() {
   eventToDelete.value = null
 }
 
-// Elenco elegível = só os dois times da partida (GET /teams/{id} já traz os jogadores).
-async function loadTeams() {
-  try {
-    const [home, away] = await Promise.all([
-      teamsService.get(props.game.home_team_id),
-      teamsService.get(props.game.away_team_id),
-    ])
-    teams.value = [home, away].map((team) => ({
-      id: team.id,
-      name: team.nickname || team.name,
-      players: [...(team.players ?? [])].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)),
-    }))
-  } catch (err) {
-    playersError.value = extractErrorMessage(err)
-  }
-}
-
-onMounted(() => {
-  fetchAll({ game_id: props.game.id })
-  loadTeams()
-})
+onMounted(loadTypes)
 </script>
 
 <template>
   <v-card>
-    <v-card-title class="d-flex align-center">
-      <span class="text-subtitle-1 font-weight-bold">Súmula</span>
-      <v-spacer />
-      <v-btn
-        v-if="can.create"
-        color="primary"
-        size="small"
-        prepend-icon="mdi-plus"
-        :disabled="teams.length === 0"
-        data-test="event-create"
-        @click="openForm(null)"
-      >
-        Evento
-      </v-btn>
-    </v-card-title>
+    <v-card-title class="text-subtitle-1 font-weight-bold">Súmula</v-card-title>
 
     <v-card-text>
-      <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
-      <v-alert v-if="playersError" type="warning" variant="tonal" class="mb-4">
-        Não foi possível carregar os elencos: {{ playersError }}
+      <v-alert
+        v-if="eventTypes.errorMessage"
+        type="warning"
+        variant="tonal"
+        class="mb-4"
+        data-test="event-types-error"
+      >
+        Não foi possível carregar os tipos de evento: {{ eventTypes.errorMessage }}
+        <template #append>
+          <v-btn
+            variant="text"
+            size="small"
+            :loading="eventTypes.loading"
+            data-test="event-types-retry"
+            @click="loadTypes"
+          >
+            Tentar de novo
+          </v-btn>
+        </template>
       </v-alert>
+
+      <template v-if="can.create">
+        <v-row v-if="typesPending" dense class="mb-2" data-test="event-actions-loading">
+          <v-col v-for="n in 4" :key="n" cols="6" sm="3">
+            <v-skeleton-loader type="list-item-avatar" class="rounded-lg" />
+          </v-col>
+        </v-row>
+        <v-row
+          v-else-if="eventTypes.active.length > 0"
+          dense
+          class="mb-2"
+          data-test="event-actions"
+        >
+          <v-col v-for="type in eventTypes.active" :key="type.slug" cols="6" sm="3">
+            <ActionCard
+              :icon="type.icon"
+              :label="type.name"
+              :color="type.color"
+              data-test="event-action"
+              @click="openCreate(type.slug)"
+            />
+          </v-col>
+        </v-row>
+        <div
+          v-else-if="eventTypes.loaded"
+          class="text-medium-emphasis text-body-2 mb-4"
+          data-test="event-actions-empty"
+        >
+          Nenhum tipo de evento ativo para registrar.
+        </div>
+      </template>
+
       <v-alert v-if="scoreMismatch" type="info" variant="tonal" density="compact" class="mb-4" data-test="score-mismatch">
         Gols na súmula ({{ goalsByTeam.home }} × {{ goalsByTeam.away }}) diferem do placar da partida
         ({{ game.home_score }} × {{ game.away_score }}).
       </v-alert>
 
-      <div v-if="loading && events.length === 0" class="d-flex justify-center py-6">
-        <v-progress-circular indeterminate color="primary" />
-      </div>
-      <div v-else-if="timeline.length === 0" class="text-medium-emphasis text-center py-6" data-test="events-empty">
+      <div v-if="events.length === 0" class="text-medium-emphasis text-center py-6" data-test="events-empty">
         Nenhum evento registrado nesta partida.
       </div>
       <v-list v-else lines="two" class="pa-0" data-test="events-list">
-        <!-- prepend-gap menor que o padrão (32px): sobra largura para os nomes no mobile. -->
         <v-list-item
-          v-for="event in timeline"
+          v-for="event in events"
           :key="event.id"
           prepend-gap="12"
           class="px-0"
@@ -185,12 +215,11 @@ onMounted(() => {
           <template #prepend>
             <div class="minute text-medium-emphasis tabular">{{ event.minute != null ? `${event.minute}'` : '—' }}</div>
             <v-icon
-              :icon="eventMeta[event.type].icon"
-              :color="eventMeta[event.type].color"
-              :aria-label="eventMeta[event.type].label"
+              :icon="eventTypes.bySlug(event.type).icon"
+              :color="eventTypes.bySlug(event.type).color"
+              :aria-label="eventTypes.bySlug(event.type).name"
             />
           </template>
-          <!-- Só o nome trunca: no mobile o selo continua visível. -->
           <v-list-item-title class="d-flex align-center ga-1" data-test="event-player">
             <span class="text-truncate">{{ mainPlayer(event)?.name ?? '—' }}</span>
             <RemovedBadge v-if="mainPlayer(event)?.removed" />
@@ -198,8 +227,6 @@ onMounted(() => {
           <v-list-item-subtitle data-test="event-subtitle">
             {{ eventSubtitle(event) }}
           </v-list-item-subtitle>
-          <!-- Linha própria e sem line-clamp (d-block): no mobile o nome da assistência quebra
-            linha em vez de sumir, e o selo vem logo depois dele. -->
           <v-list-item-subtitle
             v-if="assistPlayer(event)"
             class="d-block mt-1"
@@ -214,9 +241,9 @@ onMounted(() => {
               icon="mdi-pencil"
               variant="text"
               size="small"
-              :disabled="teams.length === 0"
+              :disabled="!eventTypes.loaded"
               data-test="event-edit"
-              @click="openForm(event)"
+              @click="openEdit(event)"
             />
             <v-btn
               v-if="can.delete"
@@ -236,8 +263,9 @@ onMounted(() => {
       v-model="formDialog"
       :game-id="game.id"
       :teams="teams"
+      :type="formType"
       :event="eventToEdit"
-      @saved="onSaved"
+      @saved="emit('changed')"
     />
     <ConfirmDialog
       v-model="confirmOpen"

@@ -1,8 +1,26 @@
 import type { Player } from './player'
 
-export type GameEventType = 'goal' | 'yellow_card' | 'red_card'
+export type GameEventType = string
 
-// Jogador do evento como o backend devolve; `removed` = excluído do elenco (soft delete).
+export type EventTypeCountsFor = 'team' | 'opponent'
+
+export type EventTypeCard = 'yellow' | 'red'
+
+export interface EventTypeMeta {
+  id: number
+  slug: string
+  name: string
+  icon: string
+  color: string
+  counts_for: EventTypeCountsFor | null
+  allows_assist: boolean
+  card: EventTypeCard | null
+  sort_order: number
+  active: boolean
+}
+
+export type EventTypePayload = Omit<EventTypeMeta, 'id'>
+
 export interface GameEventPlayer {
   id: number
   name: string
@@ -15,7 +33,6 @@ export interface GameEvent {
   team_id: number
   player_id: number
   related_player_id: number | null
-  // Ausentes quando a relação não foi carregada; `related_player` é null sem assistência.
   player?: GameEventPlayer | null
   related_player?: GameEventPlayer | null
   league_id: number
@@ -30,13 +47,6 @@ export type GameEventPayload = Pick<
   'game_id' | 'team_id' | 'player_id' | 'related_player_id' | 'type' | 'minute'
 >
 
-export const GAME_EVENT_TYPE_OPTIONS: { value: GameEventType; title: string }[] = [
-  { value: 'goal', title: 'Gol' },
-  { value: 'yellow_card', title: 'Amarelo' },
-  { value: 'red_card', title: 'Vermelho' },
-]
-
-// Time da partida com o elenco elegível para a súmula.
 export interface SummaryTeam {
   id: number
   name: string

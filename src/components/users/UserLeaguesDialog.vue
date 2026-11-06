@@ -40,7 +40,6 @@ async function toggle(leagueId: number, linked: boolean) {
 </script>
 
 <template>
-  <!-- Quem gerencia vínculos é master, que já recebe todas as ligas em GET /leagues. -->
   <LeagueLinksDialog
     :model-value="modelValue"
     :title="`Ligas de ${user.name}`"

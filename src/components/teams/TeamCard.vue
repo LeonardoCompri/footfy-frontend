@@ -4,7 +4,6 @@ import type { Team } from '@/types/team'
 
 const props = defineProps<{
   team: Team
-  /** Id da liga de origem, usado para o time voltar navegando para a liga. */
   leagueId?: number | string
 }>()
 

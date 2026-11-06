@@ -41,7 +41,6 @@ const player = makeAppUser(4, 'Joga Bem', 'player', {
 const coachWithoutTeam = makeAppUser(5, 'Sem Time', 'coach', { team: null })
 const extraAdmin = makeAppUser(6, 'Beto Admin', 'admin', { leagues: [{ id: 1, name: 'Série A' }] })
 
-// Sessão: como master a pessoa logada é o "Dono" (id 1); como admin, a "Ana Admin" (id 2).
 async function mountList(role: 'master' | 'admin') {
   setupLeagueSession(makeUser(role, [], { id: role === 'master' ? 1 : 2 }), [
     makeLeague(1, championshipA, { name: 'Série A' }),
@@ -138,7 +137,6 @@ describe('UserAdminListView', () => {
     expect(other.find('[data-test="user-edit"]').exists()).toBe(true)
     expect(other.find('[data-test="user-delete"]').exists()).toBe(true)
     expect(other.find('[data-test="user-leagues-open"]').exists()).toBe(true)
-    // Coach e player herdam as ligas do time: sem o botão "Ligas".
     for (const name of ['Tite', 'Joga Bem']) {
       expect(rowOf(wrapper, name).find('[data-test="user-edit"]').exists()).toBe(true)
       expect(rowOf(wrapper, name).find('[data-test="user-leagues-open"]').exists()).toBe(false)
@@ -164,8 +162,6 @@ describe('UserAdminListView', () => {
     await setInput('[data-test="user-name"]', 'Adenor')
     await submit()
 
-    // Sem `role` (o backend rejeita para admin) e sem senha quando o campo fica em branco;
-    // o time do coach vai junto (obrigatório para quem não é master).
     expect(usersService.update).toHaveBeenCalledWith(3, {
       name: 'Adenor',
       document: coach.document,

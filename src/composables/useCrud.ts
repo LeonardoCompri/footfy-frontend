@@ -9,7 +9,6 @@ interface CrudService<T, P> {
   create: (payload: P) => Promise<T>
   update: (id: number | string, payload: P) => Promise<T>
   remove: (id: number | string) => Promise<unknown>
-  // Sintaxe de método (bivariante) para aceitar services com params mais específicos (ex.: GameListParams).
   listPaginated?(params: ListParams): Promise<Paginated<T>>
 }
 
@@ -46,7 +45,6 @@ export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>)
     }
   }
 
-  // Só a resposta da requisição mais recente é aplicada (troca rápida de página/filtro).
   async function fetchPage(params: ListParams): Promise<boolean> {
     if (!service.listPaginated) throw new Error('useCrud: o service não implementa listPaginated.')
     const requestId = ++pageRequestId

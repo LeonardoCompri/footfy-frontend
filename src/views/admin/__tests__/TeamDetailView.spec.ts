@@ -7,6 +7,7 @@ import { playersService } from '@/services/api/players.service'
 import { technicalCommitteeMembersService } from '@/services/api/technicalCommitteeMembers.service'
 import { gamesService } from '@/services/api/games.service'
 import { gameEventsService } from '@/services/api/gameEvents.service'
+import { eventTypesService } from '@/services/api/eventTypes.service'
 import { useSnackbar } from '@/composables/useSnackbar'
 import type { Game } from '@/types/game'
 import type { GameEvent } from '@/types/gameEvent'
@@ -19,7 +20,16 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { apiError, makeGame, makeMember, makePlayer, makeTeam, POSITIONS, ROLES } from '@/test/factories'
+import {
+  apiError,
+  defaultEventTypes,
+  makeGame,
+  makeMember,
+  makePlayer,
+  makeTeam,
+  POSITIONS,
+  ROLES,
+} from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/teams.service', () => ({
@@ -40,6 +50,7 @@ vi.mock('@/services/api/technicalCommitteeMembers.service', () => ({
   technicalCommitteeMembersService: { roles: vi.fn(), remove: vi.fn(), create: vi.fn(), update: vi.fn() },
 }))
 vi.mock('@/services/api/games.service', () => ({ gamesService: { listAll: vi.fn() } }))
+vi.mock('@/services/api/eventTypes.service', () => ({ eventTypesService: { list: vi.fn() } }))
 vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
 
 const team = makeTeam(5, 'Vitória FC', {
@@ -107,6 +118,7 @@ describe('TeamDetailView', () => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    vi.mocked(eventTypesService.list).mockResolvedValue(defaultEventTypes())
     vi.mocked(teamsService.get).mockResolvedValue(team)
     vi.mocked(playersService.positions).mockResolvedValue(POSITIONS)
     vi.mocked(technicalCommitteeMembersService.roles).mockResolvedValue(ROLES)
@@ -162,7 +174,8 @@ describe('TeamDetailView', () => {
     vi.mocked(gameEventsService.list).mockResolvedValue([
       goal(1, 1, 11, 10),
       goal(2, 1, 11),
-      goal(3, 2, 11), // outra liga: ignorado
+      goal(3, 2, 11),
+      { ...goal(4, 1, 10), type: 'yellow_card' },
     ])
     const { wrapper } = await mountDetail(ALL_WRITE, '?tab=estatisticas')
 
@@ -172,7 +185,16 @@ describe('TeamDetailView', () => {
       status: 'finished',
     })
     const tiles = wrapper.findAll('[data-test="team-stats"] .v-card').map((c) => c.text())
-    expect(tiles.slice(0, 6)).toEqual(['2Jogos', '1Vitórias', '1Empates', '0Derrotas', '2Gols pró', '1Gols contra'])
+    expect(tiles).toEqual([
+      '2Jogos',
+      '1Vitórias',
+      '1Empates',
+      '0Derrotas',
+      '2Gols pró',
+      '1Gols contra',
+      '1Cartões amarelos',
+      '0Cartões vermelhos',
+    ])
     const scorers = wrapper.findAll('table tbody tr').map((r) => r.text())
     expect(scorers).toEqual(['Atacante Dois20', 'Goleiro Um01'])
   })
@@ -180,21 +202,66 @@ describe('TeamDetailView', () => {
   it('sem permissões de escrita, nenhuma ação de criar/editar/excluir aparece', async () => {
     const { wrapper } = await mountDetail(['team:read', 'player:read'])
 
-    for (const selector of ['team-leagues', 'team-edit', 'team-delete', 'player-create', 'player-edit', 'player-delete']) {
+    for (const selector of [
+      'team-leagues',
+      'team-edit',
+      'team-delete',
+      'player-create',
+      'member-create',
+    ]) {
+      expect(wrapper.find(`[data-test="${selector}"]`).exists(), selector).toBe(false)
+    }
+    expect(wrapper.findAll('[data-test="player-view"]')).toHaveLength(2)
+  })
+
+  it('com todas as permissões, as linhas do elenco e da comissão só têm o olho', async () => {
+    const { wrapper } = await mountDetail(['player:all', 'technical_committee_member:all'])
+
+    expect(wrapper.find('[data-test="player-create"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-test="player-view"]')).toHaveLength(2)
+    for (const selector of ['player-edit', 'player-delete', 'member-edit', 'member-delete']) {
       expect(wrapper.find(`[data-test="${selector}"]`).exists(), selector).toBe(false)
     }
   })
 
-  it('cada ação aparece conforme a permissão correspondente', async () => {
-    const { wrapper } = await mountDetail(['player:create', 'player:all'])
+  it('o olho do jogador abre o detalhe dele com uma única navegação', async () => {
+    const { wrapper, router } = await mountDetail()
+    const view = wrapper.findAll('[data-test="player-view"]')[0]
+    expect(view.attributes('aria-label')).toBe('Ver jogador Goleiro Um')
+    expect(view.attributes('href')).toBe('/admin/liga/1/times/5/jogadores/10')
+    const push = vi.spyOn(router, 'push')
 
-    expect(wrapper.find('[data-test="team-edit"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="player-create"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-test="player-edit"]')).toHaveLength(2)
-    expect(wrapper.findAll('[data-test="player-delete"]')).toHaveLength(2)
+    await view.trigger('click')
+
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('admin-players-detail'))
+    expect(router.currentRoute.value.params).toMatchObject({ teamId: '5', id: '10' })
+    expect(push).toHaveBeenCalledTimes(1)
   })
 
-  // Seeder: coach tem team:read e as permissões de jogador; o backend só deixa mexer no próprio time.
+  it('o olho do membro abre o detalhe dele com uma única navegação', async () => {
+    const { wrapper, router } = await mountDetail(['team:read'], '?tab=comissao')
+    expect(wrapper.find('[data-test="member-create"]').exists()).toBe(false)
+    const view = wrapper.find('[data-test="member-view"]')
+    expect(view.attributes('aria-label')).toBe('Ver membro Técnico Fulano')
+    const push = vi.spyOn(router, 'push')
+
+    await view.trigger('click')
+
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.name).toBe('admin-technical-committee-members-detail'),
+    )
+    expect(router.currentRoute.value.params).toMatchObject({ teamId: '5', id: '20' })
+    expect(push).toHaveBeenCalledTimes(1)
+  })
+
+  it('clicar na linha do jogador também abre o detalhe', async () => {
+    const { wrapper, router } = await mountDetail()
+    await wrapper.find('[data-test="players-table"] tbody tr').trigger('click')
+
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('admin-players-detail'))
+    expect(router.currentRoute.value.params.id).toBe('10')
+  })
+
   const COACH = [
     'team:read',
     'stadium:read',
@@ -221,13 +288,13 @@ describe('TeamDetailView', () => {
       false,
       makeUser('player', COACH, { team: { id: 5, name: 'Vitória FC', logo: null } }),
     ],
-  ])('%s: criar/editar/excluir jogador visíveis = %s', async (_label, visible, user) => {
+  ])('%s: criar jogador visível = %s', async (_label, visible, user) => {
     const { wrapper } = await mountDetail([], '', user)
 
     expect(wrapper.find('[data-test="team-title"]').text()).toBe('Vitória FC')
     expect(wrapper.find('[data-test="player-create"]').exists()).toBe(visible)
-    expect(wrapper.findAll('[data-test="player-edit"]')).toHaveLength(visible ? 2 : 0)
-    expect(wrapper.findAll('[data-test="player-delete"]')).toHaveLength(visible ? 2 : 0)
+    expect(wrapper.findAll('[data-test="player-view"]')).toHaveLength(2)
+    expect(wrapper.find('[data-test="player-edit"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="team-edit"]').exists()).toBe(false)
   })
 
@@ -250,38 +317,6 @@ describe('TeamDetailView', () => {
       'Não é possível remover o time pois existem partidas vinculadas a ele.',
     )
     expect(router.currentRoute.value.name).toBe('admin-teams-detail')
-  })
-
-  it('remover jogador do elenco avisa que as estatísticas são mantidas', async () => {
-    vi.mocked(playersService.remove).mockResolvedValue({} as never)
-    const { wrapper } = await mountDetail()
-
-    await wrapper.findAll('[data-test="player-delete"]')[0].trigger('click')
-    await flushPromises()
-    const dialog = document.querySelector('.v-overlay--active .v-card') as HTMLElement
-    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Remover do elenco')
-    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
-      "Remover 'Goleiro Um' do elenco (as estatísticas são mantidas).",
-    )
-    const confirm = [...dialog.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Remover')
-    confirm!.click()
-    await flushPromises()
-
-    expect(playersService.remove).toHaveBeenCalledWith(10)
-    expect(useSnackbar().message.value).toBe('Jogador removido do elenco.')
-  })
-
-  it('excluir membro da comissão mantém o texto de exclusão', async () => {
-    const { wrapper } = await mountDetail(ALL_WRITE, '?tab=comissao')
-
-    await wrapper.find('[data-test="member-delete"]').trigger('click')
-    await flushPromises()
-    const dialog = document.querySelector('.v-overlay--active .v-card') as HTMLElement
-    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Excluir membro')
-    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
-      "Tem certeza que deseja excluir 'Técnico Fulano'?",
-    )
-    expect([...dialog.querySelectorAll('button')].map((b) => b.textContent?.trim())).toContain('Excluir')
   })
 
   it('vincula e desvincula o time de outra liga pelo dialog de ligas', async () => {
@@ -312,7 +347,6 @@ describe('TeamDetailView', () => {
     expect(teamsService.attachLeagues).toHaveBeenCalledWith(5, [2])
     expect(toggle().textContent).toContain('Desvincular')
 
-    // Reabrir usa o `leagues` atualizado pelo evento `updated`, sem novo GET.
     const close = [...document.querySelectorAll('.v-overlay--active button')].find(
       (b) => b.textContent?.trim() === 'Fechar',
     ) as HTMLButtonElement

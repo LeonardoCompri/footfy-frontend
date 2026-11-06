@@ -22,7 +22,6 @@ vi.mock('@/services/api/users.service', () => ({
 vi.mock('@/services/api/teams.service', () => ({ teamsService: { list: vi.fn() } }))
 vi.mock('@/services/api/players.service', () => ({ playersService: { list: vi.fn() } }))
 
-// Liga ativa 1 tem Vitória (5) e Atlético (6); o time 9 é de outra liga.
 const TEAMS = [makeTeam(5, 'Vitória FC'), makeTeam(6, 'Atlético')]
 const PLAYERS = [
   makePlayer(10, 'Fulano', { team_id: 5, document: '12345678901' }),
@@ -237,7 +236,6 @@ describe('UserFormDialog — vínculo por papel', () => {
     vi.mocked(usersService.update).mockResolvedValue(player)
     const wrapper = await mountDialog('admin', player)
 
-    // O CPF bate com o Beltrano, mas o vínculo atual não é trocado pela sugestão.
     expect(field(wrapper, 'VAutocomplete', 'user-player')!.props('modelValue')).toBe(10)
     await submit()
     expect(usersService.update).toHaveBeenCalledWith(4, expect.objectContaining({ player_id: 10 }))

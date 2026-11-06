@@ -12,7 +12,6 @@ const baseUrl = '/technical-committee-members'
 
 export const technicalCommitteeMembersService = {
   ...createResourceService<TechnicalCommitteeMember, TechnicalCommitteeMemberPayload>(baseUrl),
-  // Lista estática do backend: busca uma vez por sessão (descarta o cache se falhar).
   roles: () =>
     (rolesCache ??= unwrap<SelectOption[]>(http.get(`${baseUrl}/roles`)).catch((err) => {
       rolesCache = null

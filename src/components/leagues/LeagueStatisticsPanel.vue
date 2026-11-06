@@ -10,7 +10,6 @@ import { useChartPalette } from '@/components/charts/chartPalette'
 import RankingTable from './RankingTable.vue'
 import type { RankingColumn } from './RankingTable.vue'
 
-// Estatísticas da liga compartilhadas entre admin e público: muda só a rota de origem (`load`).
 const props = defineProps<{
   load: () => Promise<LeagueStatistics>
 }>()
@@ -44,7 +43,6 @@ const tiles = computed(() => {
 
 const scorerColumns: RankingColumn[] = [{ key: 'goals', title: 'Gols' }]
 const assistColumns: RankingColumn[] = [{ key: 'assists', title: 'Assist.' }]
-// Amarelo/vermelho viram ícones estreitos para a coluna Total caber no card de 1/3 da largura.
 const palette = useChartPalette()
 const cardColumns = computed<RankingColumn[]>(() => [
   { key: 'yellow_cards', title: 'Cartões amarelos', icon: 'mdi-card', iconColor: palette.value.yellowCard, width: 36 },

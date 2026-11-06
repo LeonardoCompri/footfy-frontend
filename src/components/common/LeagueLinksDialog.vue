@@ -3,8 +3,6 @@ import { computed } from 'vue'
 import { useDisplay } from 'vuetify'
 import type { League } from '@/types/championship'
 
-// Lista de ligas com Vincular/Desvincular por linha (vínculo time↔liga e usuário↔liga).
-// Só apresenta: quem usa faz as chamadas de API no evento `toggle`.
 const props = defineProps<{
   modelValue: boolean
   title: string
@@ -14,7 +12,6 @@ const props = defineProps<{
   loading?: boolean
   errorMessage?: string | null
   busyLeagueId?: number | null
-  // Liga que não pode ser alterada daqui (ex.: a liga ativa no vínculo do time); vem primeiro.
   lockedLeagueId?: number | null
 }>()
 

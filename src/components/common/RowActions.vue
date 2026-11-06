@@ -10,11 +10,8 @@ export interface RowAction {
   onClick: () => void
 }
 
-// Ações de uma linha de tabela, já filtradas por permissão. No celular (xs), 2+ ações viram
-// um menu "⋮" para a tabela caber sem rolagem horizontal; com uma só, o botão fica direto.
 defineProps<{
   actions: RowAction[]
-  // aria-label do botão do menu (ex.: "Ações de Fulano").
   menuLabel: string
 }>()
 

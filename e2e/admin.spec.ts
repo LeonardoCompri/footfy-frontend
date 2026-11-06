@@ -1,12 +1,22 @@
+import type { Page } from '@playwright/test'
+import { API_BASE_URL } from './support/env'
 import { samplePng, sampleImageUrl } from './support/images'
 import { fixture } from './support/mock-api'
 import { expect, openDialog, signIn, test } from './support/test'
 
-// Camada da frente (imagem inteira) da prévia; atrás dela fica a cópia desfocada.
+function apiCalls(page: Page) {
+  const calls: string[] = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (!url.href.startsWith(`${API_BASE_URL}/`) || request.method() === 'OPTIONS') return
+    calls.push(`${request.method()} ${url.pathname.slice(new URL(API_BASE_URL).pathname.length)}`)
+  })
+  return calls
+}
+
 const PREVIEW_IMG =
   '[data-test=championship-image-preview] [data-test=championship-image-front] img'
 
-// Smoke do painel: cada tela abre com os dados mockados e sem erro no console.
 test.describe('Seleção de campeonato e liga', () => {
   test('master sem liga ativa escolhe campeonato e liga até o dashboard', async ({ page }) => {
     await signIn(page, { leagueId: null })
@@ -71,8 +81,14 @@ test.describe('Telas da liga', () => {
   })
 
   test('detalhe do jogador', async ({ page }) => {
-    await page.goto('/admin/liga/1/times/1/jogadores/4')
+    await page.goto('/admin/liga/1/times/1')
+    await expect(page.locator('[data-test=player-view]').first()).toBeVisible()
+    await expect(page.locator('[data-test=player-edit], [data-test=player-delete]')).toHaveCount(0)
+    await page.getByRole('link', { name: 'Ver jogador Lucas Ferreira' }).click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/times\/1\/jogadores\/4$/)
     await expect(page.locator('[data-test=player-title]')).toContainText('Lucas Ferreira')
+    await expect(page.locator('[data-test=player-edit]')).toBeVisible()
+    await expect(page.locator('[data-test=player-delete]')).toBeVisible()
     await expect(page.locator('[data-test=player-profile]')).toBeVisible()
 
     await page.getByRole('tab', { name: 'Estatísticas' }).click()
@@ -80,8 +96,13 @@ test.describe('Telas da liga', () => {
   })
 
   test('detalhe do membro da comissão técnica', async ({ page }) => {
-    await page.goto('/admin/liga/1/times/1/comissao-tecnica/1')
+    await page.goto('/admin/liga/1/times/1?tab=comissao')
+    await expect(page.locator('[data-test=member-edit], [data-test=member-delete]')).toHaveCount(0)
+    await page.getByRole('link', { name: 'Ver membro Carlos Andrade' }).click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/times\/1\/comissao-tecnica\/1$/)
     await expect(page.locator('[data-test=member-title]')).toContainText('Carlos Andrade')
+    await expect(page.locator('[data-test=member-edit]')).toBeVisible()
+    await expect(page.locator('[data-test=member-delete]')).toBeVisible()
   })
 
   test('estádios', async ({ page }) => {
@@ -95,12 +116,25 @@ test.describe('Telas da liga', () => {
   })
 
   test('detalhe da partida com a súmula', async ({ page }) => {
+    const calls = apiCalls(page)
     await page.goto('/admin/liga/1/partidas/1')
     await expect(page.locator('[data-test=game-score]')).toHaveText('2 × 1')
     await expect(page.locator('[data-test=game-details]')).toContainText('Estádio Municipal')
 
     await page.getByRole('tab', { name: 'Súmula' }).click()
-    await expect(page.locator('[data-test=event-row]')).toHaveCount(4)
+    const rows = page.locator('[data-test=event-row]')
+    await expect(rows).toHaveCount(4)
+    await expect(rows.first()).toContainText("78'")
+    await expect(rows.first()).toContainText('Gol · Serrano')
+    await expect(rows.last()).toContainText("23'")
+    await expect(page.locator('[data-test=event-action]')).toHaveText([
+      'Gol',
+      'Gol contra',
+      'Cartão amarelo',
+      'Cartão vermelho',
+    ])
+    expect(calls.filter((call) => /\/(game-events|teams)/.test(call))).toEqual([])
+    expect(calls).toContain('GET /event-types')
   })
 
   test('usuários', async ({ page }) => {
@@ -127,8 +161,75 @@ test.describe('Telas da liga', () => {
     await signIn(page, { role: 'admin' })
     await page.goto('/admin/liga/1/partidas')
     await expect(page.locator('[data-test=game-create]')).toBeVisible()
+    await expect(page.locator('[data-test=game-view]')).toHaveCount(6)
+    await expect(page.locator('[data-test=game-edit], [data-test=game-delete]')).toHaveCount(0)
     await page.locator('.v-navigation-drawer').getByRole('link', { name: 'Usuários' }).click()
     await expect(page.locator('[data-test=users-table]')).toContainText('Carla Técnica')
+  })
+})
+
+test.describe('Lista de partidas', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page)
+  })
+
+  function gameQueries(page: Page) {
+    const queries: string[] = []
+    page.on('request', (request) => {
+      const url = new URL(request.url())
+      if (request.method() === 'GET' && url.href.startsWith(`${API_BASE_URL}/games?`)) {
+        url.searchParams.delete('league_id')
+        queries.push(url.searchParams.toString())
+      }
+    })
+    return queries
+  }
+
+  test('o olho abre o detalhe e "Partidas" volta com os filtros aplicados', async ({ page }) => {
+    const queries = gameQueries(page)
+    await page.goto('/admin/liga/1/partidas')
+    await expect(page.locator('[data-test=games-table] tbody tr')).toHaveCount(6)
+
+    await page.locator('[data-test=game-status-filter]').click()
+    await page.getByRole('option', { name: 'Finalizada' }).click()
+    await page.locator('[data-test=game-search]').click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\?status=finished$/)
+
+    const view = page.locator('[data-test=game-view][href$="/partidas/1"]')
+    await expect(view).toHaveAttribute('aria-label', 'Ver partida Serrano × Ribeirinho')
+    await view.click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\/1$/)
+    await expect(page.locator('[data-test=game-score]')).toHaveText('2 × 1')
+    await page.getByRole('tab', { name: 'Súmula' }).click()
+    await expect(page).toHaveURL(/\?tab=sumula$/)
+
+    await page.locator('[data-test=back-to-games]').click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\?status=finished$/)
+    await expect(page.locator('[data-test=game-status-filter]')).toContainText('Finalizada')
+    await expect(page.locator('[data-test=games-table] tbody tr')).toHaveCount(6)
+    expect(queries).toEqual([
+      'page=1&per_page=20',
+      'page=1&per_page=20&status=finished',
+      'page=1&per_page=20&status=finished',
+    ])
+  })
+
+  test('excluir pelo detalhe volta para a lista com os filtros', async ({ page, api }) => {
+    let deleted = false
+    api.on('DELETE', '/games/1', () => {
+      deleted = true
+      return { status: 204 }
+    })
+    await page.goto('/admin/liga/1/partidas?status=finished&per_page=10')
+    await expect(page.locator('[data-test=game-status-filter]')).toContainText('Finalizada')
+
+    await page.locator('[data-test=game-view][href$="/partidas/1"]').click()
+    await page.locator('[data-test=game-delete]').click()
+    await openDialog(page).getByRole('button', { name: 'Excluir' }).click()
+
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\?status=finished&per_page=10$/)
+    expect(deleted).toBe(true)
+    await expect(page.locator('[data-test=game-status-filter]')).toContainText('Finalizada')
   })
 })
 
@@ -177,7 +278,7 @@ test.describe('Formulários de criação e edição', () => {
     await expect(openDialog(page).getByLabel('Nome')).toHaveValue('Estádio Municipal')
   })
 
-  test('nova partida sem status e gols; editar mostra os dois', async ({ page, api }) => {
+  test('nova partida sem status e gols; editar mostra só o status', async ({ page, api }) => {
     let created: Record<string, unknown> = {}
     api.on('POST', '/games', ({ request }) => {
       created = request.postDataJSON() as Record<string, unknown>
@@ -198,25 +299,60 @@ test.describe('Formulários de criação e edição', () => {
     await dialog.locator('[data-test=form-submit]').click()
 
     await expect(page).toHaveURL(/\/admin\/liga\/1\/partidas\/1$/)
-    expect(created).toMatchObject({
-      home_team_id: 1,
-      away_team_id: 2,
-      status: 'scheduled',
-      home_score: null,
-      away_score: null,
-    })
+    expect(created).toMatchObject({ home_team_id: 1, away_team_id: 2, status: 'scheduled' })
+    expect(created).not.toHaveProperty('home_score')
+    expect(created).not.toHaveProperty('away_score')
 
-    await page.goto('/admin/liga/1/partidas')
-    await page.locator('[data-test=game-edit]').first().click()
-    await expect(openDialog(page)).toContainText('Editar partida')
-    await expect(openDialog(page).locator('[data-test=game-status]')).toBeVisible()
-    await expect(openDialog(page).locator('[data-test=game-home-score]')).toBeVisible()
+    let updated: Record<string, unknown> = {}
+    api.on('PUT', '/games/1', ({ request }) => {
+      updated = request.postDataJSON() as Record<string, unknown>
+      return { body: fixture('game-1') }
+    })
+    await page.locator('[data-test=game-edit]').click()
+    const edit = openDialog(page)
+    await expect(edit).toContainText('Editar partida')
+    await expect(edit.locator('[data-test=game-status]')).toBeVisible()
+    await expect(edit.locator('[data-test=game-home-score]')).toHaveCount(0)
+    await expect(edit.locator('[data-test=game-away-score]')).toHaveCount(0)
+    await edit.locator('[data-test=form-submit]').click()
+    await expect(openDialog(page)).toHaveCount(0)
+    expect(updated).toMatchObject({ home_team_id: 1, away_team_id: 2 })
+    expect(updated).not.toHaveProperty('home_score')
+    expect(updated).not.toHaveProperty('away_score')
   })
 
-  test('registrar evento na súmula', async ({ page }) => {
+  test('registrar gol contra na súmula recarrega a partida', async ({ page, api }) => {
+    let posted: Record<string, unknown> = {}
+    api.on('POST', '/game-events', ({ request }) => {
+      posted = request.postDataJSON() as Record<string, unknown>
+      return { status: 201, body: { data: { id: 9, league_id: 1, ...posted } } }
+    })
+    const calls = apiCalls(page)
     await page.goto('/admin/liga/1/partidas/1?tab=sumula')
-    await page.locator('[data-test=event-create]').click()
-    await expect(openDialog(page)).toContainText('Registrar evento')
+    await expect(page.locator('[data-test=event-row]')).toHaveCount(4)
+
+    await page.getByRole('button', { name: 'Gol contra', exact: true }).click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=event-form-title]')).toHaveText('Registrar Gol contra')
+    await expect(dialog.locator('[data-test=event-type]')).toHaveCount(0)
+    await expect(dialog).toContainText('o evento conta para o adversário')
+    await expect(dialog.locator('[data-test=event-assist]')).toHaveCount(0)
+    await dialog.locator('[data-test=event-team]').click()
+    await page.getByRole('option', { name: 'Ribeirinho' }).click()
+    await dialog.locator('[data-test=event-player]').click()
+    await page.getByRole('option', { name: 'Gustavo Pires' }).click()
+    await dialog.locator('[data-test=form-submit]').click()
+
+    await expect(openDialog(page)).toHaveCount(0)
+    expect(posted).toMatchObject({
+      game_id: 1,
+      team_id: 2,
+      player_id: 8,
+      type: 'own_goal',
+      related_player_id: null,
+    })
+    await expect.poll(() => calls.filter((call) => call === 'GET /games/1').length).toBe(2)
+    expect(calls.filter((call) => call.includes('/teams'))).toEqual([])
   })
 
   test('novo e editar usuário', async ({ page }) => {
@@ -363,7 +499,6 @@ test.describe('Campeonatos (master)', () => {
     })
     await expect(preview).toHaveAttribute('src', /^blob:/)
 
-    // Lixeira na imagem nova escolhida sobre a salva: o campeonato fica sem imagem.
     await page.getByRole('button', { name: 'Remover imagem' }).click()
     await expect(page.locator('[data-test=championship-image-empty]')).toBeVisible()
     await expect(page.locator('[data-test=championship-image-preview-open]')).toBeDisabled()
@@ -407,7 +542,6 @@ test.describe('Campeonatos (master)', () => {
   })
 
   test('excluir liga pede a senha: errada e depois a certa', async ({ page, api }) => {
-    // Liga 2 é a ativa: depois da exclusão o contexto precisa ser limpo.
     await signIn(page, { leagueId: 2 })
     const passwords: string[] = []
     api.allowConsoleError(/status of 422/).on('DELETE', '/leagues/2', ({ request }) => {
@@ -448,7 +582,6 @@ test.describe('Campeonatos (master)', () => {
     page,
     api,
   }) => {
-    // Liga 2 (Série B) é a ativa e pertence ao campeonato: o contexto precisa ser limpo.
     await signIn(page, { leagueId: 2 })
     const passwords: string[] = []
     let deleted = false

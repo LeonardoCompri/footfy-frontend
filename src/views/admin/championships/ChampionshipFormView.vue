@@ -15,7 +15,6 @@ import ChampionshipImagePreviewDialog from '@/components/championships/Champions
 import PageHeader from '@/components/common/PageHeader.vue'
 import PasswordDeleteDialog from '@/components/common/PasswordDeleteDialog.vue'
 
-// `key` identifica o painel na tela, porque a liga nova ainda não tem id.
 interface LeagueForm extends LeaguePayload {
   key: number
 }
@@ -100,13 +99,11 @@ function addLeague() {
 
 function dropLeague(key: number) {
   form.leagues = form.leagues.filter((league) => league.key !== key)
-  // Os erros do 422 são por posição (`leagues.N.campo`): com a lista mudando, deixariam de bater.
   fieldErrors.value = Object.fromEntries(
     Object.entries(fieldErrors.value).filter(([field]) => !field.startsWith('leagues.')),
   )
 }
 
-// Liga nova só sai do formulário; liga salva é excluída na hora, com a senha (diálogo).
 function removeLeague(league: LeagueForm) {
   if (league.id) askDelete({ id: league.id, name: league.name })
   else dropLeague(league.key)
@@ -140,10 +137,8 @@ const newImageUrl = ref<string | null>(null)
 const imagePreview = computed(() => newImageUrl.value ?? existingImageUrl.value)
 const previewDialog = ref(false)
 const imageError = ref<string | null>(null)
-// Lixeira sobre a imagem salva: o update manda `image=''` (se não vier um arquivo novo).
 const removeImage = ref(false)
 
-// Mesmas regras do backend (mimes:jpeg,png,jpg,webp|max:2048): arquivo inválido nem entra na prévia.
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024
 
@@ -166,7 +161,6 @@ function onFileChange(event: Event) {
     imageError.value = validateImage(file)
     if (!imageError.value) selectImage(file)
   }
-  // Limpa o input para que escolher o mesmo arquivo de novo dispare o change.
   input.value = ''
 }
 
@@ -197,7 +191,6 @@ onMounted(async () => {
 async function handleSubmit(event: SubmitEventPromise) {
   const { valid } = await event
   if (!valid) {
-    // Os campos das ligas ficam montados mesmo com o painel fechado (eager): abre os inválidos.
     openLeaguePanels(
       form.leagues
         .filter((league) => requiredName(league.name) !== true || endAfterStart(league) !== true)
@@ -389,7 +382,6 @@ async function handleSubmit(event: SubmitEventPromise) {
               </v-expansion-panel-title>
 
               <v-expansion-panel-text eager>
-                <!-- Erro da liga como um todo (ex.: `leagues.N.id` de outro campeonato). -->
                 <v-alert
                   v-if="leagueError(index, 'id')"
                   type="error"

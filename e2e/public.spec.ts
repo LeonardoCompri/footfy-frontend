@@ -1,6 +1,5 @@
 import { expect, test } from './support/test'
 
-// Smoke das telas públicas: abrem com os dados mockados e sem erro no console.
 test.describe('Telas públicas', () => {
   test('home lista os campeonatos em destaque', async ({ page }) => {
     await page.goto('/')
@@ -46,7 +45,6 @@ test.describe('Telas públicas', () => {
     await page.goto('/partidas/1')
     await expect(page.getByText('Detalhes da partida em breve')).toBeVisible()
 
-    // BUG-030: aberta direto, o Voltar saía do app.
     await page.getByRole('button', { name: 'Voltar' }).click()
     await expect(page).toHaveURL(/\/campeonatos$/)
     await expect(page.getByText('Torneio de Verão')).toBeVisible()

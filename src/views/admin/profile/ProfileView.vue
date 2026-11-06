@@ -16,8 +16,6 @@ import PageHeader from '@/components/common/PageHeader.vue'
 const authStore = useAuthStore()
 const snackbar = useSnackbar()
 
-// O bloco de jogador depende só do papel: o player removido do elenco vem com `player: null`
-// no /me, e o motivo (removido ou sem vínculo) só aparece ao salvar.
 const isPlayer = authStore.hasRole('player')
 const initializing = ref(true)
 const loadError = ref<string | null>(null)
@@ -27,7 +25,6 @@ const showPassword = ref(false)
 const account = reactive({ name: '', email: '', password: '', password_confirmation: '' })
 const player = reactive({ name: '', birth_date: '' })
 
-// Cada bloco tem o próprio estado de envio e de erros da API.
 function useSubmitState() {
   const state = reactive({
     loading: false,
@@ -79,7 +76,6 @@ async function loadProfile() {
   } catch (err) {
     loadError.value = extractErrorMessage(err)
   }
-  // Sem o /me a tela segue com os dados da sessão.
   const source = me ?? authStore.user
   account.name = source?.name ?? ''
   account.email = source?.email ?? ''
@@ -88,7 +84,6 @@ async function loadProfile() {
   const linked = source?.player
   if (!isPlayer || !linked) return
   player.name = linked.name
-  // O /me não traz o nascimento: vem da ficha do jogador. Se falhar, o campo fica vazio.
   try {
     const data = await playersService.get(linked.id)
     player.name = data.name
@@ -110,7 +105,6 @@ async function submitAccount(event: SubmitEventPromise) {
   const { valid } = await event
   if (!valid) return
   const payload: ProfilePayload = { name: account.name, email: account.email || null }
-  // Senha em branco mantém a atual: só vai no payload quando preenchida.
   if (account.password) {
     payload.password = account.password
     payload.password_confirmation = account.password_confirmation

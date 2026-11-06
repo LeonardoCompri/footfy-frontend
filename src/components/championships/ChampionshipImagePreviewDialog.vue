@@ -2,8 +2,6 @@
 import { useDisplay } from 'vuetify'
 import ChampionshipImage from '@/components/championships/ChampionshipImage.vue'
 
-// Replica os tamanhos de imagem das telas reais (ChampionshipDetailView, ChampionshipCard,
-// ChampionshipSelectView e DashboardView). Se algum mudar lá, ajuste aqui também.
 defineProps<{
   modelValue: boolean
   image: string

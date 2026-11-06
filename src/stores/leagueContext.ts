@@ -19,13 +19,6 @@ function readStoredLeagueId(): number | null {
   return Number.isInteger(id) && id > 0 ? id : null
 }
 
-/**
- * Contexto de Liga ativa do painel admin. GET /leagues já vem escopado no backend
- * (master recebe todas as ligas; demais papéis só as ligas vinculadas), então a lista
- * carregada aqui é a fonte de verdade do que o usuário pode acessar — o guard de rota
- * usa `hasAccess` para bloquear URLs de ligas fora desse escopo. O master também recebe
- * GET /championships, para ver na seleção os campeonatos que ainda não têm liga.
- */
 export const useLeagueContextStore = defineStore('leagueContext', () => {
   const leagues = ref<League[]>([])
   const allChampionships = ref<Championship[]>([])
@@ -35,15 +28,12 @@ export const useLeagueContextStore = defineStore('leagueContext', () => {
   const activeLeagueId = ref<number | null>(readStoredLeagueId())
 
   let pending: Promise<void> | null = null
-  // Último Dashboard carregado por liga: ao voltar para uma liga já vista, a tela pinta
-  // na hora e revalida em segundo plano, em vez de piscar vazia a cada troca de contexto.
   const dashboardCache = new Map<number, LeagueDashboard>()
 
   const activeLeague = computed(
     () => leagues.value.find((league) => league.id === activeLeagueId.value) ?? null,
   )
 
-  // Campeonatos derivados das ligas acessíveis (mais os sem liga, só master), para a seleção.
   const championships = computed<ChampionshipWithLeagues[]>(() => {
     const groups = new Map<number, ChampionshipWithLeagues>()
     for (const championship of allChampionships.value) {
@@ -103,7 +93,6 @@ export const useLeagueContextStore = defineStore('leagueContext', () => {
     localStorage.setItem(STORAGE_KEY, String(leagueId))
   }
 
-  // Liga ativa excluída: o painel volta para a seleção em vez de abrir uma liga que não existe.
   function clearActiveLeague() {
     activeLeagueId.value = null
     localStorage.removeItem(STORAGE_KEY)

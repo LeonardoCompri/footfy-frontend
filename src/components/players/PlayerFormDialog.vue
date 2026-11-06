@@ -34,7 +34,6 @@ const form = reactive<PlayerPayload>({
 
 const isEditing = computed(() => !!props.player)
 
-// Jogadores antigos podem ter posição em texto livre: mantém o valor atual selecionável.
 const positionItems = computed(() => {
   const current = props.player?.position
   if (!current || positions.value.some((p) => p.value === current)) return positions.value
@@ -64,7 +63,6 @@ function toNullableNumber(value: unknown): number | null {
 }
 
 async function handleSubmit() {
-  // O time nunca é perguntado: vem do contexto da tela (time aberto).
   const payload = {
     ...form,
     team_id: props.teamId,

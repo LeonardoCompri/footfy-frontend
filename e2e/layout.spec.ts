@@ -1,9 +1,7 @@
 import type { Page } from '@playwright/test'
 import { sampleImageUrl } from './support/images'
-import { fixture } from './support/mock-api'
+import { fixture, type MockApi } from './support/mock-api'
 import { DESKTOP, expect, MOBILE, openDialog, signIn, test } from './support/test'
-
-// Checagens de estrutura que o jsdom do Vitest não enxerga (layout real no Chromium).
 
 function drawer(page: Page) {
   return page.locator('.v-navigation-drawer')
@@ -21,7 +19,6 @@ test.describe('Menu lateral no desktop', () => {
     const header = page.locator('[data-test=dashboard-header]')
     await expect(header).toBeVisible()
 
-    // FOOT-0022: o drawer permanente ficava fora da tela e nenhum teste pegava.
     await expect(drawer(page)).toBeInViewport({ ratio: 1 })
     const drawerBox = await drawer(page).boundingBox()
     const headerBox = await header.boundingBox()
@@ -51,8 +48,6 @@ test.describe('Menu lateral no desktop', () => {
     await expect(page.locator('[data-test=championship-card]')).toHaveCount(2)
   })
 
-  // BUG-034: links com `:to` sem leagueId lançavam "Missing required param" ao sair da liga
-  // (o fixture `api` falha o teste com qualquer pageerror).
   const LEAGUE_SCREENS = [
     { name: 'dashboard', path: '/admin/liga/1', ready: '[data-test=dashboard-header]' },
     { name: 'detalhe do time', path: '/admin/liga/1/times/1', ready: '[data-test=team-title]' },
@@ -102,15 +97,12 @@ test.describe('Menu lateral no desktop', () => {
     await page.goto('/admin/liga/1')
     await page.locator('[data-test=goals-bar]').first().hover()
 
-    // Os tooltips já abertos uma vez continuam no DOM: só o ativo interessa.
     const tooltip = page.locator('.v-tooltip.v-overlay--active > .v-overlay__content')
     await expect(tooltip).toBeVisible()
     await expect(tooltip).toHaveText(/3 gols\s*· Rodada 1/)
     await expect(tooltip).toBeInViewport()
   })
 
-  // O cabeçalho do menu recolhido crescia ~370px (o subtítulo quebrava letra a letra) e a
-  // navegação só começava no meio da tela.
   test('recolhido, o cabeçalho mostra só o símbolo e a navegação começa no topo', async ({
     page,
   }) => {
@@ -120,7 +112,6 @@ test.describe('Menu lateral no desktop', () => {
     await drawer(page).getByText('Recolher').click()
     await expect(drawer(page)).toHaveClass(/v-navigation-drawer--rail/)
     await expect(page.getByText('Painel Administrativo')).toHaveCount(0)
-    // Espera a transição de largura terminar antes de medir.
     await expect.poll(async () => (await drawer(page).boundingBox())!.width).toBe(56)
 
     const brand = drawer(page).locator('[data-test=drawer-brand]')
@@ -128,7 +119,6 @@ test.describe('Menu lateral no desktop', () => {
     const symbol = await brand.getByRole('img', { name: 'Futy' }).boundingBox()
     const firstItem = await drawer(page).locator('.v-list-item[href]').first().boundingBox()
     expect(firstItem!.y).toBeLessThan(130)
-    // Símbolo no mesmo eixo dos ícones da navegação.
     const itemIcon = await drawer(page).locator('.v-list-item[href] .v-icon').first().boundingBox()
     expect(
       Math.abs(symbol!.x + symbol!.width / 2 - (itemIcon!.x + itemIcon!.width / 2)),
@@ -162,12 +152,10 @@ test.describe('Menu lateral no mobile', () => {
   })
 })
 
-// Tela + algo que só aparece depois que os dados carregaram.
 interface MobileScreen {
   path: string
   ready: string
   role?: 'master' | 'admin'
-  // Bug conhecido que ainda quebra a checagem: o teste fica marcado como falha esperada.
   knownBug?: string
 }
 
@@ -256,7 +244,6 @@ test.describe('Imagem do campeonato no mobile', () => {
     await page.getByRole('button', { name: 'Visualizar aplicação' }).click()
     const dialog = openDialog(page).locator('[data-test=image-preview-dialog]')
     await expect(dialog).toContainText('Como a imagem aparece')
-    // A transição de abertura escala o diálogo: espera ela terminar.
     await expect
       .poll(async () => (await dialog.boundingBox())!.width, { message: 'diálogo em tela cheia' })
       .toBe(MOBILE.width)
@@ -268,7 +255,50 @@ test.describe('Imagem do campeonato no mobile', () => {
   })
 })
 
-// BUG-013: em telas estreitas os três botões com texto estouravam o app bar público.
+test.describe('Formulário de partida em liga híbrida', () => {
+  async function openNewGame(page: Page, api: MockApi) {
+    const leagues = fixture<{ data: { id: number; format: string }[] }>('leagues')
+    leagues.data[0].format = 'hybrid'
+    api.on('GET', '/leagues', { body: leagues })
+    await signIn(page)
+    await page.goto('/admin/liga/1/partidas')
+    await page.locator('[data-test=game-create]').click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=game-stage-toggle]')).toBeVisible()
+    return dialog
+  }
+
+  test('360px: o alternador cabe inteiro e a Fase tem borda como os outros campos', async ({
+    page,
+    api,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 760 })
+    const dialog = await openNewGame(page, api)
+    const toggle = dialog.locator('[data-test=game-stage-toggle]')
+
+    expect(await toggle.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
+    for (const name of ['Rodada', 'Fase']) {
+      await expect(toggle.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
+    }
+
+    await toggle.getByRole('button', { name: 'Fase', exact: true }).click()
+    await expect(dialog.locator('[data-test=game-phase] .v-field')).toHaveClass(
+      /v-field--variant-outlined/,
+    )
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
+
+  test('desktop: o alternador mostra os rótulos completos', async ({ page, api }) => {
+    await page.setViewportSize(DESKTOP)
+    const dialog = await openNewGame(page, api)
+    const toggle = dialog.locator('[data-test=game-stage-toggle]')
+
+    await expect(toggle.getByRole('button', { name: 'Rodada (grupos)' })).toBeVisible()
+    await expect(toggle.getByRole('button', { name: 'Fase (mata-mata)' })).toBeVisible()
+    expect(await toggle.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
+  })
+})
+
 test.describe('App bar pública no mobile', () => {
   for (const width of [320, 400]) {
     for (const loggedIn of [false, true]) {
@@ -290,10 +320,7 @@ test.describe('App bar pública no mobile', () => {
   }
 })
 
-// BUG-036: "Início" ficava ativo em toda tela pública. Confere também que o destaque aparece de
-// fato (overlay do v-btn), coisa que o jsdom não calcula.
 test.describe('App bar pública marca a página atual', () => {
-  // No mobile "Início" não aparece (o logo leva à home) e "Campeonatos" é só o ícone.
   const SCREENS = [
     { path: '/', ready: 'text=Campeonatos em destaque', desktop: ['Início'], mobile: [] },
     { path: '/campeonatos', ready: 'text=Torneio de Verão', desktop: ['Campeonatos'] },
@@ -328,7 +355,6 @@ test.describe('App bar pública marca a página atual', () => {
   }
 })
 
-// BUG-031: o v-card-title cortava o nome do time com reticências.
 test('detalhe público do time mostra o nome longo inteiro em 390px', async ({ page, api }) => {
   const longName = 'Sport Club Corinthians Paulista'
   const team = fixture<{ data: { name: string } }>('public-team-1')

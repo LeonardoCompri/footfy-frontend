@@ -30,8 +30,6 @@ const leagueContext = useLeagueContextStore()
 const { loading, errorMessage, fieldErrors, save } = useCrud<User, UserPayload>(usersService)
 const snackbar = useSnackbar()
 
-// Regra do backend: admin só cria coach e player e só master troca o papel na edição.
-// Para quem não é master o vínculo do papel (time do coach, jogador do player) é obrigatório.
 const isMaster = authStore.hasRole('master')
 const roleOptions = isMaster
   ? USER_ROLE_OPTIONS
@@ -64,7 +62,6 @@ const leagueItems = computed(() =>
   })),
 )
 
-// Times da liga ativa; o time atual do coach entra mesmo se for de outra liga.
 const teamItems = computed(() => {
   const items = teams.value.map((team) => ({ id: team.id, title: team.name }))
   const current = props.user?.roles.includes('coach') ? props.user.team : null
@@ -74,7 +71,6 @@ const teamItems = computed(() => {
   return items
 })
 
-// GET /players não filtra por liga: fica só com os jogadores dos times da liga ativa.
 const leaguePlayers = computed(() => {
   const teamIds = new Set(teams.value.map((team) => team.id))
   return players.value.filter((player) => player.team_id !== null && teamIds.has(player.team_id))
@@ -138,11 +134,9 @@ watch(
     form.email = props.user?.email ?? ''
     form.password = ''
     form.role = (props.user?.roles[0] as UserRole | undefined) ?? (isMaster ? 'admin' : 'coach')
-    // Novo usuário já nasce vinculado à liga ativa (pode ajustar antes de salvar).
     form.leagueIds = leagueContext.activeLeagueId ? [leagueContext.activeLeagueId] : []
     form.teamId = form.role === 'coach' ? (props.user?.team?.id ?? null) : null
     form.playerId = props.user?.player?.id ?? null
-    // Recarrega a cada abertura: vínculos feitos desde a última vez entram nas opções.
     teamsRequest = null
     playersRequest = null
     loadLinkOptions()
@@ -152,7 +146,6 @@ watch(
 
 watch(() => form.role, loadLinkOptions)
 
-// Sugere o jogador com o mesmo CPF do usuário, sem sobrescrever uma escolha já feita.
 watch([() => form.document, () => form.role, leaguePlayers], () => {
   if (form.role !== 'player' || form.playerId !== null) return
   const digits = cpfDigits(form.document)
@@ -169,14 +162,12 @@ async function handleSubmit() {
   }
   if (form.password) payload.password = form.password
   if (canChangeRole.value) payload.role = form.role
-  // Só o campo do papel atual: o outro é rejeitado pelo backend (prohibited).
   if (form.role === 'coach') payload.team_id = form.teamId
   if (form.role === 'player') payload.player_id = form.playerId
 
   let result = await save(payload, props.user?.id)
   if (!result) return
 
-  // Coach e player herdam as ligas do time vinculado: só admin recebe ligas manualmente.
   if (!isEditing.value && form.role === 'admin' && form.leagueIds.length) {
     try {
       result = await usersService.attachLeagues(result.id, form.leagueIds)

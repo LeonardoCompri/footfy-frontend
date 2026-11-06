@@ -17,7 +17,6 @@ const props = defineProps<{
   teams: Team[]
   stadiums: Stadium[]
   game?: Game | null
-  // Fases já usadas na liga, sugeridas no campo Fase (com a ordem de cada uma).
   knownPhases?: { phase: string; phase_order: number | null }[]
 }>()
 
@@ -31,8 +30,6 @@ const snackbar = useSnackbar()
 
 const DEFAULT_PHASES = ['Oitavas de final', 'Quartas de final', 'Semifinal', 'Final']
 
-// Espelha GameStoreRequest: pontos corridos usa Rodada, mata-mata usa Fase e o híbrido
-// aceita os dois (nunca ao mesmo tempo).
 type Stage = 'round' | 'phase'
 const stage = ref<Stage>('round')
 const isEditing = computed(() => !!props.game)
@@ -43,8 +40,6 @@ const form = reactive({
   stadium_id: null as number | null,
   match_date: '',
   status: 'scheduled' as GamePayload['status'],
-  home_score: null as number | string | null,
-  away_score: null as number | string | null,
   round: null as number | string | null,
   phase: null as string | null,
   phase_order: null as number | string | null,
@@ -69,7 +64,6 @@ function toNullableNumber(value: unknown): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-// Ao escolher uma fase já usada na liga, reaproveita a ordem dela (se ainda vazia).
 function onPhaseChange(phase: string | null) {
   if (!phase || form.phase_order) return
   const known = props.knownPhases?.find((item) => item.phase === phase)
@@ -88,8 +82,6 @@ watch(
     form.stadium_id = game?.stadium_id ?? null
     form.match_date = toDateTimeLocal(game?.match_date ?? null)
     form.status = game?.status ?? 'scheduled'
-    form.home_score = game?.home_score ?? null
-    form.away_score = game?.away_score ?? null
     form.round = game?.round ?? null
     form.phase = game?.phase ?? null
     form.phase_order = game?.phase_order ?? null
@@ -111,10 +103,7 @@ async function handleSubmit() {
     away_team_id: form.away_team_id as number,
     stadium_id: form.stadium_id,
     match_date: form.match_date || null,
-    // Partida nova nasce agendada e sem placar: status e gols só na edição.
     status: isEditing.value ? form.status : 'scheduled',
-    home_score: isEditing.value ? toNullableNumber(form.home_score) : null,
-    away_score: isEditing.value ? toNullableNumber(form.away_score) : null,
     round: usesPhase ? null : toNullableNumber(form.round),
     phase: usesPhase ? form.phase?.trim() || null : null,
     phase_order: usesPhase ? toNullableNumber(form.phase_order) : null,
@@ -140,7 +129,7 @@ async function handleSubmit() {
     @submit="handleSubmit"
   >
     <v-row dense>
-      <v-col cols="12" sm="6">
+      <v-col cols="12">
         <v-autocomplete
           v-model="form.home_team_id"
           :items="teams"
@@ -151,7 +140,7 @@ async function handleSubmit() {
           data-test="game-home-team"
         />
       </v-col>
-      <v-col cols="12" sm="6">
+      <v-col cols="12">
         <v-autocomplete
           v-model="form.away_team_id"
           :items="teams"
@@ -160,6 +149,26 @@ async function handleSubmit() {
           label="Visitante"
           :error-messages="sameTeam ? ['O visitante deve ser diferente do mandante.'] : fieldErrors.away_team_id"
           data-test="game-away-team"
+        />
+      </v-col>
+      <v-col v-if="isEditing" cols="12" sm="6">
+        <v-select
+          v-model="form.status"
+          :items="GAME_STATUS_OPTIONS"
+          item-title="title"
+          item-value="value"
+          label="Status"
+          :error-messages="fieldErrors.status"
+          data-test="game-status"
+        />
+      </v-col>
+      <v-col cols="12" :sm="isEditing ? 6 : 12">
+        <v-text-field
+          v-model="form.match_date"
+          label="Data e hora"
+          type="datetime-local"
+          :error-messages="fieldErrors.match_date"
+          data-test="game-match-date"
         />
       </v-col>
     </v-row>
@@ -174,70 +183,35 @@ async function handleSubmit() {
       class="mb-4"
       data-test="game-stage-toggle"
     >
-      <v-btn value="round">Rodada (grupos)</v-btn>
-      <v-btn value="phase">Fase (mata-mata)</v-btn>
+      <v-btn value="round">
+        <span class="d-none d-sm-inline">Rodada (grupos)</span>
+        <span class="d-sm-none">Rodada</span>
+      </v-btn>
+      <v-btn value="phase">
+        <span class="d-none d-sm-inline">Fase (mata-mata)</span>
+        <span class="d-sm-none">Fase</span>
+      </v-btn>
     </v-btn-toggle>
-
-    <v-text-field
-      v-if="stage === 'round'"
-      v-model="form.round"
-      label="Rodada"
-      type="number"
-      min="1"
-      :error-messages="fieldErrors.round"
-      data-test="game-round"
-    />
-    <template v-else>
-      <v-row dense>
-        <v-col cols="8">
-          <v-combobox
-            v-model="form.phase"
-            :items="phaseItems"
-            label="Fase"
-            :error-messages="fieldErrors.phase"
-            data-test="game-phase"
-            @update:model-value="onPhaseChange"
-          />
-        </v-col>
-        <v-col cols="4">
-          <v-text-field
-            v-model="form.phase_order"
-            label="Ordem"
-            type="number"
-            min="1"
-            hint="1 = primeira fase"
-            :error-messages="fieldErrors.phase_order"
-          />
-        </v-col>
-        <v-col cols="12" sm="6">
-          <v-text-field
-            v-model="form.tie_key"
-            label="Confronto"
-            hint="Mesma chave na ida e na volta (ex.: QF1)"
-            :error-messages="fieldErrors.tie_key"
-            data-test="game-tie-key"
-          />
-        </v-col>
-        <v-col cols="12" sm="6">
-          <v-select
-            v-model="form.leg"
-            :items="GAME_LEG_OPTIONS"
-            item-title="title"
-            item-value="value"
-            label="Perna"
-            :error-messages="fieldErrors.leg"
-          />
-        </v-col>
-      </v-row>
-    </template>
 
     <v-row dense>
       <v-col cols="12" sm="6">
         <v-text-field
-          v-model="form.match_date"
-          label="Data e hora"
-          type="datetime-local"
-          :error-messages="fieldErrors.match_date"
+          v-if="stage === 'round'"
+          v-model="form.round"
+          label="Rodada"
+          type="number"
+          min="1"
+          :error-messages="fieldErrors.round"
+          data-test="game-round"
+        />
+        <v-combobox
+          v-else
+          v-model="form.phase"
+          :items="phaseItems"
+          label="Fase"
+          :error-messages="fieldErrors.phase"
+          data-test="game-phase"
+          @update:model-value="onPhaseChange"
         />
       </v-col>
       <v-col cols="12" sm="6">
@@ -249,38 +223,39 @@ async function handleSubmit() {
           label="Estádio"
           clearable
           :error-messages="fieldErrors.stadium_id"
+          data-test="game-stadium"
         />
       </v-col>
-      <template v-if="isEditing">
-        <v-col cols="12" sm="6">
+      <template v-if="stage === 'phase'">
+        <v-col cols="4" sm="3">
+          <v-text-field
+            v-model="form.phase_order"
+            label="Ordem"
+            type="number"
+            min="1"
+            hint="1 = primeira fase"
+            :error-messages="fieldErrors.phase_order"
+            data-test="game-phase-order"
+          />
+        </v-col>
+        <v-col cols="8" sm="5">
+          <v-text-field
+            v-model="form.tie_key"
+            label="Confronto"
+            hint="Mesma chave na ida e na volta (ex.: QF1)"
+            :error-messages="fieldErrors.tie_key"
+            data-test="game-tie-key"
+          />
+        </v-col>
+        <v-col cols="12" sm="4">
           <v-select
-            v-model="form.status"
-            :items="GAME_STATUS_OPTIONS"
+            v-model="form.leg"
+            :items="GAME_LEG_OPTIONS"
             item-title="title"
             item-value="value"
-            label="Status"
-            :error-messages="fieldErrors.status"
-            data-test="game-status"
-          />
-        </v-col>
-        <v-col cols="6" sm="3">
-          <v-text-field
-            v-model="form.home_score"
-            label="Gols mandante"
-            type="number"
-            min="0"
-            :error-messages="fieldErrors.home_score"
-            data-test="game-home-score"
-          />
-        </v-col>
-        <v-col cols="6" sm="3">
-          <v-text-field
-            v-model="form.away_score"
-            label="Gols visitante"
-            type="number"
-            min="0"
-            :error-messages="fieldErrors.away_score"
-            data-test="game-away-score"
+            label="Perna"
+            :error-messages="fieldErrors.leg"
+            data-test="game-leg"
           />
         </v-col>
       </template>

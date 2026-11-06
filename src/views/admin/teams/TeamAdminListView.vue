@@ -34,7 +34,6 @@ function openTeam(team: Team) {
   router.push({ name: 'admin-teams-detail', params: { teamId: team.id } })
 }
 
-// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
 onMounted(() => fetchAll({ league_id: leagueId }))
 </script>
 

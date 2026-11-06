@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useDisplay } from 'vuetify'
 
-// No mobile o card fica mais compacto para caber 2 por linha.
 const { xs } = useDisplay()
 
 defineProps<{

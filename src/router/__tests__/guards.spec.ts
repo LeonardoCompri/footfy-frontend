@@ -65,7 +65,6 @@ describe('adminGuard — contexto de Liga ativa', () => {
     const result = await adminGuard(leagueRoute(99))
 
     expect(result).toEqual({ name: 'admin-select-championship', query: { negado: '1' } })
-    // A liga ativa anterior continua intacta — nada da liga negada vaza para o contexto.
     expect(useLeagueContextStore().activeLeagueId).toBe(1)
   })
 
@@ -75,7 +74,6 @@ describe('adminGuard — contexto de Liga ativa', () => {
     await adminGuard(leagueRoute(2))
 
     expect(useLeagueContextStore().activeLeagueId).toBe(2)
-    // GET /leagues é carregado uma vez só por sessão de navegação.
     expect(listLeagues).toHaveBeenCalledTimes(1)
   })
 
