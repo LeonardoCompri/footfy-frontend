@@ -3,7 +3,12 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePublicItem } from '@/composables/usePublicItem'
 import { publicLeaguesService } from '@/services/api/publicLeagues.service'
-import { GAME_STATUS_OPTIONS } from '@/types/game'
+import {
+  compareGamesForListing,
+  GAME_STATUS_OPTIONS,
+  gameStageLabel,
+  scoreLabel,
+} from '@/types/game'
 import type { Game } from '@/types/game'
 import type { League } from '@/types/championship'
 import QueryTabs from '@/components/common/QueryTabs.vue'
@@ -11,6 +16,8 @@ import StatTiles from '@/components/common/StatTiles.vue'
 import TeamCard from '@/components/teams/TeamCard.vue'
 import LeagueStatisticsPanel from '@/components/leagues/LeagueStatisticsPanel.vue'
 import LeagueTablePanel from '@/components/leagues/LeagueTablePanel.vue'
+import { bracketConfig } from '@/components/leagues/leagueKnockout'
+import { groupQualifiers } from '@/components/leagues/standings'
 
 const props = defineProps<{ id: string }>()
 
@@ -25,9 +32,7 @@ const tabs = [
 ]
 
 const teams = computed(() => league.value?.teams ?? [])
-const games = computed(() =>
-  [...(league.value?.games ?? [])].sort((a, b) => (a.round ?? 0) - (b.round ?? 0)),
-)
+const games = computed(() => [...(league.value?.games ?? [])].sort(compareGamesForListing))
 const stadiums = computed(() => league.value?.stadiums ?? [])
 
 const statTiles = computed(() => [
@@ -105,10 +110,10 @@ onMounted(() => fetchOne(props.id))
           <v-alert v-if="games.length === 0" type="info" variant="tonal">
             Nenhuma partida cadastrada para esta liga ainda.
           </v-alert>
-          <v-table v-else>
+          <v-table v-else data-test="public-games-table">
             <thead>
               <tr>
-                <th>Rodada</th>
+                <th>Etapa</th>
                 <th>Mandante</th>
                 <th>Placar</th>
                 <th>Visitante</th>
@@ -118,9 +123,9 @@ onMounted(() => fetchOne(props.id))
             </thead>
             <tbody>
               <tr v-for="game in games" :key="game.id" class="cursor-pointer" @click="goToGame(game.id)">
-                <td>{{ game.round ?? '—' }}</td>
+                <td>{{ gameStageLabel(game) }}</td>
                 <td>{{ teamName(game.home_team_id) }}</td>
-                <td>{{ game.home_score ?? '—' }} x {{ game.away_score ?? '—' }}</td>
+                <td class="text-no-wrap">{{ scoreLabel(game, '— × —') }}</td>
                 <td>{{ teamName(game.away_team_id) }}</td>
                 <td>{{ formatDate(game.match_date) }}</td>
                 <td>{{ statusLabel(game.status) }}</td>
@@ -147,7 +152,12 @@ onMounted(() => fetchOne(props.id))
         </template>
 
         <template #tabela>
-          <LeagueTablePanel :format="league.format" :load="() => publicLeaguesService.table(props.id)" />
+          <LeagueTablePanel
+            :format="league.format"
+            :qualifiers="groupQualifiers(league)"
+            :bracket="bracketConfig(league)"
+            :load="() => publicLeaguesService.table(props.id)"
+          />
         </template>
 
         <template #estatisticas>

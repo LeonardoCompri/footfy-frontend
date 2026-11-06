@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { API_BASE_URL } from './support/env'
 import { samplePng, sampleImageUrl } from './support/images'
-import { fixture } from './support/mock-api'
+import { fixture, type MockApi } from './support/mock-api'
 import { DESKTOP, expect, MOBILE, openDialog, pickOption, signIn, test } from './support/test'
 
 function apiCalls(page: Page) {
@@ -679,7 +679,7 @@ test.describe('Regulamento da liga', () => {
   }
 
   function assignedGroups(extra: Partial<GroupsBody> = {}): Body<GroupsBody> {
-    const teams = groupsBody().data.unassigned
+    const teams = groupsBody().data.groups[0].teams
     return groupsBody({
       fixture_mode: 'draw',
       groups_count: 2,
@@ -734,6 +734,7 @@ test.describe('Regulamento da liga', () => {
             { group_number: 1, teams: [] },
             { group_number: 2, teams: [] },
           ],
+          unassigned: groupsBody().data.groups[0].teams,
         })
         return { body: leagueBody(sent) }
       })
@@ -748,8 +749,13 @@ test.describe('Regulamento da liga', () => {
     await expect(page).toHaveURL(/\/admin\/liga\/1\/regulamento$/)
     await expect(page.locator('[data-test=rules-format] input')).toHaveValue('Grupos + mata-mata')
     await expect(page.locator('[data-test=rules-summary]')).toHaveText('4 times → 1 grupo de 4')
+    await expect(page.locator('[data-test=rules-groups-count] input')).toBeDisabled()
+    await expect(page.locator('[data-test=rules-groups-count]')).toContainText(
+      'Na tabela manual, a liga tem um único grupo.',
+    )
 
     await choose(page, 'rules-fixture-mode', 'Sorteio')
+    await expect(page.locator('[data-test=rules-groups-count] input')).toBeEnabled()
     await page.locator('[data-test=rules-submit]').click()
     await expect(page.locator('[data-test=rules-qualifiers]')).toContainText(
       'Obrigatório para o sorteio.',
@@ -768,6 +774,7 @@ test.describe('Regulamento da liga', () => {
 
     await page.locator('[data-test=rules-submit]').click()
     await expect(page.getByText('Regulamento salvo com sucesso.')).toBeVisible()
+    await expect(page.locator('.v-dialog.v-overlay--active')).toHaveCount(0)
     expect(sent).toEqual(HYBRID_DRAW)
 
     await expect(page.locator('[data-test=groups-unassigned] [data-test=group-team]')).toHaveCount(4)
@@ -793,6 +800,43 @@ test.describe('Regulamento da liga', () => {
       { team_id: 3, group_number: 1 },
       { team_id: 4, group_number: 2 },
     ])
+  })
+
+  test('tabela manual fixa um grupo e a conta do mata-mata segue grupos × classificados', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page)
+    let sent: Record<string, unknown> = {}
+    api
+      .on('GET', '/leagues/1', { body: leagueBody(HYBRID_DRAW) })
+      .on('GET', '/leagues/1/groups', { body: assignedGroups() })
+      .on('PUT', '/leagues/1', ({ request }) => {
+        sent = request.postDataJSON() as Record<string, unknown>
+        return { body: leagueBody(sent) }
+      })
+
+    await page.goto('/admin/liga/1/regulamento')
+    await choose(page, 'rules-fixture-mode', 'Manual')
+    await expect(page.locator('[data-test=rules-groups-count] input')).toBeDisabled()
+    await expect(page.locator('[data-test=rules-groups-count]')).toContainText('1')
+    await page.locator('[data-test=rules-submit]').click()
+    await expect(page.locator('[data-test=rules-knockout-size]')).toContainText(
+      'O tamanho do mata-mata deve ser igual a grupos × classificados por grupo (1).',
+    )
+    expect(sent).toEqual({})
+
+    await choose(page, 'rules-qualifiers', '2')
+    await expect(page.locator('[data-test=rules-summary]')).toHaveText(
+      '4 times → 1 grupo de 4 → 2 classificados → Final',
+    )
+    await page.locator('[data-test=rules-submit]').click()
+    const dialog = page.locator('.v-dialog.v-overlay--active')
+    await expect(dialog).toContainText('a montagem atual dos grupos será apagada')
+    await dialog.getByRole('button', { name: 'Salvar' }).click()
+
+    await expect(page.getByText('Regulamento salvo com sucesso.')).toBeVisible()
+    expect(sent).toMatchObject({ fixture_mode: 'manual', groups_count: 1, qualifiers_per_group: 2 })
   })
 
   test('liga com rodadas sorteadas fica travada e os grupos só leitura', async ({ page, api }) => {
@@ -834,6 +878,738 @@ test.describe('Regulamento da liga', () => {
         .locator('[data-test=tiebreaker-remove], [data-test=group-team-select]')
         .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().right))
       expect(Math.max(...rightEdges)).toBeLessThanOrEqual(viewport.width)
+    })
+  }
+})
+
+test.describe('Sorteio de rodadas', () => {
+  type Body<T = Record<string, unknown>> = { data: T }
+  type Team = { id: number; name: string; nickname: string }
+
+  const teams = fixture<Body<Team[]>>('teams').data
+  const NOTHING_DRAWN = 'Nenhuma rodada foi sorteada.'
+
+  function drawState(extra: Record<string, unknown> = {}) {
+    return {
+      league_id: 1,
+      format: 'hybrid',
+      fixture_mode: 'draw',
+      groups_count: 2,
+      group_legs: 2,
+      group_size: 2,
+      rounds_per_turn: 1,
+      total_rounds: 2,
+      drawn_rounds: 0,
+      next_round: 1,
+      can_draw: true,
+      draw_blocked_reason: null,
+      can_undo: false,
+      undo_blocked_reason: NOTHING_DRAWN,
+      can_reset: false,
+      reset_blocked_reason: NOTHING_DRAWN,
+      manual_round_games: { total: 0, with_results: 0 },
+      groups: [
+        { group_number: 1, byes: [] },
+        { group_number: 2, byes: [] },
+      ],
+      ...extra,
+    }
+  }
+
+  function drawnState(rounds: number) {
+    return drawState({
+      drawn_rounds: rounds,
+      next_round: rounds >= 2 ? null : rounds + 1,
+      can_draw: rounds < 2,
+      draw_blocked_reason: rounds >= 2 ? 'Todas as rodadas já foram sorteadas.' : null,
+      can_undo: rounds > 0,
+      undo_blocked_reason: rounds > 0 ? null : NOTHING_DRAWN,
+      can_reset: rounds > 0,
+      reset_blocked_reason: rounds > 0 ? null : NOTHING_DRAWN,
+    })
+  }
+
+  function game(id: number, round: number, group: number, home: Team, away: Team) {
+    return {
+      id,
+      league_id: 1,
+      home_team_id: home.id,
+      away_team_id: away.id,
+      stadium_id: null,
+      match_date: null,
+      home_score: null,
+      away_score: null,
+      round,
+      group_number: group,
+      phase: null,
+      phase_order: null,
+      tie_key: null,
+      leg: null,
+      status: 'scheduled',
+      created_at: '',
+      updated_at: '',
+      homeTeam: { ...home, logo: null },
+      awayTeam: { ...away, logo: null },
+      stadium: null,
+    }
+  }
+
+  function gamesOf(rounds: number) {
+    const [serrano, ribeirinho, estrela, uniao] = teams
+    const all = [
+      game(101, 1, 1, serrano, ribeirinho),
+      game(102, 1, 2, estrela, uniao),
+      game(103, 2, 1, ribeirinho, serrano),
+      game(104, 2, 2, uniao, estrela),
+    ]
+    return all.filter((item) => item.round <= rounds)
+  }
+
+  function page1<T>(data: T[]) {
+    return {
+      data,
+      links: {},
+      meta: {
+        current_page: 1,
+        from: 1,
+        last_page: 1,
+        per_page: 100,
+        to: data.length,
+        total: data.length,
+      },
+    }
+  }
+
+  function drawLeagues() {
+    const body = fixture<Body<Record<string, unknown>[]>>('leagues')
+    return {
+      data: body.data.map((league) =>
+        league.id === 1
+          ? { ...league, format: 'hybrid', fixture_mode: 'draw', groups_count: 2, group_legs: 2 }
+          : league,
+      ),
+    }
+  }
+
+  function installDraw(api: MockApi, initial: ReturnType<typeof drawState>) {
+    const sent: { method: string; path: string; body: unknown }[] = []
+    let state = initial
+    api
+      .on('GET', '/leagues', { body: drawLeagues() })
+      .on('GET', '/leagues/1/draw', () => ({ body: { data: state } }))
+      .on('GET', '/games', () => ({ body: page1(gamesOf(state.drawn_rounds)) }))
+      .on('POST', '/leagues/1/draw/next-round', ({ request }) => {
+        const body = request.postDataJSON() as { round: number }
+        sent.push({ method: 'POST', path: 'next-round', body })
+        state = drawnState(body.round)
+        return { body: { data: state } }
+      })
+      .on('DELETE', '/leagues/1/draw/last-round', ({ request }) => {
+        const body = request.postDataJSON() as { round: number }
+        sent.push({ method: 'DELETE', path: 'last-round', body })
+        state = drawnState(body.round - 1)
+        return { body: { data: state } }
+      })
+      .on('DELETE', '/leagues/1/draw', ({ request }) => {
+        sent.push({ method: 'DELETE', path: 'reset', body: request.postData() })
+        state = drawnState(0)
+        return { body: { data: state } }
+      })
+    return sent
+  }
+
+  test('admin sorteia o turno com aviso, o returno direto, desfaz e reinicia', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page, { role: 'admin' })
+    const sent = installDraw(api, drawState())
+
+    await page.goto('/admin/liga/1/partidas')
+    await expect(page.locator('[data-test=games-draw-notice]')).toBeVisible()
+    await page.locator('.v-navigation-drawer').getByRole('link', { name: 'Sorteio' }).click()
+    await expect(page).toHaveURL(/\/admin\/liga\/1\/sorteio$/)
+    await expect(page.locator('[data-test=draw-progress-title]')).toHaveText(
+      'Nenhuma rodada sorteada',
+    )
+    await expect(page.locator('[data-test=draw-next-round]')).toHaveText(
+      'Próxima: rodada 1 · Turno',
+    )
+
+    await page.locator('[data-test=draw-next]').click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=draw-confirm-limits] li')).toHaveCount(5)
+    await expect(dialog).toContainText('Não dá para adicionar times à liga.')
+    await dialog.locator('[data-test=draw-confirm-submit]').click()
+
+    await expect(page.locator('[data-test=draw-progress-title]')).toHaveText(
+      'Rodada 1 de 2 sorteada',
+    )
+    const round1 = page.locator('[data-test=draw-round]', { hasText: 'Rodada 1' })
+    await expect(round1.locator('[data-test=draw-game]')).toHaveCount(2)
+    await expect(round1.locator('[data-test=draw-round-group]').first()).toContainText('Grupo A')
+    await expect(round1.locator('[data-test=draw-game]').first()).toContainText('Serrano')
+    await expect(round1.locator('[data-test=draw-game-date]').first()).toHaveText('Data a definir')
+    await expect(round1.locator('[data-test=draw-game]').first()).toHaveAttribute(
+      'href',
+      '/admin/liga/1/partidas/101',
+    )
+
+    await page.locator('[data-test=draw-next]').click()
+    await expect(page.locator('[data-test=draw-complete]')).toBeVisible()
+    await expect(page.locator('[data-test=draw-round]')).toHaveCount(2)
+    await expect(page.locator('[data-test=draw-round]').first()).toContainText('Rodada 2')
+    await expect(
+      page.locator('[data-test=draw-round]').first().locator('[data-test=draw-round-turn]'),
+    ).toHaveText('Returno')
+    await expect(page.locator('[data-test=draw-next]')).toBeDisabled()
+
+    await page.locator('[data-test=draw-undo]').click()
+    await expect(openDialog(page)).toContainText('As partidas da rodada 2 serão apagadas')
+    await openDialog(page).getByRole('button', { name: 'Desfazer', exact: true }).click()
+    await expect(page.locator('[data-test=draw-round]')).toHaveCount(1)
+    await expect(page.locator('[data-test=draw-next]')).toHaveText('Sortear rodada 2')
+
+    await page.locator('[data-test=draw-reset]').click()
+    const reset = openDialog(page)
+    await expect(reset.locator('[data-test=draw-reset-confirm]')).toBeDisabled()
+    await reset.locator('[data-test=draw-reset-input] input').fill('REINICIAR')
+    await reset.locator('[data-test=draw-reset-confirm]').click()
+    await expect(page.locator('[data-test=draw-empty]')).toBeVisible()
+    await expect(page.locator('[data-test=draw-progress-title]')).toHaveText(
+      'Nenhuma rodada sorteada',
+    )
+
+    expect(sent).toEqual([
+      { method: 'POST', path: 'next-round', body: { round: 1 } },
+      { method: 'POST', path: 'next-round', body: { round: 2 } },
+      { method: 'DELETE', path: 'last-round', body: { round: 2 } },
+      { method: 'DELETE', path: 'reset', body: null },
+    ])
+  })
+
+  test('partidas manuais: avisa a substituição e envia replace_manual_rounds', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page, { role: 'admin' })
+    const sent = installDraw(api, drawState({ manual_round_games: { total: 3, with_results: 1 } }))
+
+    await page.goto('/admin/liga/1/sorteio')
+    await page.locator('[data-test=draw-next]').click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=draw-confirm-manual]')).toContainText(
+      'A liga tem 3 partidas de rodada cadastradas manualmente. Elas serão apagadas antes do sorteio.',
+    )
+    await expect(dialog.locator('[data-test=draw-confirm-manual-results]')).toContainText(
+      '1 delas tem resultado ou eventos, que também serão perdidos.',
+    )
+    await dialog.getByRole('button', { name: 'Apagar e sortear' }).click()
+
+    await expect(page.locator('[data-test=draw-round]')).toHaveCount(1)
+    expect(sent).toEqual([
+      { method: 'POST', path: 'next-round', body: { round: 1, replace_manual_rounds: true } },
+    ])
+  })
+
+  test('liga sem sorteio: sem item no menu e a tela avisa', async ({ page }) => {
+    await signIn(page, { role: 'admin' })
+    await page.goto('/admin/liga/1/sorteio')
+    await expect(page.locator('[data-test=draw-not-enabled]')).toBeVisible()
+    await expect(
+      page.locator('.v-navigation-drawer').getByRole('link', { name: 'Sorteio' }),
+    ).toHaveCount(0)
+  })
+
+  for (const [name, viewport] of [
+    ['mobile', MOBILE],
+    ['desktop', DESKTOP],
+  ] as const) {
+    test(`${name}: rodadas e botões sem rolagem horizontal`, async ({ page, api }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      installDraw(api, drawnState(1))
+
+      await page.goto('/admin/liga/1/sorteio')
+      await expect(page.locator('[data-test=draw-game]')).toHaveCount(2)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+      const rightEdges = await page
+        .locator('[data-test=draw-next], [data-test=draw-reset], [data-test=draw-game]')
+        .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().right))
+      expect(Math.max(...rightEdges)).toBeLessThanOrEqual(viewport.width)
+    })
+  }
+})
+
+test.describe('Tabela por grupo', () => {
+  type Row = Record<string, unknown> & { team_id: number }
+  type TableBody = { data: { standings: Row[] } }
+
+  const rows = fixture<TableBody>('league-1-table').data.standings
+
+  function groupedTable() {
+    const [estrela, serrano, uniao, ribeirinho] = rows
+    const groupA = [estrela, serrano]
+    const groupB = [
+      { ...uniao, tied: true },
+      { ...ribeirinho, tied: true },
+    ]
+    return {
+      data: {
+        standings: [estrela, serrano, ...groupB],
+        groups: [
+          { group_number: 1, standings: groupA },
+          { group_number: 2, standings: groupB },
+        ],
+        tiebreakers: ['points', 'head_to_head', 'goals_against', 'fewer_red_cards'],
+        phases: [],
+      },
+    }
+  }
+
+  function groupLeagues() {
+    const body = fixture<{ data: Record<string, unknown>[] }>('leagues')
+    return {
+      data: body.data.map((league) =>
+        league.id === 1
+          ? {
+              ...league,
+              format: 'hybrid',
+              fixture_mode: 'draw',
+              groups_count: 2,
+              qualifiers_per_group: 1,
+            }
+          : league,
+      ),
+    }
+  }
+
+  for (const [name, viewport] of [
+    ['mobile', MOBILE],
+    ['desktop', DESKTOP],
+  ] as const) {
+    test(`${name}: uma tabela por grupo, classificados, empate técnico e legenda`, async ({
+      page,
+      api,
+    }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      api
+        .on('GET', '/leagues', { body: groupLeagues() })
+        .on('GET', '/leagues/1/table', { body: groupedTable() })
+
+      await page.goto('/admin/liga/1/tabela')
+      const groups = page.locator('[data-test=standings-group]')
+      await expect(groups).toHaveCount(2)
+      await expect(groups.locator('[data-test=standings-title]')).toHaveText(['Grupo A', 'Grupo B'])
+      await expect(groups.nth(0).locator('[data-test=standings-row]')).toHaveCount(2)
+      await expect(groups.nth(0).locator('[data-test=standings-qualified]')).toHaveCount(1)
+      await expect(groups.nth(1).locator('[data-test=standings-qualified]')).toHaveCount(1)
+      await expect(groups.nth(0).locator('[data-test=standings-tied]')).toHaveCount(0)
+      await expect(groups.nth(1).locator('[data-test=standings-tied]')).toHaveCount(2)
+
+      const legend = page.locator('[data-test=standings-legend]')
+      await expect(legend).toHaveCount(1)
+      await expect(legend.locator('[data-test=standings-tiebreakers]')).toHaveText(
+        'Desempate: confronto direto, menos gols sofridos e menos cartões vermelhos.',
+      )
+      await expect(legend.locator('[data-test=standings-legend-qualified]')).toHaveText(
+        'Classifica-se o 1º colocado de cada grupo para o mata-mata.',
+      )
+      await expect(legend.locator('[data-test=standings-legend-tied]')).toHaveText(
+        'Empate técnico: ordem alfabética.',
+      )
+
+      await groups.nth(1).locator('[data-test=standings-tied]').first().focus()
+      await expect(page.locator('.v-tooltip.v-overlay--active > .v-overlay__content')).toHaveText(
+        'Empate técnico: ordem alfabética',
+      )
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+      const rightEdges = await groups
+        .locator('[data-test=standings-row]')
+        .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().right))
+      expect(Math.max(...rightEdges)).toBeLessThanOrEqual(viewport.width)
+    })
+  }
+})
+
+test.describe('Mata-mata gerado pela classificação', () => {
+  type Body<T = Record<string, unknown>> = { data: T }
+  type Team = { id: number; name: string; nickname: string }
+
+  const [serrano, ribeirinho, estrela, uniao] = fixture<Body<Team[]>>('teams').data
+  const short = (team: Team) => ({ ...team, logo: null })
+
+  function knockoutLeagues() {
+    const body = fixture<Body<Record<string, unknown>[]>>('leagues')
+    return {
+      data: body.data.map((league) =>
+        league.id === 1
+          ? {
+              ...league,
+              format: 'hybrid',
+              fixture_mode: 'draw',
+              groups_count: 2,
+              group_legs: 1,
+              qualifiers_per_group: 2,
+              knockout_size: 4,
+              knockout_legs: 1,
+              final_legs: 1,
+              third_place: true,
+              knockout_tiebreakers: ['penalties'],
+            }
+          : league,
+      ),
+    }
+  }
+
+  const drawDone = {
+    league_id: 1,
+    format: 'hybrid',
+    fixture_mode: 'draw',
+    groups_count: 2,
+    group_legs: 1,
+    group_size: 2,
+    rounds_per_turn: 1,
+    total_rounds: 1,
+    drawn_rounds: 1,
+    next_round: null,
+    can_draw: false,
+    draw_blocked_reason: 'Todas as rodadas já foram sorteadas.',
+    can_undo: false,
+    undo_blocked_reason: 'O mata-mata já foi gerado; desfaça as fases do mata-mata antes.',
+    can_reset: false,
+    reset_blocked_reason: 'O mata-mata já foi gerado; desfaça as fases do mata-mata antes.',
+    manual_round_games: { total: 0, with_results: 0 },
+    groups: [
+      { group_number: 1, byes: [] },
+      { group_number: 2, byes: [] },
+    ],
+  }
+
+  function knockoutState(generated: boolean, extra: Record<string, unknown> = {}) {
+    return {
+      league_id: 1,
+      enabled: true,
+      knockout_size: 4,
+      knockout_legs: 1,
+      final_legs: 1,
+      third_place: true,
+      knockout_tiebreakers: ['penalties'],
+      stages: [
+        { key: 'SF', label: 'Semifinal', legs: 1, generated },
+        { key: '3P', label: 'Disputa de 3º lugar', legs: 1, generated: false },
+        { key: 'F', label: 'Final', legs: 1, generated: false },
+      ],
+      generated_stages: generated ? ['SF'] : [],
+      last_stage: generated ? 'SF' : null,
+      next_stage: generated
+        ? { key: 'F', label: 'Final', legs: 1, with_third_place: true }
+        : { key: 'SF', label: 'Semifinal', legs: 1, with_third_place: false },
+      can_generate: !generated,
+      generate_blocked_reason: generated
+        ? 'Há confrontos das semifinais ainda não decididos.'
+        : null,
+      can_undo: generated,
+      undo_blocked_reason: generated ? null : 'Nenhuma fase do mata-mata foi gerada.',
+      manual_phase_games: { total: 0, with_results: 0 },
+      awaiting_penalties: [],
+      ...extra,
+    }
+  }
+
+  const previewTie = (key: string, home: Team, away: Team, labels: [string, string]) => ({
+    tie_key: key,
+    home_team: short(home),
+    away_team: short(away),
+    home_label: labels[0],
+    away_label: labels[1],
+    legs: [{ leg: null, home_team_id: home.id, away_team_id: away.id }],
+  })
+
+  const preview = {
+    stage: { key: 'SF', label: 'Semifinal', legs: 1 },
+    ties: [
+      previewTie('SF-1', estrela, ribeirinho, ['1º Grupo A', '2º Grupo B']),
+      previewTie('SF-2', uniao, serrano, ['1º Grupo B', '2º Grupo A']),
+    ],
+    third_place: null,
+  }
+
+  const tie = (key: string, id: number, home: Team, away: Team) => ({
+    tie_key: key,
+    decided: false,
+    winner_team_id: null,
+    decided_by: null,
+    awaiting_penalties: false,
+    decisive_game_id: id,
+    home_penalties: null,
+    away_penalties: null,
+    teams: [home, away].map((team) => ({
+      team_id: team.id,
+      name: team.name,
+      nickname: team.nickname,
+      aggregate_score: 0,
+    })),
+    legs: [
+      {
+        id,
+        leg: null,
+        home_team_id: home.id,
+        away_team_id: away.id,
+        home_score: null,
+        away_score: null,
+        home_penalties: null,
+        away_penalties: null,
+        status: 'scheduled',
+        match_date: null,
+      },
+    ],
+  })
+
+  const semifinals = {
+    phase: 'Semifinal',
+    phase_order: 3,
+    stage: 'SF',
+    ties: [tie('SF-1', 201, estrela, ribeirinho), tie('SF-2', 202, uniao, serrano)],
+  }
+
+  function installKnockout(api: MockApi, initial: ReturnType<typeof knockoutState>) {
+    const sent: { method: string; body: unknown }[] = []
+    let state = initial
+    api
+      .on('GET', '/leagues', { body: knockoutLeagues() })
+      .on('GET', '/leagues/1/draw', { body: { data: drawDone } })
+      .on('GET', '/games', {
+        body: {
+          data: [],
+          links: {},
+          meta: { current_page: 1, last_page: 1, per_page: 100, total: 0 },
+        },
+      })
+      .on('GET', '/leagues/1/knockout', () => ({ body: { data: state } }))
+      .on('GET', '/leagues/1/knockout/preview', { body: { data: preview } })
+      .on('GET', '/leagues/1/table', () => ({
+        body: {
+          data: {
+            standings: [],
+            groups: [],
+            tiebreakers: [],
+            phases: state.last_stage ? [semifinals] : [],
+          },
+        },
+      }))
+      .on('POST', '/leagues/1/knockout/next-stage', ({ request }) => {
+        sent.push({ method: 'POST', body: request.postDataJSON() })
+        state = knockoutState(true)
+        return { body: { data: state } }
+      })
+      .on('DELETE', '/leagues/1/knockout/last-stage', ({ request }) => {
+        sent.push({ method: 'DELETE', body: request.postDataJSON() })
+        state = knockoutState(false)
+        return { body: { data: state } }
+      })
+    return sent
+  }
+
+  test('admin gera as semifinais pelo preview e desfaz', async ({ page, api }) => {
+    await signIn(page, { role: 'admin' })
+    const sent = installKnockout(api, knockoutState(false))
+
+    await page.goto('/admin/liga/1/sorteio')
+    await page.getByRole('tab', { name: 'Mata-mata' }).click()
+    await expect(page).toHaveURL(/tab=mata-mata/)
+    await expect(page.locator('[data-test=knockout-stage]')).toHaveText([
+      'Semifinal (pendente)',
+      'Disputa de 3º lugar (pendente)',
+      'Final (pendente)',
+    ])
+    await expect(page.locator('[data-test=knockout-next]')).toHaveText(
+      'Próxima: Semifinal · Jogo único',
+    )
+    await expect(page.locator('[data-test=knockout-future-tie]').first()).toContainText(
+      '1º Grupo A',
+    )
+
+    await page.locator('[data-test=knockout-generate]').click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=knockout-dialog-labels]')).toHaveText([
+      '1º Grupo A × 2º Grupo B',
+      '1º Grupo B × 2º Grupo A',
+    ])
+    await expect(dialog.locator('[data-test=knockout-dialog-leg]').first()).toHaveText(
+      'Jogo único: Estrela × Ribeirinho',
+    )
+    await expect(dialog.locator('[data-test=knockout-dialog-manual]')).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Confirmar e gerar' }).click()
+
+    await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(2)
+    await expect(page.locator('[data-test=knockout-leg]').first()).toHaveAttribute(
+      'href',
+      '/admin/liga/1/partidas/201',
+    )
+    await expect(page.locator('[data-test=knockout-blocked]')).toHaveText(
+      'Há confrontos das semifinais ainda não decididos.',
+    )
+    const future = page.locator('[data-test=knockout-future-tie]')
+    await expect(future).toHaveCount(2)
+    await expect(future.nth(0)).toContainText('Perdedor SF-1')
+    await expect(future.nth(1)).toContainText('Vencedor SF-1')
+
+    await page.locator('[data-test=knockout-undo]').click()
+    await expect(openDialog(page)).toContainText('As partidas das semifinais serão apagadas.')
+    await openDialog(page).getByRole('button', { name: 'Desfazer', exact: true }).click()
+    await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(0)
+    await expect(page.locator('[data-test=knockout-generate]')).toHaveText('Gerar semifinal')
+
+    expect(sent).toEqual([
+      { method: 'POST', body: { stage: 'SF' } },
+      { method: 'DELETE', body: { stage: 'SF' } },
+    ])
+  })
+
+  test('partidas de fase manuais: avisa a substituição e envia replace_manual_phases', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page, { role: 'admin' })
+    const sent = installKnockout(
+      api,
+      knockoutState(false, { manual_phase_games: { total: 2, with_results: 1 } }),
+    )
+
+    await page.goto('/admin/liga/1/sorteio?tab=mata-mata')
+    await page.locator('[data-test=knockout-generate]').click()
+    const dialog = openDialog(page)
+    await expect(dialog.locator('[data-test=knockout-dialog-manual]')).toHaveText(
+      'A liga tem 2 partidas de mata-mata cadastradas manualmente. Elas serão apagadas antes de gerar o mata-mata.',
+    )
+    await expect(dialog.locator('[data-test=knockout-dialog-manual-results]')).toContainText(
+      '1 delas tem resultado ou eventos, que também serão perdidos.',
+    )
+    await expect(dialog.locator('[data-test=knockout-dialog-tie]')).toHaveCount(2)
+    await dialog.getByRole('button', { name: 'Apagar e gerar' }).click()
+
+    await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(2)
+    expect(sent).toEqual([{ method: 'POST', body: { stage: 'SF', replace_manual_phases: true } }])
+  })
+
+  test('pênaltis na súmula: valida, salva e mostra no placar', async ({ page, api }) => {
+    await signIn(page, { role: 'admin' })
+    const base = fixture<Body<Record<string, unknown>>>('game-1').data
+    const decisive = {
+      ...base,
+      home_score: 1,
+      away_score: 1,
+      round: null,
+      group_number: null,
+      phase: 'Semifinal',
+      phase_order: 3,
+      tie_key: 'SF-1',
+      leg: null,
+      knockout_stage: 'SF',
+      penalties_allowed: true,
+      home_penalties: null,
+      away_penalties: null,
+      events: [],
+    }
+    const puts: unknown[] = []
+    api
+      .on('GET', '/leagues', { body: knockoutLeagues() })
+      .on('GET', '/games/1', { body: { data: decisive } })
+      .on('PUT', '/games/1', ({ request }) => {
+        const body = request.postDataJSON() as Record<string, unknown>
+        puts.push(body)
+        return { body: { data: { ...decisive, ...body } } }
+      })
+
+    await page.goto('/admin/liga/1/partidas/1?tab=sumula')
+    await expect(page.locator('[data-test=game-score]')).toHaveText('1 × 1')
+    await expect(page.locator('[data-test=game-delete]')).toBeDisabled()
+    const card = page.locator('[data-test=game-penalties]')
+    await card.getByRole('spinbutton', { name: 'Serrano' }).fill('3')
+    await card.getByRole('spinbutton', { name: 'Ribeirinho' }).fill('3')
+    await card.getByRole('button', { name: 'Salvar pênaltis' }).click()
+    await expect(card).toContainText('A disputa de pênaltis não pode terminar empatada.')
+    expect(puts).toEqual([])
+
+    await card.getByRole('spinbutton', { name: 'Ribeirinho' }).fill('4')
+    await card.getByRole('button', { name: 'Salvar pênaltis' }).click()
+    await expect(page.locator('[data-test=game-score]')).toHaveText('1 (3) × (4) 1')
+    expect(puts).toEqual([{ home_penalties: 3, away_penalties: 4 }])
+    await expect(card.getByRole('button', { name: 'Limpar pênaltis' })).toBeVisible()
+  })
+
+  for (const [name, viewport] of [
+    ['mobile', MOBILE],
+    ['desktop', DESKTOP],
+  ] as const) {
+    test(`${name}: mata-mata, preview e placar com pênaltis sem rolagem horizontal`, async ({
+      page,
+      api,
+    }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      installKnockout(api, knockoutState(false))
+      const overflow = () =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+      const maxRight = (selector: string) =>
+        page
+          .locator(selector)
+          .evaluateAll((elements) =>
+            Math.max(...elements.map((el) => el.getBoundingClientRect().right)),
+          )
+
+      await page.goto('/admin/liga/1/sorteio?tab=mata-mata')
+      await expect(page.locator('[data-test=knockout-future-tie]')).toHaveCount(4)
+      expect(await overflow()).toBeLessThanOrEqual(0)
+      expect(
+        await maxRight(
+          '[data-test=knockout-generate], [data-test=knockout-future-tie], [data-test=knockout-stage]',
+        ),
+      ).toBeLessThanOrEqual(viewport.width)
+
+      await page.locator('[data-test=knockout-generate]').click()
+      await expect(openDialog(page).locator('[data-test=knockout-dialog-tie]')).toHaveCount(2)
+      expect(
+        await maxRight('.v-dialog.v-overlay--active [data-test=knockout-dialog-tie]'),
+      ).toBeLessThanOrEqual(viewport.width)
+
+      const game = fixture<Body<Record<string, unknown>>>('game-1').data
+      api.on('GET', '/games/1', {
+        body: {
+          data: {
+            ...game,
+            home_score: 10,
+            away_score: 10,
+            home_penalties: 12,
+            away_penalties: 11,
+            round: null,
+            phase: 'Final',
+            phase_order: 5,
+            tie_key: 'F-1',
+            knockout_stage: 'F',
+            penalties_allowed: true,
+            events: [],
+          },
+        },
+      })
+      await page.goto('/admin/liga/1/partidas/1?tab=sumula')
+      await expect(page.locator('[data-test=game-score]')).toHaveText('10 (12) × (11) 10')
+      await expect(page.locator('[data-test=game-penalties]')).toBeVisible()
+      expect(await overflow()).toBeLessThanOrEqual(0)
+      expect(
+        await maxRight('[data-test=game-header] .scoreboard > *, [data-test=game-penalties]'),
+      ).toBeLessThanOrEqual(viewport.width)
     })
   }
 })

@@ -60,6 +60,7 @@ function createLayoutRouter() {
               leagueChild('partidas/:id', 'admin-games-detail'),
               leagueChild('tabela', 'admin-league-table'),
               leagueChild('regulamento', 'admin-league-rules'),
+              leagueChild('sorteio', 'admin-league-draw'),
               leagueChild('estatisticas', 'admin-league-statistics'),
               leagueChild('usuarios', 'admin-users-list'),
             ],
@@ -154,6 +155,31 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     setActivePinia(createPinia())
     const coach = await mountAt('/admin/liga/1', 'coach', ['team:read'])
     expect(navTitles(coach)).not.toContain('Regulamento')
+  })
+
+  it('mostra "Sorteio" depois de "Partidas" só em liga com sorteio e para quem tem game:read', async () => {
+    const manual = await mountAt('/admin/liga/1', 'admin', ['game:read'])
+    expect(navTitles(manual)).not.toContain('Sorteio')
+    manual.unmount()
+
+    for (const [permissions, visible] of [
+      [['game:read'], true],
+      [['team:read'], false],
+    ] as const) {
+      setActivePinia(createPinia())
+      const auth = useAuthStore()
+      auth.token = 'token'
+      auth.user = makeUser('admin', [...permissions])
+      const context = useLeagueContextStore()
+      context.leagues = [makeLeague(1, championshipA, { name: 'Série A', fixture_mode: 'draw' })]
+      context.loaded = true
+      context.setActiveLeague(1)
+      const wrapper = await mountLayout('/admin/liga/1')
+      const titles = navTitles(wrapper)
+      if (visible) expect(titles.indexOf('Sorteio')).toBe(titles.indexOf('Partidas') + 1)
+      else expect(titles).not.toContain('Sorteio')
+      wrapper.unmount()
+    }
   })
 
   it('esconde Usuários para quem não é master/admin', async () => {

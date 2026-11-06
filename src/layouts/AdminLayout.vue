@@ -38,6 +38,7 @@ interface NavItem {
   permission?: string
   activeOn?: string[]
   myTeam?: boolean
+  drawOnly?: boolean
 }
 
 const TEAM_PAGES = [
@@ -69,6 +70,13 @@ const navItems: NavItem[] = [
     routeName: 'admin-games-list',
     permission: 'game:read',
     activeOn: ['admin-games-detail'],
+  },
+  {
+    title: 'Sorteio',
+    icon: 'mdi-dice-multiple-outline',
+    routeName: 'admin-league-draw',
+    permission: 'game:read',
+    drawOnly: true,
   },
   { title: 'Tabela', icon: 'mdi-format-list-numbered', routeName: 'admin-league-table' },
   {
@@ -105,6 +113,7 @@ const visibleNavItems = computed(() =>
     .filter((item) => !item.roles || item.roles.some((role) => authStore.hasRole(role)))
     .filter((item) => !item.permission || authStore.hasPermission(item.permission))
     .filter((item) => !item.myTeam || myTeamId.value)
+    .filter((item) => !item.drawOnly || leagueContext.activeLeague?.fixture_mode === 'draw')
     .map((item) => ({
       ...item,
       to: {

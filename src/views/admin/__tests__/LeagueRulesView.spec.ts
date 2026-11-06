@@ -55,8 +55,8 @@ function groupsData(extra: Partial<LeagueGroups> = {}): LeagueGroups {
     fixture_mode: 'manual',
     groups_count: 1,
     locked: false,
-    groups: [{ group_number: 1, teams: [] }],
-    unassigned: teams,
+    groups: [{ group_number: 1, teams }],
+    unassigned: [],
     ...extra,
   }
 }
@@ -71,9 +71,13 @@ const ASSIGNED_GROUPS = groupsData({
   unassigned: [],
 })
 
-async function mountView(league: Partial<League>, groups: LeagueGroups = groupsData()) {
+async function mountView(
+  league: Partial<League>,
+  groups: LeagueGroups = groupsData(),
+  permissions = ['tournament:update'],
+) {
   const data = makeLeague(7, championshipA, { name: 'Série A', ...league })
-  setupLeagueSession(makeUser('admin', ['tournament:update']), [data])
+  setupLeagueSession(makeUser('admin', permissions), [data])
   vi.mocked(leaguesService.get).mockResolvedValue(data)
   vi.mocked(leaguesService.groups).mockResolvedValue(groups)
   vi.mocked(leaguesService.list).mockResolvedValue([data])
@@ -113,6 +117,19 @@ describe('Regulamento da liga', () => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  it('liga com sorteio salvo tem link para a tela Sorteio (quem tem game:read)', async () => {
+    const draw = await mountView(HYBRID_DRAW, ASSIGNED_GROUPS, ['tournament:update', 'game:read'])
+    expect(draw.find('[data-test="rules-draw-link"]').exists()).toBe(true)
+    draw.unmount()
+
+    setActivePinia(createPinia())
+    const manual = await mountView({ ...HYBRID_DRAW, fixture_mode: 'manual' }, groupsData(), [
+      'tournament:update',
+      'game:read',
+    ])
+    expect(manual.find('[data-test="rules-draw-link"]').exists()).toBe(false)
   })
 
   it('carrega a liga e os grupos e mostra o resumo ao vivo', async () => {
@@ -289,6 +306,107 @@ describe('Regulamento da liga', () => {
     expect(vi.mocked(leaguesService.update).mock.calls[0][1]).toMatchObject({
       groups_count: 2,
       qualifiers_per_group: 4,
+    })
+  })
+
+  it('liga de 1 grupo muda para vários grupos sem o aviso de apagar a montagem', async () => {
+    vi.mocked(leaguesService.update).mockResolvedValue(
+      makeLeague(7, championshipA, { ...HYBRID_DRAW, name: 'Série A' }),
+    )
+    const wrapper = await mountView(
+      {
+        ...HYBRID_DRAW,
+        groups_count: 1,
+        qualifiers_per_group: 8,
+      },
+      groupsData({ fixture_mode: 'draw' }),
+    )
+
+    await choose(wrapper, 'rules-groups-count', 4)
+    await choose(wrapper, 'rules-qualifiers', 2)
+    await submit(wrapper)
+
+    expect(document.querySelector('.v-dialog.v-overlay--active')).toBeNull()
+    expect(vi.mocked(leaguesService.update).mock.calls[0][1]).toMatchObject({
+      groups_count: 4,
+      qualifiers_per_group: 2,
+    })
+  })
+
+  it('tabela manual fixa um grupo: select desabilitado com dica e payload com 1 grupo', async () => {
+    vi.mocked(leaguesService.update).mockResolvedValue(
+      makeLeague(7, championshipA, { format: 'hybrid' }),
+    )
+    const wrapper = await mountView(
+      {
+        format: 'hybrid',
+        fixture_mode: 'manual',
+        groups_count: 4,
+        qualifiers_per_group: 4,
+        knockout_size: 4,
+      },
+      groupsData({
+        groups_count: 4,
+        groups: [1, 2, 3, 4].map((group_number) => ({ group_number, teams: [] })),
+        unassigned: teams,
+      }),
+    )
+
+    const groupsCount = field(wrapper, 'rules-groups-count')
+    expect(groupsCount.props('disabled')).toBe(true)
+    expect(groupsCount.props('modelValue')).toBe(1)
+    expect(errorOf(wrapper, 'rules-groups-count')).toBe(
+      'Na tabela manual, a liga tem um único grupo.',
+    )
+    expect(wrapper.find('[data-test="rules-summary"]').text()).toBe(
+      '16 times → 1 grupo de 16 → 4 classificados → Semifinal',
+    )
+
+    await choose(wrapper, 'rules-fixture-mode', 'draw')
+    expect(groupsCount.props('disabled')).toBeFalsy()
+    expect(groupsCount.props('modelValue')).toBe(4)
+    expect(errorOf(wrapper, 'rules-groups-count')).toBe('')
+
+    await choose(wrapper, 'rules-fixture-mode', 'manual')
+    await submit(wrapper)
+    expect(document.querySelector('.v-dialog.v-overlay--active')).toBeNull()
+    expect(vi.mocked(leaguesService.update).mock.calls[0][1]).toMatchObject({
+      fixture_mode: 'manual',
+      groups_count: 1,
+      qualifiers_per_group: 4,
+      knockout_size: 4,
+    })
+  })
+
+  it('mudar para manual com grupos montados avisa e salva com 1 grupo', async () => {
+    vi.mocked(leaguesService.update).mockResolvedValue(
+      makeLeague(7, championshipA, { format: 'hybrid' }),
+    )
+    const wrapper = await mountView(HYBRID_DRAW, ASSIGNED_GROUPS)
+
+    await choose(wrapper, 'rules-fixture-mode', 'manual')
+    await submit(wrapper)
+    expect(leaguesService.update).not.toHaveBeenCalled()
+    expect(errorOf(wrapper, 'rules-knockout-size')).toBe(
+      'O tamanho do mata-mata deve ser igual a grupos × classificados por grupo (2).',
+    )
+
+    await choose(wrapper, 'rules-qualifiers', 8)
+    await submit(wrapper)
+    expect(leaguesService.update).not.toHaveBeenCalled()
+    const dialog = document.querySelector('.v-dialog.v-overlay--active')
+    expect(dialog?.textContent).toContain('a montagem atual dos grupos será apagada')
+
+    const confirm = [...dialog!.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Salvar',
+    )
+    confirm!.click()
+    await flushPromises()
+    expect(vi.mocked(leaguesService.update).mock.calls[0][1]).toMatchObject({
+      fixture_mode: 'manual',
+      groups_count: 1,
+      qualifiers_per_group: 8,
+      knockout_size: 8,
     })
   })
 

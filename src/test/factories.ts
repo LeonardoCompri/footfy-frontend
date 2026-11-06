@@ -1,6 +1,7 @@
 import type { Paginated, PaginationMeta } from '@/types/api'
 import type { Game } from '@/types/game'
 import type { EventTypeMeta, GameEvent } from '@/types/gameEvent'
+import type { LeagueKnockoutState } from '@/types/leagueKnockout'
 import type { Player } from '@/types/player'
 import type { Team } from '@/types/team'
 import type { TechnicalCommitteeMember } from '@/types/technicalCommitteeMember'
@@ -142,5 +143,33 @@ export function makePage<T>(data: T[], meta: Partial<PaginationMeta> = {}): Pagi
   return {
     data,
     meta: { current_page: 1, per_page: 20, total: data.length, last_page: 1, ...meta },
+  }
+}
+
+export function makeKnockoutState(extra: Partial<LeagueKnockoutState> = {}): LeagueKnockoutState {
+  return {
+    league_id: 7,
+    enabled: true,
+    knockout_size: 8,
+    knockout_legs: 2,
+    final_legs: 1,
+    third_place: true,
+    knockout_tiebreakers: ['away_goals', 'penalties'],
+    stages: [
+      { key: 'QF', label: 'Quartas de final', legs: 2, generated: false },
+      { key: 'SF', label: 'Semifinal', legs: 2, generated: false },
+      { key: '3P', label: 'Disputa de 3º lugar', legs: 1, generated: false },
+      { key: 'F', label: 'Final', legs: 1, generated: false },
+    ],
+    generated_stages: [],
+    last_stage: null,
+    next_stage: { key: 'QF', label: 'Quartas de final', legs: 2, with_third_place: false },
+    can_generate: true,
+    generate_blocked_reason: null,
+    can_undo: false,
+    undo_blocked_reason: 'Nenhuma fase do mata-mata foi gerada.',
+    manual_phase_games: { total: 0, with_results: 0 },
+    awaiting_penalties: [],
+    ...extra,
   }
 }

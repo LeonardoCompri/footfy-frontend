@@ -160,6 +160,8 @@ export function toRulesPayload(form: LeagueRulesForm, format: LeagueFormat): Lea
     }
   }
 
+  if (payload.fixture_mode === 'manual') return { ...payload, groups_count: 1 }
+
   return payload
 }
 
@@ -192,6 +194,9 @@ export function validateRules(rules: LeagueRules, context: RulesContext): RulesE
       if (filled) errors[field] = 'Ligas de pontos corridos não têm mata-mata.'
     }
   } else {
+    if (rules.fixture_mode === 'manual' && rules.groups_count !== 1) {
+      errors.groups_count = 'Ligas com tabela manual têm um único grupo.'
+    }
     if (rules.fixture_mode === 'draw') {
       for (const field of REQUIRED_FOR_DRAW) {
         if (rules[field] === null) errors[field] = 'Obrigatório para o sorteio.'

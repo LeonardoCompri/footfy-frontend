@@ -4,7 +4,7 @@ import { gamesService } from '@/services/api/games.service'
 import { makeGame, makePage } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({
-  default: { get: vi.fn() },
+  default: { get: vi.fn(), put: vi.fn() },
 }))
 
 describe('gamesService', () => {
@@ -59,5 +59,15 @@ describe('gamesService', () => {
     const result = await gamesService.list({ league_id: 7 })
 
     expect(result.map((game) => game.id)).toEqual([1])
+  })
+
+  it('updatePenalties envia só os pênaltis no PUT /games/{id}', async () => {
+    const game = makeGame(9, { home_penalties: 4, away_penalties: 3 })
+    vi.mocked(http.put).mockResolvedValue({ data: { data: game } })
+
+    expect(await gamesService.updatePenalties(9, { home_penalties: 4, away_penalties: 3 })).toEqual(
+      game,
+    )
+    expect(http.put).toHaveBeenCalledWith('/games/9', { home_penalties: 4, away_penalties: 3 })
   })
 })

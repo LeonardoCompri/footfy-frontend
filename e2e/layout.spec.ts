@@ -255,6 +255,36 @@ test.describe('Imagem do campeonato no mobile', () => {
   })
 })
 
+test.describe('Placar do detalhe da partida no mobile', () => {
+  for (const viewport of [MOBILE, { width: 360, height: 800 }]) {
+    test(`${viewport.width}px: nome de cada time em uma linha, abaixo do placar`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      await page.goto('/admin/liga/1/partidas/1')
+      const score = page.locator('[data-test=game-score]')
+      await expect(score).toBeVisible()
+
+      const scoreBox = (await score.boundingBox())!
+      for (const [selector, name] of [
+        ['[data-test=game-home-name]', 'Serrano'],
+        ['[data-test=game-away-name]', 'Ribeirinho'],
+      ]) {
+        const label = page.locator(selector)
+        await expect(label).toHaveText(name)
+        const { height, lineHeight } = await label.evaluate((el) => ({
+          height: el.getBoundingClientRect().height,
+          lineHeight: parseFloat(getComputedStyle(el).lineHeight),
+        }))
+        expect(height, `${name} quebrou em mais de uma linha`).toBeLessThanOrEqual(lineHeight * 1.5)
+        expect((await label.boundingBox())!.y).toBeGreaterThan(scoreBox.y + scoreBox.height)
+      }
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    })
+  }
+})
+
 test.describe('Formulário de partida em liga híbrida', () => {
   async function openNewGame(page: Page, api: MockApi) {
     const leagues = fixture<{ data: { id: number; format: string }[] }>('leagues')

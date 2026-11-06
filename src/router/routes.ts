@@ -156,6 +156,12 @@ export const adminRoutes: RouteRecordRaw[] = [
             meta: { permission: 'game:read' },
           },
           {
+            path: 'sorteio',
+            name: 'admin-league-draw',
+            component: () => import('@/views/admin/leagues/LeagueDrawView.vue'),
+            meta: { permission: 'game:read' },
+          },
+          {
             path: 'usuarios',
             name: 'admin-users-list',
             component: () => import('@/views/admin/users/UserAdminListView.vue'),

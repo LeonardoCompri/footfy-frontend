@@ -21,6 +21,8 @@ export function registerDefaultRoutes(api: MockApi) {
 
     .on('GET', '/leagues/1', json('league-1'))
     .on('GET', '/leagues/1/groups', json('league-1-groups'))
+    .on('GET', '/leagues/1/draw', json('league-1-draw'))
+    .on('GET', '/leagues/1/knockout', json('league-1-knockout'))
     .on('GET', '/leagues/1/dashboard', json('league-1-dashboard'))
     .on('GET', '/leagues/1/table', json('league-1-table'))
     .on('GET', '/leagues/1/statistics', json('league-1-statistics'))

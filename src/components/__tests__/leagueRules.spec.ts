@@ -90,6 +90,14 @@ describe('toRulesForm / toRulesPayload', () => {
     })
   })
 
+  it('híbrido manual vai sempre com um grupo; no sorteio vale o número escolhido', () => {
+    const form = toRulesForm({ ...HYBRID_DRAW, fixture_mode: 'manual' })
+
+    expect(form.groups_count).toBe(4)
+    expect(toRulesPayload(form, 'hybrid').groups_count).toBe(1)
+    expect(toRulesPayload({ ...form, fixture_mode: 'draw' }, 'hybrid').groups_count).toBe(4)
+  })
+
   it('critérios iguais ao padrão vão como null; personalizados vão como lista', () => {
     expect(
       toRulesPayload(toRulesForm({ tiebreakers: [...DEFAULT_TIEBREAKERS] }), 'round_robin')
@@ -189,21 +197,28 @@ describe('validateRules (espelha o backend)', () => {
   })
 
   it('híbrido manual não exige o mata-mata, mas confere grupos × classificados', () => {
-    expect(validateRules(rules({ groups_count: 4 }), { format: 'hybrid', teamsCount: 16 })).toEqual(
-      {},
-    )
+    expect(validateRules(rules(), { format: 'hybrid', teamsCount: 16 })).toEqual({})
 
-    const errors = validateRules(
-      rules({ groups_count: 4, qualifiers_per_group: 2, knockout_size: 4 }),
-      {
-        format: 'hybrid',
-        teamsCount: 16,
-      },
-    )
+    const errors = validateRules(rules({ qualifiers_per_group: 2, knockout_size: 4 }), {
+      format: 'hybrid',
+      teamsCount: 16,
+    })
     expect(errors).toEqual({
       knockout_size:
-        'O tamanho do mata-mata deve ser igual a grupos × classificados por grupo (8).',
+        'O tamanho do mata-mata deve ser igual a grupos × classificados por grupo (2).',
     })
+  })
+
+  it('híbrido manual tem um único grupo', () => {
+    expect(validateRules(rules({ groups_count: 4 }), { format: 'hybrid', teamsCount: 16 })).toEqual(
+      { groups_count: 'Ligas com tabela manual têm um único grupo.' },
+    )
+    expect(
+      validateRules(rules({ qualifiers_per_group: 4, knockout_size: 4 }), {
+        format: 'hybrid',
+        teamsCount: 16,
+      }),
+    ).toEqual({})
   })
 
   it('mata-mata: só manual, sem grupos e sem classificados', () => {
@@ -281,7 +296,12 @@ describe('validateRules (espelha o backend)', () => {
   })
 
   it('a conta dos times só é conferida no sorteio, com times na liga e quando grupos/classificados/modo mudam', () => {
-    const manual = { ...HYBRID_DRAW, fixture_mode: 'manual' } as LeagueRules
+    const manual = {
+      ...HYBRID_DRAW,
+      fixture_mode: 'manual',
+      groups_count: 1,
+      qualifiers_per_group: 8,
+    } as LeagueRules
     expect(validateRules(manual, { format: 'hybrid', teamsCount: 18 })).toEqual({})
     expect(validateRules(HYBRID_DRAW, { format: 'hybrid', teamsCount: 0 })).toEqual({})
     expect(

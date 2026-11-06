@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { extractErrorMessage, useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { leaguesService } from '@/services/api/leagues.service'
+import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { LEAGUE_FORMAT_LABELS } from '@/types/championship'
 import type { League, LeagueFormat, LeaguePayload } from '@/types/championship'
@@ -36,6 +37,7 @@ import TiebreakerList from '@/components/leagues/TiebreakerList.vue'
 
 const leagueContext = useLeagueContextStore()
 const leagueId = leagueContext.activeLeagueId as number
+const canSeeDraw = useAuthStore().hasPermission('game:read')
 const snackbar = useSnackbar()
 const { loading, errorMessage, fieldErrors, fetchOne, save } = useCrud<
   League,
@@ -90,6 +92,7 @@ const localErrors = computed(() =>
 )
 const summary = computed(() => rulesSummary(payload.value, format.value, teamsCount.value))
 const drawRequired = computed(() => format.value === 'hybrid' && form.fixture_mode === 'draw')
+const manualFixture = computed(() => form.fixture_mode === 'manual')
 const groupsOutdated = computed(
   () =>
     !!league.value &&
@@ -140,8 +143,13 @@ function handleSubmit() {
   submitted.value = true
   if (Object.keys(localErrors.value).length) return
 
-  const groupsCountChanged = payload.value.groups_count !== (league.value?.groups_count ?? 1)
-  if (groupsCountChanged && groups.value && hasAssignedTeams(groupMap(groups.value))) {
+  const savedGroupsCount = league.value?.groups_count ?? 1
+  if (
+    payload.value.groups_count !== savedGroupsCount &&
+    savedGroupsCount > 1 &&
+    groups.value &&
+    hasAssignedTeams(groupMap(groups.value))
+  ) {
     confirmRegroup.value = true
     return
   }
@@ -160,7 +168,18 @@ async function persist() {
 
 <template>
   <div>
-    <PageHeader title="Regulamento" :subtitle="subtitle" />
+    <PageHeader title="Regulamento" :subtitle="subtitle">
+      <template v-if="canSeeDraw && league?.fixture_mode === 'draw'" #action>
+        <v-btn
+          variant="tonal"
+          prepend-icon="mdi-dice-multiple-outline"
+          :to="{ name: 'admin-league-draw', params: { leagueId } }"
+          data-test="rules-draw-link"
+        >
+          Sorteio
+        </v-btn>
+      </template>
+    </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4" data-test="rules-error">
       {{ errorMessage }}
@@ -244,12 +263,15 @@ async function persist() {
             <v-row dense>
               <v-col v-if="format === 'hybrid'" cols="12" sm="4">
                 <v-select
-                  v-model="form.groups_count"
+                  :model-value="payload.groups_count"
                   :items="groupsCountOptions"
                   label="Número de grupos"
-                  :disabled="locked"
+                  :disabled="locked || manualFixture"
+                  :hint="manualFixture ? 'Na tabela manual, a liga tem um único grupo.' : undefined"
+                  persistent-hint
                   :error-messages="fieldError('groups_count')"
                   data-test="rules-groups-count"
+                  @update:model-value="form.groups_count = $event"
                 />
               </v-col>
               <v-col cols="12" :sm="format === 'hybrid' ? 4 : 6">

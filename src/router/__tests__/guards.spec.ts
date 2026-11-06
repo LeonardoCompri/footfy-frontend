@@ -109,6 +109,21 @@ describe('adminGuard — contexto de Liga ativa', () => {
     }
   })
 
+  it('Sorteio exige game:read (as ações exigem tournament:update na própria tela)', async () => {
+    const leagueChildren =
+      adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
+    const draw = leagueChildren.find((r) => r.name === 'admin-league-draw')
+    expect(draw?.path).toBe('sorteio')
+    const meta = draw?.meta ?? {}
+    expect(meta.permission).toBe('game:read')
+
+    login('coach', ['team:read'])
+    expect(await adminGuard(leagueRoute(1, meta))).toEqual({ name: 'admin-home' })
+
+    login('admin', ['game:read'])
+    expect(await adminGuard(leagueRoute(1, meta))).toBeUndefined()
+  })
+
   it('Regulamento exige tournament:update (mesma permissão da edição de liga)', async () => {
     const leagueChildren =
       adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
