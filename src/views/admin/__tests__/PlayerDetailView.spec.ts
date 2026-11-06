@@ -5,15 +5,17 @@ import PlayerDetailView from '@/views/admin/players/PlayerDetailView.vue'
 import { playersService } from '@/services/api/players.service'
 import { teamsService } from '@/services/api/teams.service'
 import { gameEventsService } from '@/services/api/gameEvents.service'
+import { eventTypesService } from '@/services/api/eventTypes.service'
 import type { GameEvent } from '@/types/gameEvent'
 import { createTestRouter, createTestVuetify, makeUser, setupLeagueSession } from '@/test/utils'
-import { makePlayer, makeTeam, POSITIONS } from '@/test/factories'
+import { defaultEventTypes, makePlayer, makeTeam, POSITIONS } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/teams.service', () => ({ teamsService: { get: vi.fn() } }))
 vi.mock('@/services/api/players.service', () => ({
   playersService: { get: vi.fn(), positions: vi.fn(), remove: vi.fn(), update: vi.fn(), create: vi.fn() },
 }))
+vi.mock('@/services/api/eventTypes.service', () => ({ eventTypesService: { list: vi.fn() } }))
 vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
 
 const player = makePlayer(10, 'Fulano da Silva', {
@@ -66,6 +68,7 @@ describe('PlayerDetailView', () => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    vi.mocked(eventTypesService.list).mockResolvedValue(defaultEventTypes())
     vi.mocked(playersService.get).mockResolvedValue(player)
     vi.mocked(playersService.positions).mockResolvedValue(POSITIONS)
     vi.mocked(teamsService.get).mockResolvedValue(makeTeam(5, 'Vitória FC'))
@@ -103,7 +106,7 @@ describe('PlayerDetailView', () => {
       event(2, 'goal', 10),
       event(3, 'goal', 99, 1, 10),
       event(4, 'yellow_card', 10),
-      event(5, 'goal', 10, 2), // outra liga
+      event(5, 'goal', 10, 2),
       event(6, 'red_card', 99),
     ])
     const { wrapper } = await mountDetail([], '?tab=estatisticas')

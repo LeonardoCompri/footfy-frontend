@@ -20,13 +20,9 @@ const snackbar = useSnackbar()
 const { xs, smAndDown } = useDisplay()
 const { items, loading, errorMessage, fetchAll, destroy } = useCrud<User, UserPayload>(usersService)
 
-// Regra do backend (routes/backoffice.php): master|admin listam e criam (admin só coach e
-// player); excluir e vincular ligas é só master. Admin edita só a si mesmo e coach/player
-// (access:user_write — nunca master nem outro admin, ver BUG-012).
 const isMaster = authStore.hasRole('master')
 const currentUserId = authStore.user?.id
 
-// Coach e player herdam as ligas do time vinculado (não usam vínculo manual de ligas).
 function isTeamScoped(user: User): boolean {
   return (
     user.roles.some((role) => role === 'coach' || role === 'player') &&
@@ -48,7 +44,6 @@ const leaguesDialog = ref(false)
 const leaguesUser = ref<User | null>(null)
 const { open: confirmOpen, target: userToDelete, ask: askDelete } = useConfirmDialog<User>()
 
-// Termo "com cara de CPF" (só dígitos, ponto, hífen, espaço): compara pelos dígitos.
 const CPF_LIKE = /^[\d.\-\s]+$/
 
 const filteredUsers = computed(() => {
@@ -64,9 +59,6 @@ const filteredUsers = computed(() => {
   )
 })
 
-// E-mail e CPF ficam sempre como legenda sob o nome (sem coluna própria); no mobile Papel e,
-// abaixo de 960px, Ligas/Vínculo também viram legenda, para caber sem rolagem horizontal.
-// Ações com padding menor: em 960px com o menu lateral aberto a tabela fica no limite.
 const headers = computed(() => [
   { title: 'Nome', key: 'name' },
   ...(xs.value ? [] : [{ title: 'Papel', key: 'roles', sortable: false }]),
@@ -89,7 +81,6 @@ function leaguesLabel(user: User): string {
   return user.leagues.map((league) => league.name).join(', ')
 }
 
-// Time do coach ou jogador (com o time) do player; '' para quem não tem vínculo por papel.
 function linkLabel(user: User): string {
   if (user.roles.includes('coach')) return user.team ? `Time: ${user.team.name}` : 'Sem time'
   if (user.roles.includes('player')) {

@@ -18,8 +18,6 @@ const { tab } = useQueryTab('elenco')
 const roster = computed(() => team.value?.players ?? [])
 const technicalCommittee = computed(() => team.value?.technicalCommitteeMembers ?? [])
 
-// Sem `?back=` não há liga de origem: volta pelo histórico do app e, se a tela foi
-// aberta direto (sem página anterior no app), cai na lista pública de campeonatos.
 function goBack() {
   const leagueId = route.query.back
   if (typeof leagueId === 'string') {
@@ -123,7 +121,6 @@ onMounted(() => fetchOne(props.id))
           </v-table>
         </v-window-item>
 
-        <!-- TODO(FOOT-0027): depende da rota pública de estatísticas do time. -->
         <v-window-item value="estatisticas">
           <v-alert type="info" variant="tonal">Estatísticas em breve.</v-alert>
         </v-window-item>

@@ -3,11 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { extractErrorMessage } from '@/composables/useCrud'
 import { gamesService } from '@/services/api/games.service'
 import { gameEventsService } from '@/services/api/gameEvents.service'
+import { useEventTypesStore } from '@/stores/eventTypes'
 import type { Game } from '@/types/game'
 import type { GameEvent } from '@/types/gameEvent'
 import type { Player } from '@/types/player'
 import StatTiles from '@/components/common/StatTiles.vue'
-import { playerEventCounts, teamRecord } from './stats'
+import { cardCounts, playerEventCounts, teamRecord } from './stats'
 
 const props = defineProps<{
   teamId: number
@@ -19,10 +20,14 @@ const games = ref<Game[]>([])
 const events = ref<GameEvent[]>([])
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+const eventTypes = useEventTypesStore()
 
 const tiles = computed(() => {
   const record = teamRecord(games.value, props.teamId)
-  const teamEvents = events.value.filter((event) => event.team_id === props.teamId)
+  const cards = cardCounts(
+    events.value.filter((event) => event.team_id === props.teamId),
+    eventTypes.bySlug,
+  )
   return [
     { label: 'Jogos', value: record.played },
     { label: 'Vitórias', value: record.wins },
@@ -30,14 +35,14 @@ const tiles = computed(() => {
     { label: 'Derrotas', value: record.losses },
     { label: 'Gols pró', value: record.goalsFor },
     { label: 'Gols contra', value: record.goalsAgainst },
-    { label: 'Cartões amarelos', value: teamEvents.filter((e) => e.type === 'yellow_card').length },
-    { label: 'Cartões vermelhos', value: teamEvents.filter((e) => e.type === 'red_card').length },
+    { label: 'Cartões amarelos', value: cards.yellow },
+    { label: 'Cartões vermelhos', value: cards.red },
   ]
 })
 
 const scorers = computed(() =>
   props.players
-    .map((player) => ({ player, ...playerEventCounts(events.value, player.id) }))
+    .map((player) => ({ player, ...playerEventCounts(events.value, player.id, eventTypes.bySlug) }))
     .filter((row) => row.goals > 0 || row.assists > 0)
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists),
 )
@@ -51,9 +56,9 @@ onMounted(async () => {
         status: 'finished',
       }),
       gameEventsService.list(),
+      eventTypes.load(),
     ])
     games.value = leagueGames
-    // GET /game-events não filtra por liga: restringe aqui à liga ativa.
     events.value = allEvents.filter((event) => event.league_id === props.leagueId)
   } catch (err) {
     errorMessage.value = extractErrorMessage(err)

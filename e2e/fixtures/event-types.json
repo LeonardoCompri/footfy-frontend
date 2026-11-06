@@ -1,0 +1,52 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "slug": "goal",
+      "name": "Gol",
+      "icon": "mdi-soccer",
+      "color": "primary",
+      "counts_for": "team",
+      "allows_assist": true,
+      "card": null,
+      "sort_order": 1,
+      "active": true
+    },
+    {
+      "id": 2,
+      "slug": "own_goal",
+      "name": "Gol contra",
+      "icon": "mdi-soccer",
+      "color": "error",
+      "counts_for": "opponent",
+      "allows_assist": false,
+      "card": null,
+      "sort_order": 2,
+      "active": true
+    },
+    {
+      "id": 3,
+      "slug": "yellow_card",
+      "name": "Cartão amarelo",
+      "icon": "mdi-card",
+      "color": "card-yellow",
+      "counts_for": null,
+      "allows_assist": false,
+      "card": "yellow",
+      "sort_order": 3,
+      "active": true
+    },
+    {
+      "id": 4,
+      "slug": "red_card",
+      "name": "Cartão vermelho",
+      "icon": "mdi-card",
+      "color": "card-red",
+      "counts_for": null,
+      "allows_assist": false,
+      "card": "red",
+      "sort_order": 4,
+      "active": true
+    }
+  ]
+}

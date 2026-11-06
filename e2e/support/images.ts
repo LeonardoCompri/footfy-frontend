@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test'
 
-/** Imagem de exemplo em paisagem (data URL: não passa pela rede nem pelo mock da API). */
 export function sampleImageUrl(label: string, color: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600">
     <rect width="1200" height="600" fill="${color}"/>
@@ -11,7 +10,6 @@ export function sampleImageUrl(label: string, color: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
-/** PNG gerado no navegador a partir de `sampleImageUrl`, para usar no upload. */
 export async function samplePng(page: Page, label: string, color: string): Promise<Buffer> {
   const dataUrl = await page.evaluate(
     async (src) => {

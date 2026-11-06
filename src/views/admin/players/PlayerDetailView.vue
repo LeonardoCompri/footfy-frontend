@@ -36,7 +36,6 @@ const initializing = ref(true)
 const editDialog = ref(false)
 const deleteDialog = ref(false)
 
-// Pelo time do jogador carregado (não pelo da URL): coach só edita o elenco do próprio time.
 const canUpdate = computed(
   () => !!player.value && authStore.canManagePlayersOf('player:update', player.value.team_id),
 )
@@ -172,7 +171,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* Nome ao lado do avatar mesmo no mobile; as ações quebram para a linha de baixo. */
 .header-title {
   flex: 1 1 0;
   min-width: 160px;

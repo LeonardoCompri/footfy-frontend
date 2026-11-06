@@ -19,7 +19,6 @@ export interface DashboardGame {
   phase: string | null
 }
 
-// Gols agrupados por rodada (`type: 'round'`) ou por fase de mata-mata (`type: 'phase'`).
 export interface GoalsBucket {
   type: 'round' | 'phase'
   round: number | null
@@ -34,14 +33,12 @@ export interface ResultsSplit {
   away_wins: number
 }
 
-// Totais da liga pelo placar das partidas finalizadas; média null sem partidas (FOOT-0038 no backend).
 export interface LeagueTotals {
   goals: number
   finished_games: number
   goals_average: number | null
 }
 
-// Resposta de GET /leagues/{id}/dashboard (DashboardService no backend).
 export interface LeagueDashboard {
   counters: {
     teams: number
@@ -53,7 +50,6 @@ export interface LeagueDashboard {
   upcoming_games: DashboardGame[]
   goals_by_bucket: GoalsBucket[]
   results_split: ResultsSplit
-  // Total de cartões amarelos/vermelhos da liga inteira (FOOT-0031 no backend).
   cards_split: CardsSplit
   totals: LeagueTotals
 }

@@ -18,7 +18,6 @@ vi.mock('@/services/api/players.service', () => ({ playersService: { get: vi.fn(
 
 const linkedPlayer = { id: 10, name: 'Fulano', team_id: 5 }
 
-// O /me devolve `roles` como strings; o store guarda os objetos do login (com permissions).
 function meOf(role: string, extra: Partial<User> = {}) {
   return makeAppUser(1, 'Usuário Teste', role, {
     email: 'teste@footfy.com',
@@ -137,7 +136,6 @@ describe('ProfileView — Meu perfil', () => {
     })
     expect(auth.user?.name).toBe('Novo Nome')
     expect(auth.user?.email).toBe('novo@footfy.com')
-    // roles do store continuam objetos (o /me devolve strings): hasRole segue funcionando.
     expect(auth.user?.roles).toEqual([{ id: 1, name: 'coach', guard_name: 'sanctum' }])
     expect(auth.hasRole('coach')).toBe(true)
     expect(JSON.parse(localStorage.getItem('footfy_auth')!).user.name).toBe('Novo Nome')

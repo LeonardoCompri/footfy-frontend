@@ -175,8 +175,6 @@ async function handleLogout() {
 
     <v-app-bar>
       <v-app-bar-nav-icon v-if="inLeague && !mdAndUp" @click="mobileDrawer = !mobileDrawer" />
-      <!-- Dentro de uma liga a marca já aparece no drawer; o app bar mostra o pill de contexto.
-           Fora dela a marca leva ao painel (dashboard da liga ativa ou seleção de liga). -->
       <v-toolbar-title v-if="!inLeague" class="toolbar-title">
         <RouterLink
           :to="{ name: 'admin-home' }"

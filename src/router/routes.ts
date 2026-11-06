@@ -1,8 +1,6 @@
 import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 
-// Rotas dentro de `liga/:leagueId` só repassam os ids da própria tela (o `leagueId`
-// vem do store de contexto, não de prop).
 const idProp = (route: RouteLocationNormalized) => ({ id: route.params.id })
 const teamProp = (route: RouteLocationNormalized) => ({ teamId: route.params.teamId })
 const teamMemberProps = (route: RouteLocationNormalized) => ({
@@ -62,7 +60,6 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       {
-        // Entrada do painel: volta para a última liga ativa ou cai na seleção.
         path: '',
         name: 'admin-home',
         redirect: () => {
@@ -84,7 +81,6 @@ export const adminRoutes: RouteRecordRaw[] = [
         props: true,
       },
       {
-        // Conta do próprio usuário (/me): fora de `liga/:leagueId`, vale para qualquer papel.
         path: 'perfil',
         name: 'admin-profile',
         component: () => import('@/views/admin/profile/ProfileView.vue'),
@@ -109,8 +105,6 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { permission: 'tournament:update' },
       },
       {
-        // Rotas escopadas pela Liga ativa. O acesso à liga é validado no guard
-        // (meta.requiresLeague) contra GET /leagues, que já vem escopado no backend.
         path: 'liga/:leagueId',
         meta: { requiresLeague: true },
         children: [
@@ -162,9 +156,6 @@ export const adminRoutes: RouteRecordRaw[] = [
             meta: { permission: 'game:read' },
           },
           {
-            // Não existe permissão `user:*` no PermissionSeeder: o backend libera leitura,
-            // edição e criação para master|admin (admin só cria coach/player); exclusão e
-            // vínculo de ligas só para master.
             path: 'usuarios',
             name: 'admin-users-list',
             component: () => import('@/views/admin/users/UserAdminListView.vue'),

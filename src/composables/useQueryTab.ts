@@ -1,10 +1,6 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-/**
- * Controla a aba ativa de uma tela através da querystring (ex.: ?tab=partidas),
- * permitindo compartilhar/recarregar a URL na aba correta.
- */
 export function useQueryTab(defaultTab: string, param = 'tab') {
   const route = useRoute()
   const router = useRouter()

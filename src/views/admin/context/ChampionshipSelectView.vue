@@ -18,15 +18,12 @@ function leaguesLabel(count: number): string {
   return count === 1 ? '1 liga disponível' : `${count} ligas disponíveis`
 }
 
-// Recarrega sempre ao abrir a seleção: ligas criadas/vinculadas durante a sessão aparecem.
 onMounted(async () => {
   try {
     await leagueContext.loadLeagues(true)
   } catch {
     return
   }
-  // Com uma única liga não há o que escolher: entra direto nela. Não pula quando chegou aqui
-  // por acesso negado (evita loop) nem para master, que só chega à gestão de campeonatos por aqui.
   const leagues = leagueContext.championships.flatMap((group) => group.leagues)
   if (leagues.length !== 1 || accessDenied.value || authStore.hasRole('master')) return
   if (router.currentRoute.value.name !== 'admin-select-championship') return

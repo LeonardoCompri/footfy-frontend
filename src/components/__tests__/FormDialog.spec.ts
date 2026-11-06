@@ -21,7 +21,6 @@ describe('FormDialog', () => {
     document.body.innerHTML = ''
   })
 
-  // Ações fora da área rolável: não se movem quando um campo muda de altura no blur (FOOT-0024).
   it('só o conteúdo rola; as ações ficam fixas no rodapé do card', async () => {
     await mountDialog()
 

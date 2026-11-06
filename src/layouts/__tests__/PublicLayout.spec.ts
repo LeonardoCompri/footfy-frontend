@@ -11,8 +11,6 @@ vi.mock('@/services/api/http', () => ({ default: {} }))
 
 const Stub = { render: () => null }
 
-// Rotas públicas reais (com a home como filha de path vazio do layout, que é o caso do BUG-036)
-// e componentes trocados por stub.
 function createPublicRouter() {
   const routes = publicRoutes.map(
     (layout) =>
@@ -28,7 +26,6 @@ function createPublicRouter() {
   })
 }
 
-// O useDisplay lê a largura quando o Vuetify é criado: defina innerWidth antes do mount.
 async function mountLayout(width: number, authenticated = false, path = '/') {
   window.innerWidth = width
   if (authenticated) {
@@ -49,7 +46,6 @@ function appBarLinks(wrapper: Awaited<ReturnType<typeof mountLayout>>) {
     .map((link) => [link.text() || link.attributes('aria-label'), link.attributes('href')])
 }
 
-// Rótulo (texto ou aria-label) dos botões marcados como ativos, pela classe e pelo aria-current.
 function activeLinks(wrapper: Awaited<ReturnType<typeof mountLayout>>) {
   const label = (link: ReturnType<typeof wrapper.find>) =>
     link.text() || link.attributes('aria-label')
@@ -85,7 +81,6 @@ describe('PublicLayout — app bar', () => {
     expect(appBarLinks(wrapper).at(-1)).toEqual(['Painel Admin', '/admin'])
   })
 
-  // BUG-013: em 390px os três botões com texto estouravam a largura do app bar.
   it('no xs esconde Início, Campeonatos vira ícone e Entrar mantém o texto', async () => {
     const wrapper = await mountLayout(375)
 
@@ -107,8 +102,6 @@ describe('PublicLayout — app bar', () => {
     ])
   })
 
-  // BUG-036: a home é filha de path vazio do layout e "Início" ficava ativo em toda tela pública.
-  // No xs "Início" não existe (o logo leva à home) e "Campeonatos" é o ícone.
   const ACTIVE_BY_ROUTE = [
     { path: '/', desktop: ['Início'], xs: [] },
     { path: '/campeonatos', desktop: ['Campeonatos'], xs: ['Campeonatos'] },

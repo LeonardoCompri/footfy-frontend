@@ -72,7 +72,12 @@ describe('TechnicalCommitteeMemberDetailView', () => {
 
     await wrapper.find('[data-test="member-delete"]').trigger('click')
     await flushPromises()
-    const confirm = [...document.querySelectorAll('.v-overlay--active button')].find((b) =>
+    const dialog = document.querySelector('.v-overlay--active') as HTMLElement
+    expect(dialog.querySelector('.v-card-title')?.textContent).toBe('Excluir membro')
+    expect(dialog.querySelector('.v-card-text')?.textContent).toBe(
+      "Tem certeza que deseja excluir 'Técnico Fulano'?",
+    )
+    const confirm = [...dialog.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('Excluir'),
     ) as HTMLButtonElement
     confirm.click()

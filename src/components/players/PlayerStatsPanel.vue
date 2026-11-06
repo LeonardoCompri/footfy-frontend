@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { extractErrorMessage } from '@/composables/useCrud'
 import { gameEventsService } from '@/services/api/gameEvents.service'
+import { useEventTypesStore } from '@/stores/eventTypes'
 import type { GameEvent } from '@/types/gameEvent'
 import StatTiles from '@/components/common/StatTiles.vue'
 import { playerEventCounts } from '@/components/teams/stats'
@@ -14,9 +15,10 @@ const props = defineProps<{
 const events = ref<GameEvent[]>([])
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+const eventTypes = useEventTypesStore()
 
 const tiles = computed(() => {
-  const counts = playerEventCounts(events.value, props.playerId)
+  const counts = playerEventCounts(events.value, props.playerId, eventTypes.bySlug)
   return [
     { label: 'Gols', value: counts.goals },
     { label: 'Assistências', value: counts.assists },
@@ -27,8 +29,7 @@ const tiles = computed(() => {
 
 onMounted(async () => {
   try {
-    // GET /game-events não filtra por liga: restringe aqui à liga ativa.
-    const allEvents = await gameEventsService.list()
+    const [allEvents] = await Promise.all([gameEventsService.list(), eventTypes.load()])
     events.value = allEvents.filter((event) => event.league_id === props.leagueId)
   } catch (err) {
     errorMessage.value = extractErrorMessage(err)

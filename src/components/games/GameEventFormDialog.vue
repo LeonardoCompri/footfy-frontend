@@ -3,8 +3,14 @@ import { computed, reactive, watch } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { gameEventsService } from '@/services/api/gameEvents.service'
-import { GAME_EVENT_TYPE_OPTIONS } from '@/types/gameEvent'
-import type { GameEvent, GameEventPayload, GameEventPlayer, SummaryTeam } from '@/types/gameEvent'
+import { useEventTypesStore } from '@/stores/eventTypes'
+import type {
+  EventTypeMeta,
+  GameEvent,
+  GameEventPayload,
+  GameEventPlayer,
+  SummaryTeam,
+} from '@/types/gameEvent'
 import type { Player } from '@/types/player'
 import FormDialog from '@/components/common/FormDialog.vue'
 import RemovedBadge from '@/components/common/RemovedBadge.vue'
@@ -12,8 +18,8 @@ import RemovedBadge from '@/components/common/RemovedBadge.vue'
 const props = defineProps<{
   modelValue: boolean
   gameId: number
-  // Só os dois times da partida: o jogador sempre sai do elenco de um deles.
   teams: SummaryTeam[]
+  type: string
   event?: GameEvent | null
 }>()
 
@@ -24,9 +30,10 @@ const emit = defineEmits<{
 
 const { loading, errorMessage, fieldErrors, save } = useCrud<GameEvent, GameEventPayload>(gameEventsService)
 const snackbar = useSnackbar()
+const eventTypes = useEventTypesStore()
 
 const form = reactive({
-  type: 'goal' as GameEventPayload['type'],
+  type: props.type,
   team_id: null as number | null,
   player_id: null as number | null,
   related_player_id: null as number | null,
@@ -34,6 +41,20 @@ const form = reactive({
 })
 
 const isEditing = computed(() => !!props.event)
+const currentType = computed(() => eventTypes.bySlug(form.type))
+const title = computed(() =>
+  isEditing.value ? 'Editar evento' : `Registrar ${currentType.value.name}`,
+)
+
+const typeOptions = computed(() => {
+  const saved = props.event?.type
+  if (!saved || eventTypes.active.some((type) => type.slug === saved)) return eventTypes.active
+  return [...eventTypes.active, eventTypes.bySlug(saved)]
+})
+
+function typeTitle(type: EventTypeMeta): string {
+  return type.active ? type.name : `${type.name} (inativo)`
+}
 
 type PlayerOption = Pick<Player, 'id' | 'name' | 'number'> & { removed?: boolean }
 
@@ -41,8 +62,6 @@ const teamPlayers = computed(
   () => props.teams.find((team) => team.id === form.team_id)?.players ?? [],
 )
 
-// Jogador removido do elenco só vira opção se já está gravado no evento: o backend aceita
-// mantê-lo na edição, mas recusa trocar para outro removido.
 function withSavedRemoved(saved: GameEventPlayer | null | undefined): PlayerOption[] {
   const players: PlayerOption[] = teamPlayers.value
   if (!saved?.removed || props.event?.team_id !== form.team_id) return players
@@ -63,7 +82,6 @@ function playerTitle(player: PlayerOption): string {
   return player.number != null ? `${player.number} · ${player.name}` : player.name
 }
 
-// Trocar o time invalida jogador/assistência; trocar o autor limpa a assistência repetida.
 function onTeamChange() {
   form.player_id = null
   form.related_player_id = null
@@ -76,12 +94,9 @@ watch(
   },
 )
 
-watch(
-  () => form.type,
-  (type) => {
-    if (type !== 'goal') form.related_player_id = null
-  },
-)
+watch(currentType, (type) => {
+  if (!type.allows_assist) form.related_player_id = null
+})
 
 watch(
   () => props.modelValue,
@@ -89,7 +104,7 @@ watch(
     if (!open) return
     errorMessage.value = null
     fieldErrors.value = {}
-    form.type = props.event?.type ?? 'goal'
+    form.type = props.event?.type ?? props.type
     form.team_id = props.event?.team_id ?? null
     form.player_id = props.event?.player_id ?? null
     form.related_player_id = props.event?.related_player_id ?? null
@@ -111,7 +126,7 @@ async function handleSubmit() {
     game_id: props.gameId,
     team_id: form.team_id,
     player_id: form.player_id,
-    related_player_id: form.type === 'goal' ? form.related_player_id : null,
+    related_player_id: currentType.value.allows_assist ? form.related_player_id : null,
     type: form.type,
     minute,
   }
@@ -127,26 +142,37 @@ async function handleSubmit() {
 <template>
   <FormDialog
     :model-value="modelValue"
-    :title="isEditing ? 'Editar evento' : 'Registrar evento'"
+    :title="title"
     :loading="loading"
     :error-message="errorMessage"
     @update:model-value="emit('update:modelValue', $event)"
     @submit="handleSubmit"
   >
-    <v-btn-toggle
+    <template #title>
+      <span class="d-flex align-center ga-2 min-w-0" data-test="event-form-title">
+        <v-icon v-if="!isEditing" :icon="currentType.icon" :color="currentType.color" />
+        <span class="text-wrap">{{ title }}</span>
+      </span>
+    </template>
+
+    <v-select
+      v-if="isEditing"
       v-model="form.type"
-      mandatory
-      color="primary"
-      variant="outlined"
-      density="comfortable"
-      divided
-      class="mb-4 type-toggle"
+      :items="typeOptions"
+      :item-title="typeTitle"
+      item-value="slug"
+      label="Tipo"
+      :error-messages="fieldErrors.type"
       data-test="event-type"
     >
-      <v-btn v-for="option in GAME_EVENT_TYPE_OPTIONS" :key="option.value" :value="option.value" class="flex-grow-1">
-        {{ option.title }}
-      </v-btn>
-    </v-btn-toggle>
+      <template #item="{ props: itemProps, item }">
+        <v-list-item v-bind="itemProps">
+          <template #prepend>
+            <v-icon :icon="item.raw.icon" :color="item.raw.color" />
+          </template>
+        </v-list-item>
+      </template>
+    </v-select>
 
     <v-select
       v-model="form.team_id"
@@ -154,6 +180,12 @@ async function handleSubmit() {
       item-title="name"
       item-value="id"
       label="Time"
+      :hint="
+        currentType.counts_for === 'opponent'
+          ? 'Time do jogador que fez o lance; o evento conta para o adversário.'
+          : undefined
+      "
+      :persistent-hint="currentType.counts_for === 'opponent'"
       :error-messages="fieldErrors.team_id"
       data-test="event-team"
       @update:model-value="onTeamChange"
@@ -179,7 +211,7 @@ async function handleSubmit() {
       </template>
     </v-autocomplete>
     <v-autocomplete
-      v-if="form.type === 'goal'"
+      v-if="currentType.allows_assist"
       v-model="form.related_player_id"
       :items="assistPlayers"
       :item-title="playerTitle"
@@ -211,7 +243,7 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.type-toggle {
-  width: 100%;
+.min-w-0 {
+  min-width: 0;
 }
 </style>

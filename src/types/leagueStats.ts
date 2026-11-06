@@ -1,7 +1,6 @@
 import type { GameLeg, GameStatus } from './game'
 import type { CardsSplit, GoalsBucket, LeagueTotals, ResultsSplit } from './dashboard'
 
-// Resposta de GET /leagues/{id}/table e GET /public/leagues/{id}/table (StandingsService).
 export interface StandingRow {
   team_id: number
   team: { id: number; name: string; nickname: string | null; logo: string | null }
@@ -47,13 +46,11 @@ export interface KnockoutPhase {
   ties: KnockoutTie[]
 }
 
-// `standings` vem em round_robin/hybrid; `phases` em knockout/hybrid.
 export interface LeagueTable {
   standings?: StandingRow[]
   phases?: KnockoutPhase[]
 }
 
-// Resposta de GET /leagues/{id}/statistics e GET /public/leagues/{id}/statistics.
 export interface RankingPlayer {
   player_id: number
   player_name: string
@@ -83,7 +80,6 @@ export interface LeagueStatistics {
   top_cards: CardRow[]
   goals_by_bucket: GoalsBucket[]
   results_split: ResultsSplit
-  // Total de cartões da liga (FOOT-0031 no backend); opcional até o deploy dessa task.
   cards_split?: CardsSplit
   totals: LeagueTotals
 }

@@ -18,7 +18,6 @@ async function mountDialog() {
   return wrapper
 }
 
-// O primeiro .v-img do bloco é a camada de fora do ChampionshipImage, que define o tamanho.
 function imageSize(selector: string) {
   const dialog = document.querySelector('[data-test="image-preview-dialog"]')!
   const img = dialog.querySelector(`${selector} .v-img`) as HTMLElement

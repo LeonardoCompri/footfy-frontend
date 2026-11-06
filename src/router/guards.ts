@@ -4,10 +4,6 @@ import { useLeagueContextStore } from '@/stores/leagueContext'
 
 const SELECT_CHAMPIONSHIP = { name: 'admin-select-championship' } as const
 
-/**
- * Guard global: autenticação, contexto de Liga ativa e papéis/permissões.
- * Exportado separado de `registerGuards` para ser testado sem montar o router.
- */
 export async function adminGuard(
   to: RouteLocationNormalized,
 ): Promise<RouteLocationRaw | undefined> {
@@ -29,8 +25,6 @@ export async function adminGuard(
       return SELECT_CHAMPIONSHIP
     }
 
-    // URL de liga fora do escopo do usuário (ou inexistente) nunca renderiza a tela:
-    // volta para a seleção sem tocar no contexto atual.
     const leagueId = Number(to.params.leagueId)
     if (!leagueContext.hasAccess(leagueId)) {
       return { ...SELECT_CHAMPIONSHIP, query: { negado: '1' } }

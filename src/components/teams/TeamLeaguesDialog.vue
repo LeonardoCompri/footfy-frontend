@@ -23,8 +23,6 @@ const snackbar = useSnackbar()
 const linkedIds = ref<number[]>([])
 const busyLeagueId = ref<number | null>(null)
 
-// `leagues` vem em GET /teams/{id} (só as ligas acessíveis ao usuário); o pai mantém a lista
-// atualizada pelo evento `updated`, para o vínculo não "sumir" ao reabrir o dialog.
 function loadLinks() {
   linkedIds.value = (props.team.leagues ?? []).map((league) => league.id)
 }

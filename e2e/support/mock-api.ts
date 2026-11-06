@@ -10,7 +10,6 @@ export interface MockReply {
 }
 
 interface MockContext {
-  // Grupos capturados pelo RegExp do caminho (ex.: o id em /teams/(\d+)).
   params: string[]
   url: URL
   request: Request
@@ -26,7 +25,6 @@ interface Handler {
 
 const FIXTURES_DIR = new URL('../fixtures/', import.meta.url)
 const API_PATH = new URL(API_BASE_URL).pathname
-// O index.html carrega as fontes do Google: respondidas vazias para o teste não depender de rede.
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 const CORS_HEADERS = {
   'access-control-allow-origin': new URL(APP_URL).origin,
@@ -34,22 +32,14 @@ const CORS_HEADERS = {
   'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
-/** Corpo de resposta versionado em e2e/fixtures/<nome>.json (cópia nova a cada chamada). */
 export function fixture<T = unknown>(name: string): T {
   return JSON.parse(readFileSync(new URL(`${name}.json`, FIXTURES_DIR), 'utf8')) as T
 }
 
-/**
- * API do backend simulada via page.route. Chamada sem mock responde 501 e fica registrada em
- * `unmocked`; requisição para outro host vai para `unexpected`. O fixture `api` falha o teste
- * se alguma das duas listas não estiver vazia.
- */
 export class MockApi {
   private readonly handlers: Handler[] = []
   readonly unmocked: string[] = []
   readonly unexpected: string[] = []
-  // O Chromium loga toda resposta 4xx/5xx como console.error: o teste que simula um erro de
-  // propósito libera só aquela mensagem.
   readonly allowedConsoleErrors: RegExp[] = []
 
   allowConsoleError(pattern: RegExp): this {
@@ -57,7 +47,6 @@ export class MockApi {
     return this
   }
 
-  /** Registra (ou sobrescreve) uma rota: o registro mais recente vence. */
   on(method: Method, path: string | RegExp, resolve: Resolver): this {
     this.handlers.unshift({ method, path, resolve })
     return this
@@ -106,7 +95,6 @@ export class MockApi {
           body: JSON.stringify(reply.body ?? {}),
         })
       } catch (error) {
-        // Ex.: não existe fixture para o id pedido.
         this.unmocked.push(`${method} ${path}${url.search} (${String(error)})`)
         return route.fulfill({
           status: 501,

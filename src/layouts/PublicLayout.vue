@@ -7,8 +7,6 @@ import logoWhite from '@/assets/brand/futy-mono-branco.svg'
 
 const authStore = useAuthStore()
 const route = useRoute()
-// "Campeonatos" é a única entrada do menu para as telas públicas: fica ativo também nas que se
-// abrem a partir dele (liga, time, partida). Precisa de `:active` porque o link só casaria a lista.
 const CHAMPIONSHIPS_ROUTES = new Set<RouteRecordNameGeneric>([
   'championships-list',
   'championships-detail',
@@ -17,8 +15,6 @@ const CHAMPIONSHIPS_ROUTES = new Set<RouteRecordNameGeneric>([
   'games-detail',
 ])
 const championshipsActive = computed(() => CHAMPIONSHIPS_ROUTES.has(route.name))
-// No xs os botões com texto não cabem no app bar: "Início" some (o logo já leva para a home)
-// e "Campeonatos" vira ícone.
 const { xs } = useDisplay()
 </script>
 
@@ -43,7 +39,6 @@ const { xs } = useDisplay()
           :aria-current="championshipsActive ? 'page' : undefined"
         />
         <template v-else>
-          <!-- `exact`: a home é filha de path vazio e ficaria ativa em toda tela (BUG-036). -->
           <v-btn variant="text" color="white" exact :to="{ name: 'home' }">Início</v-btn>
           <v-btn
             variant="text"

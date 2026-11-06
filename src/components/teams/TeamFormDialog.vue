@@ -23,7 +23,6 @@ const snackbar = useSnackbar()
 const form = reactive<TeamPayload>({ name: '', nickname: null, logo: null })
 const isEditing = computed(() => !!props.team)
 
-// Preview do escudo recém-selecionado; sem arquivo novo, mostra o escudo atual do time.
 const newLogoUrl = ref<string | null>(null)
 const logoPreview = computed(() => newLogoUrl.value ?? props.team?.logo ?? null)
 
@@ -53,7 +52,6 @@ watch(
 )
 
 async function handleSubmit() {
-  // No create, o time já nasce vinculado à liga ativa (senão não aparece na listagem escopada).
   const result = props.team
     ? await save(form, props.team.id)
     : await save({ ...form, league_ids: [props.leagueId] })

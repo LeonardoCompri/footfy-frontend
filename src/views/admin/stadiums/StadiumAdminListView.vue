@@ -31,7 +31,6 @@ const stadiumToEdit = ref<Stadium | null>(null)
 const confirmDialog = ref(false)
 const stadiumToDelete = ref<Stadium | null>(null)
 
-// No mobile a Cidade vira legenda sob o nome, para a tabela caber sem scroll horizontal.
 const headers = computed(() => [
   { title: 'Nome', key: 'name' },
   ...(xs.value ? [] : [{ title: 'Cidade', key: 'city' }]),
@@ -66,7 +65,6 @@ function loadStadiums() {
   return fetchAll({ league_id: leagueId })
 }
 
-// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
 onMounted(loadStadiums)
 </script>
 

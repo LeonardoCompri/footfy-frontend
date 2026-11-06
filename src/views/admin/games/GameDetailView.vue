@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useBackLink } from '@/composables/useBackLink'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { gamesService } from '@/services/api/games.service'
+import { leaguesService } from '@/services/api/leagues.service'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import { teamsService } from '@/services/api/teams.service'
-import { formatMatchDate, GAME_LEG_OPTIONS, gameStageLabel, gameStatusOption } from '@/types/game'
-import type { Game, GamePayload } from '@/types/game'
+import {
+  formatMatchDate,
+  GAME_LEG_OPTIONS,
+  gameStageLabel,
+  gameStatusOption,
+  knownPhasesOf,
+} from '@/types/game'
+import type { Game, GamePayload, KnownPhase } from '@/types/game'
 import type { Stadium } from '@/types/stadium'
 import type { Team } from '@/types/team'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -36,8 +44,11 @@ const game = ref<Game | null>(null)
 const initializing = ref(true)
 const teams = ref<Team[]>([])
 const stadiums = ref<Stadium[]>([])
+const knownPhases = ref<KnownPhase[]>([])
 const editDialog = ref(false)
 const deleteDialog = ref(false)
+
+const listRoute = useBackLink({ name: 'admin-games-list', params: { leagueId } })
 
 const tabs = [
   { value: 'detalhes', title: 'Detalhes do confronto' },
@@ -72,15 +83,24 @@ async function loadGame() {
   if (data) game.value = data
 }
 
-// Times e estádios da liga só são necessários para editar: carrega na primeira abertura.
+function loadKnownPhases(): Promise<KnownPhase[]> {
+  if (league?.format === 'round_robin') return Promise.resolve([])
+  return leaguesService
+    .table(leagueId)
+    .then(knownPhasesOf)
+    .catch(() => [])
+}
+
 async function openEdit() {
   if (teams.value.length === 0) {
+    const phases = loadKnownPhases()
     const [leagueTeams, leagueStadiums] = await Promise.all([
       teamsService.list({ league_id: leagueId }),
       stadiumsService.list({ league_id: leagueId }),
     ]).catch(() => [[], []] as [Team[], Stadium[]])
     teams.value = leagueTeams
     stadiums.value = leagueStadiums
+    knownPhases.value = await phases
   }
   editDialog.value = true
 }
@@ -89,7 +109,7 @@ async function handleDelete() {
   if (!game.value) return
   if (await destroy(game.value.id)) {
     snackbar.success('Partida excluída com sucesso.')
-    router.push({ name: 'admin-games-list' })
+    router.push(listRoute)
   } else {
     snackbar.error(errorMessage.value ?? 'Não foi possível excluir a partida.')
     errorMessage.value = null
@@ -111,7 +131,8 @@ onMounted(async () => {
       variant="text"
       prepend-icon="mdi-arrow-left"
       class="mb-2"
-      :to="{ name: 'admin-games-list', params: { leagueId } }"
+      :to="listRoute"
+      data-test="back-to-games"
     >
       Partidas
     </v-btn>
@@ -186,8 +207,11 @@ onMounted(async () => {
           </v-card>
         </template>
         <template #sumula>
-          <!-- Remonta se os times mudarem na edição: o elenco elegível é o dos dois times. -->
-          <GameEventsPanel :key="`${game.home_team_id}-${game.away_team_id}`" :game="game" />
+          <GameEventsPanel
+            :key="`${game.home_team_id}-${game.away_team_id}`"
+            :game="game"
+            @changed="loadGame"
+          />
         </template>
       </QueryTabs>
 
@@ -198,6 +222,7 @@ onMounted(async () => {
         :teams="teams"
         :stadiums="stadiums"
         :game="game"
+        :known-phases="knownPhases"
         @saved="loadGame"
       />
       <ConfirmDialog

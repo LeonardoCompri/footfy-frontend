@@ -6,8 +6,6 @@ import type { LeagueTable } from '@/types/leagueStats'
 import KnockoutPhases from './KnockoutPhases.vue'
 import StandingsTable from './StandingsTable.vue'
 
-// Tabela da liga compartilhada entre admin e público: muda só a rota de origem (`load`).
-// round_robin → classificação; knockout → chaveamento; hybrid → os dois, em seções.
 const props = defineProps<{
   format?: LeagueFormat | null
   load: () => Promise<LeagueTable>

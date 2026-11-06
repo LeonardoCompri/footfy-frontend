@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { useDisplay } from 'vuetify'
-import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useCrud } from '@/composables/useCrud'
-import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { gamesService } from '@/services/api/games.service'
@@ -16,11 +14,11 @@ import {
   GAME_STATUS_OPTIONS,
   gameStageLabel,
   gameStatusOption,
+  knownPhasesOf,
 } from '@/types/game'
-import type { Game, GameListParams, GamePayload, GameStatus } from '@/types/game'
+import type { Game, GameListParams, GamePayload, GameStatus, KnownPhase } from '@/types/game'
 import type { Stadium } from '@/types/stadium'
 import type { Team } from '@/types/team'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import GameFormDialog from '@/components/games/GameFormDialog.vue'
 
@@ -31,39 +29,58 @@ interface GameFilters {
   team_id: number | null
 }
 
+const PER_PAGE_OPTIONS = [10, 20, 50, 100]
+const DEFAULT_PER_PAGE = 20
+
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
+const route = useRoute()
 const router = useRouter()
-const snackbar = useSnackbar()
 const { xs, smAndDown } = useDisplay()
-const { items, meta, loading, errorMessage, fetchPage, destroy } = useCrud<Game, GamePayload>(
-  gamesService,
-)
+const { items, meta, loading, errorMessage, fetchPage } = useCrud<Game, GamePayload>(gamesService)
 
-// Lista escopada pela Liga ativa (o layout remonta a tela ao trocar de liga).
 const leagueId = leagueContext.activeLeagueId as number
 const league = leagueContext.activeLeague
-const can = {
-  create: authStore.hasPermission('game:create'),
-  update: authStore.hasPermission('game:update'),
-  delete: authStore.hasPermission('game:delete'),
-}
+const canCreate = authStore.hasPermission('game:create')
 const showRoundFilter = league?.format !== 'knockout'
 
 const teams = ref<Team[]>([])
 const stadiums = ref<Stadium[]>([])
-const knownPhases = ref<{ phase: string; phase_order: number | null }[]>([])
+const knownPhases = ref<KnownPhase[]>([])
 const formDialog = ref(false)
-const gameToEdit = ref<Game | null>(null)
-const { open: confirmOpen, target: gameToDelete, ask: askDelete } = useConfirmDialog<Game>()
 
-const emptyFilters = (): GameFilters => ({ round: null, phase: null, status: null, team_id: null })
-// Os campos editam só o rascunho; a API só recebe os filtros aplicados pelo botão "Buscar".
-const draftFilters = ref<GameFilters>(emptyFilters())
-const appliedFilters = ref<GameFilters>(emptyFilters())
+function queryValue(query: LocationQuery, key: string): string | null {
+  const value = query[key]
+  return typeof value === 'string' && value !== '' ? value : null
+}
+
+function positiveInt(value: string | null): number | null {
+  return value !== null && /^[1-9]\d*$/.test(value) ? Number(value) : null
+}
+
+function filtersFromQuery(query: LocationQuery): GameFilters {
+  const status = queryValue(query, 'status')
+  return {
+    round: showRoundFilter ? positiveInt(queryValue(query, 'round')) : null,
+    phase: queryValue(query, 'phase'),
+    status: GAME_STATUS_OPTIONS.some((option) => option.value === status)
+      ? (status as GameStatus)
+      : null,
+    team_id: positiveInt(queryValue(query, 'team_id')),
+  }
+}
+
+const perPageFromQuery = positiveInt(queryValue(route.query, 'per_page'))
+
+const appliedFilters = ref<GameFilters>(filtersFromQuery(route.query))
+const draftFilters = ref<GameFilters>({ ...appliedFilters.value })
 const roundError = ref<string | null>(null)
-const page = ref(1)
-const perPage = ref(20)
+const page = ref(positiveInt(queryValue(route.query, 'page')) ?? 1)
+const perPage = ref(
+  perPageFromQuery && PER_PAGE_OPTIONS.includes(perPageFromQuery)
+    ? perPageFromQuery
+    : DEFAULT_PER_PAGE,
+)
 
 const teamOptions = computed(() =>
   teams.value.map((team) => ({ value: team.id, title: team.nickname || team.name })),
@@ -88,11 +105,23 @@ function buildQuery(filters: GameFilters, targetPage: number): GameListParams {
 
 const query = computed(() => buildQuery(appliedFilters.value, page.value))
 
-// Única fonte de requisição da lista (inclusive no mount). A comparação por JSON ignora disparos
-// sem mudança real; não usamos @update:options porque o Vuetify o emite também ao montar.
+function routeQuery(params: GameListParams): Record<string, string> {
+  const result: Record<string, string> = {}
+  if (params.round) result.round = String(params.round)
+  if (params.phase) result.phase = params.phase
+  if (params.status) result.status = params.status
+  if (params.team_id) result.team_id = String(params.team_id)
+  if (params.page && params.page > 1) result.page = String(params.page)
+  if (params.per_page !== DEFAULT_PER_PAGE) result.per_page = String(params.per_page)
+  return result
+}
+
 watch(
   () => JSON.stringify(query.value),
-  () => fetchPage(query.value),
+  () => {
+    fetchPage(query.value)
+    router.replace({ query: routeQuery(query.value) })
+  },
   { immediate: true },
 )
 
@@ -118,7 +147,6 @@ function searchGames() {
   }
   roundError.value = null
   const next = { ...draftFilters.value }
-  // Mesmos filtros já na página 1: o watcher não dispararia, então recarrega direto.
   if (JSON.stringify(buildQuery(next, 1)) === JSON.stringify(query.value)) {
     fetchPage(query.value)
     return
@@ -127,23 +155,14 @@ function searchGames() {
   page.value = 1
 }
 
-// Fases do mata-mata (opções do filtro e fases conhecidas do formulário). O mesmo nome pode repetir.
 function loadPhases() {
   if (league?.format === 'round_robin') return
   leaguesService
     .table(leagueId)
-    .then((table) => {
-      const unique = new Map<string, { phase: string; phase_order: number | null }>()
-      for (const item of table.phases ?? []) {
-        if (unique.has(item.phase)) continue
-        unique.set(item.phase, { phase: item.phase, phase_order: item.phase_order })
-      }
-      knownPhases.value = [...unique.values()]
-    })
+    .then((table) => (knownPhases.value = knownPhasesOf(table)))
     .catch(() => (knownPhases.value = []))
 }
 
-// No mobile Etapa/Data/Status viram legenda sob o confronto, para caber sem rolagem horizontal.
 const headers = computed(() => [
   ...(smAndDown.value ? [] : [{ title: 'Etapa', key: 'stage', sortable: false }]),
   { title: 'Confronto', key: 'matchup', sortable: false },
@@ -154,7 +173,14 @@ const headers = computed(() => [
         { title: 'Data', key: 'match_date', sortable: false },
         { title: 'Status', key: 'status', sortable: false },
       ]),
-  ...(can.update || can.delete ? [{ title: '', key: 'actions', sortable: false, align: 'end' as const }] : []),
+  {
+    title: '',
+    key: 'actions',
+    sortable: false,
+    align: 'end' as const,
+    headerProps: { class: 'px-2' },
+    cellProps: { class: 'px-2' },
+  },
 ])
 
 function score(game: Game): string {
@@ -162,41 +188,21 @@ function score(game: Game): string {
   return `${game.home_score} × ${game.away_score}`
 }
 
+function gameRoute(game: Game) {
+  return { name: 'admin-games-detail', params: { leagueId, id: game.id } }
+}
+
 function openGame(_event: Event, row: { item: Game }) {
-  router.push({ name: 'admin-games-detail', params: { id: row.item.id } })
+  router.push(gameRoute(row.item))
 }
 
-function openForm(game: Game | null) {
-  gameToEdit.value = game
-  formDialog.value = true
-}
-
-async function handleDelete() {
-  if (!gameToDelete.value) return
-  if (await destroy(gameToDelete.value.id)) {
-    snackbar.success('Partida excluída com sucesso.')
-    // Página esvaziou: volta uma (o watcher recarrega); senão recarrega para repor a página.
-    if (items.value.length === 0 && page.value > 1) page.value--
-    else fetchPage(query.value)
-  } else {
-    snackbar.error(errorMessage.value ?? 'Não foi possível excluir a partida.')
-    errorMessage.value = null
-  }
-  gameToDelete.value = null
-}
-
-function onSaved(game: Game) {
-  if (gameToEdit.value) {
-    fetchPage(query.value)
-    loadPhases()
-  } else {
-    router.push({ name: 'admin-games-detail', params: { id: game.id } })
-  }
+function onCreated(game: Game) {
+  router.push(gameRoute(game))
 }
 
 onMounted(() => {
   teamsService.list({ league_id: leagueId }).then((data) => (teams.value = data)).catch(() => undefined)
-  if (can.create || can.update) {
+  if (canCreate) {
     stadiumsService.list({ league_id: leagueId }).then((data) => (stadiums.value = data)).catch(() => undefined)
   }
   loadPhases()
@@ -207,7 +213,13 @@ onMounted(() => {
   <div>
     <PageHeader title="Partidas" :subtitle="league?.name">
       <template #action>
-        <v-btn v-if="can.create" color="primary" prepend-icon="mdi-plus" data-test="game-create" @click="openForm(null)">
+        <v-btn
+          v-if="canCreate"
+          color="primary"
+          prepend-icon="mdi-plus"
+          data-test="game-create"
+          @click="formDialog = true"
+        >
           <span class="d-none d-sm-inline">Nova partida</span>
           <span class="d-sm-none">Nova</span>
         </v-btn>
@@ -283,7 +295,7 @@ onMounted(() => {
           :headers="headers"
           :items="rows"
           :items-length="meta?.total ?? 0"
-          :items-per-page-options="[10, 20, 50, 100]"
+          :items-per-page-options="PER_PAGE_OPTIONS"
           :loading="loading"
           item-value="id"
           :no-data-text="
@@ -318,45 +330,29 @@ onMounted(() => {
             </v-chip>
           </template>
           <template v-slot:[`item.actions`]="{ item }">
-            <div class="d-flex justify-end">
-              <v-btn
-                v-if="can.update"
-                icon="mdi-pencil"
-                variant="text"
-                size="small"
-                data-test="game-edit"
-                @click.stop="openForm(item)"
-              />
-              <v-btn
-                v-if="can.delete"
-                icon="mdi-delete"
-                variant="text"
-                size="small"
-                color="error"
-                data-test="game-delete"
-                @click.stop="askDelete(item)"
-              />
-            </div>
+            <v-btn
+              icon="mdi-eye-outline"
+              variant="text"
+              size="small"
+              :to="gameRoute(item)"
+              :aria-label="`Ver partida ${item.home} × ${item.away}`"
+              data-test="game-view"
+              @click.stop
+            />
           </template>
         </v-data-table-server>
       </v-card-text>
     </v-card>
 
     <GameFormDialog
+      v-if="canCreate"
       v-model="formDialog"
       :league-id="leagueId"
       :format="league?.format"
       :teams="teams"
       :stadiums="stadiums"
-      :game="gameToEdit"
       :known-phases="knownPhases"
-      @saved="onSaved"
-    />
-    <ConfirmDialog
-      v-model="confirmOpen"
-      title="Excluir partida"
-      message="Excluir a partida remove também todos os eventos da súmula. Deseja continuar?"
-      @confirm="handleDelete"
+      @saved="onCreated"
     />
   </div>
 </template>

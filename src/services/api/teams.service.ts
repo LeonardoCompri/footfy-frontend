@@ -20,7 +20,6 @@ const base = createResourceService<Team, TeamPayload>(baseUrl)
 export const teamsService = {
   ...base,
   create: (payload: TeamPayload) => unwrap<Team>(http.post(baseUrl, toFormData(payload))),
-  // Laravel não faz parse de multipart/form-data em PUT: POST com `_method=PUT` (upload do escudo).
   update: (id: number | string, payload: TeamPayload) =>
     unwrap<Team>(
       http.post(`${baseUrl}/${id}?_method=PUT`, toFormData({ ...payload, league_ids: undefined })),

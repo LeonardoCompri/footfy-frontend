@@ -3,7 +3,6 @@ defineProps<{
   modelValue: boolean
   title?: string
   message?: string
-  // Texto do botão de confirmação (padrão "Excluir").
   confirmText?: string
 }>()
 
