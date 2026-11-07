@@ -1,4 +1,5 @@
 import type { Game } from './game'
+import type { LeagueRules } from './leagueRules'
 import type { Stadium } from './stadium'
 import type { Team } from './team'
 
@@ -10,7 +11,7 @@ export const LEAGUE_FORMAT_LABELS: Record<LeagueFormat, string> = {
   hybrid: 'Grupos + mata-mata',
 }
 
-export interface League {
+export interface League extends Partial<LeagueRules> {
   id: number
   name: string
   start_date: string | null

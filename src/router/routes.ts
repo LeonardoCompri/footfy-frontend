@@ -156,6 +156,12 @@ export const adminRoutes: RouteRecordRaw[] = [
             meta: { permission: 'game:read' },
           },
           {
+            path: 'sorteio',
+            name: 'admin-league-draw',
+            component: () => import('@/views/admin/leagues/LeagueDrawView.vue'),
+            meta: { permission: 'game:read' },
+          },
+          {
             path: 'usuarios',
             name: 'admin-users-list',
             component: () => import('@/views/admin/users/UserAdminListView.vue'),
@@ -165,6 +171,12 @@ export const adminRoutes: RouteRecordRaw[] = [
             path: 'tabela',
             name: 'admin-league-table',
             component: () => import('@/views/admin/leagues/LeagueTableView.vue'),
+          },
+          {
+            path: 'regulamento',
+            name: 'admin-league-rules',
+            component: () => import('@/views/admin/leagues/LeagueRulesView.vue'),
+            meta: { permission: 'tournament:update' },
           },
           {
             path: 'estatisticas',

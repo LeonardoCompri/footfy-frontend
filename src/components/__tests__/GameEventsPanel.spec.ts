@@ -607,6 +607,68 @@ describe('GameEventsPanel (Súmula)', () => {
     expect(wrapper.find('[data-test="event-delete"]').exists()).toBe(del)
   })
 
+  it.each([
+    [true, 'jogo de grupo com mata-mata gerado'],
+    [false, 'sem trava'],
+  ])('results_locked %s (%s): lançar e excluir somem, editar fica', async (locked) => {
+    const wrapper = await mountPanel(ALL, gameWith(defaultEvents(), { results_locked: locked }))
+    expect(wrapper.find('[data-test="events-locked"]').exists()).toBe(locked)
+    expect(wrapper.find('[data-test="event-actions"]').exists()).toBe(!locked)
+    expect(wrapper.find('[data-test="event-delete"]').exists()).toBe(!locked)
+    expect(wrapper.findAll('[data-test="event-edit"]')).toHaveLength(2)
+  })
+
+  it('o aviso da trava explica o que ainda dá para corrigir', async () => {
+    const wrapper = await mountPanel(ALL, gameWith(defaultEvents(), { results_locked: true }))
+    expect(wrapper.find('[data-test="events-locked"]').text()).toBe(
+      'Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos lançados.',
+    )
+  })
+
+  it('jogo travado: a edição só libera jogador, assistência e minuto e envia o mesmo tipo e time', async () => {
+    vi.mocked(gameEventsService.update).mockImplementation(async (id, payload) =>
+      makeEvent(Number(id), payload),
+    )
+    const wrapper = await mountPanel(ALL, gameWith(defaultEvents(), { results_locked: true }))
+    await wrapper.findAll('[data-test="event-edit"]')[1].trigger('click')
+    await flushPromises()
+
+    expect(field(wrapper, 'VSelect', 'event-type').props('disabled')).toBe(true)
+    expect(field(wrapper, 'VSelect', 'event-team').props('disabled')).toBe(true)
+    expect(field(wrapper, 'VAutocomplete', 'event-player').props('disabled')).toBe(false)
+    expect(field(wrapper, 'VAutocomplete', 'event-assist').props('disabled')).toBe(false)
+    expect(field(wrapper, 'VTextField', 'event-minute').props('disabled')).toBeFalsy()
+
+    await choose(wrapper, 'VAutocomplete', 'event-player', 12)
+    await choose(wrapper, 'VTextField', 'event-minute', '33')
+    await submit()
+
+    expect(gameEventsService.update).toHaveBeenCalledWith(1, {
+      game_id: 7,
+      team_id: 1,
+      player_id: 12,
+      related_player_id: null,
+      type: 'goal',
+      minute: 33,
+    })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('jogo travado: o 422 do back aparece no formulário de edição', async () => {
+    const message =
+      'Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para corrigir, desfaça o mata-mata.'
+    vi.mocked(gameEventsService.update).mockRejectedValue(apiError(422, message))
+    const wrapper = await mountPanel(ALL, gameWith(defaultEvents(), { results_locked: true }))
+    await wrapper.findAll('[data-test="event-edit"]')[1].trigger('click')
+    await flushPromises()
+    await choose(wrapper, 'VTextField', 'event-minute', '33')
+    await submit()
+
+    expect(document.querySelector('[data-test="form-error"]')?.textContent).toContain(message)
+    expect(formOpen()).toBe(true)
+    expect(wrapper.emitted('changed')).toBeUndefined()
+  })
+
   it('avisa quando os gols da súmula não batem com o placar finalizado', async () => {
     const wrapper = await mountPanel(
       ALL,

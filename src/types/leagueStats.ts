@@ -1,5 +1,7 @@
 import type { GameLeg, GameStatus } from './game'
 import type { CardsSplit, GoalsBucket, LeagueTotals, ResultsSplit } from './dashboard'
+import type { KnockoutStageKey } from './leagueKnockout'
+import type { Tiebreaker } from './leagueRules'
 
 export interface StandingRow {
   team_id: number
@@ -12,6 +14,12 @@ export interface StandingRow {
   goals_against: number
   goal_difference: number
   points: number
+  tied?: boolean
+}
+
+export interface StandingGroup {
+  group_number: number
+  standings: StandingRow[]
 }
 
 export interface KnockoutTieTeam {
@@ -28,14 +36,23 @@ export interface KnockoutTieLeg {
   away_team_id: number
   home_score: number | null
   away_score: number | null
+  home_penalties?: number | null
+  away_penalties?: number | null
   status: GameStatus
   match_date: string | null
 }
+
+export type TieDecidedBy = 'aggregate' | 'away_goals' | 'better_campaign' | 'penalties'
 
 export interface KnockoutTie {
   tie_key: string | null
   decided: boolean
   winner_team_id: number | null
+  decided_by?: TieDecidedBy | null
+  awaiting_penalties?: boolean
+  decisive_game_id?: number | null
+  home_penalties?: number | null
+  away_penalties?: number | null
   teams: KnockoutTieTeam[]
   legs: KnockoutTieLeg[]
 }
@@ -43,12 +60,15 @@ export interface KnockoutTie {
 export interface KnockoutPhase {
   phase: string
   phase_order: number | null
+  stage?: KnockoutStageKey | null
   ties: KnockoutTie[]
 }
 
 export interface LeagueTable {
   standings?: StandingRow[]
   phases?: KnockoutPhase[]
+  groups?: StandingGroup[]
+  tiebreakers?: Tiebreaker[]
 }
 
 export interface RankingPlayer {

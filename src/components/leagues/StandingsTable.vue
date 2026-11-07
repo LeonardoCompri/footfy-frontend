@@ -1,7 +1,23 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import type { Tiebreaker } from '@/types/leagueRules'
 import type { StandingRow } from '@/types/leagueStats'
+import StandingsLegend from './StandingsLegend.vue'
+import { TIED_LABEL } from './standings'
 
-defineProps<{ rows: StandingRow[] }>()
+const props = defineProps<{
+  rows: StandingRow[]
+  title?: string | null
+  qualifiers?: number | null
+  tiebreakers?: Tiebreaker[] | null
+  hideLegend?: boolean
+}>()
+
+const hasTied = computed(() => props.rows.some((row) => row.tied))
+
+function qualifies(index: number): boolean {
+  return !!props.qualifiers && index < props.qualifiers
+}
 
 function initials(row: StandingRow): string {
   return (row.team.nickname || row.team.name).slice(0, 2).toUpperCase()
@@ -10,8 +26,11 @@ function initials(row: StandingRow): string {
 
 <template>
   <v-card>
+    <v-card-title v-if="title" class="text-subtitle-1 font-weight-bold" data-test="standings-title">
+      {{ title }}
+    </v-card-title>
     <v-card-text v-if="rows.length === 0" class="text-medium-emphasis text-center">
-      Nenhum time vinculado a esta liga ainda.
+      {{ title ? 'Nenhum time neste grupo ainda.' : 'Nenhum time vinculado a esta liga ainda.' }}
     </v-card-text>
     <template v-else>
       <v-table density="comfortable" data-test="standings-table">
@@ -31,7 +50,19 @@ function initials(row: StandingRow): string {
         </thead>
         <tbody>
           <tr v-for="(row, index) in rows" :key="row.team_id" data-test="standings-row">
-            <td class="text-center pos font-weight-bold">{{ index + 1 }}</td>
+            <td class="text-center pos font-weight-bold">
+              <v-avatar
+                v-if="qualifies(index)"
+                size="24"
+                color="success"
+                variant="tonal"
+                class="text-caption font-weight-bold"
+                data-test="standings-qualified"
+              >
+                {{ index + 1 }}
+              </v-avatar>
+              <template v-else>{{ index + 1 }}</template>
+            </td>
             <td>
               <div class="d-flex align-center ga-2 team-cell">
                 <v-avatar size="28" rounded="lg" color="primary" variant="tonal">
@@ -42,6 +73,19 @@ function initials(row: StandingRow): string {
                   <span class="d-sm-none">{{ row.team.nickname || row.team.name }}</span>
                   <span class="d-none d-sm-inline">{{ row.team.name }}</span>
                 </span>
+                <v-tooltip v-if="row.tied" :text="TIED_LABEL" location="top">
+                  <template #activator="{ props: tooltipProps }">
+                    <v-icon
+                      v-bind="tooltipProps"
+                      icon="mdi-approximately-equal"
+                      size="16"
+                      class="flex-shrink-0 text-medium-emphasis"
+                      tabindex="0"
+                      :aria-label="TIED_LABEL"
+                      data-test="standings-tied"
+                    />
+                  </template>
+                </v-tooltip>
               </div>
             </td>
             <td class="text-center font-weight-bold tabular">{{ row.points }}</td>
@@ -55,9 +99,8 @@ function initials(row: StandingRow): string {
           </tr>
         </tbody>
       </v-table>
-      <v-card-text class="text-caption text-medium-emphasis pt-2">
-        P pontos · J jogos · V vitórias · E empates · D derrotas · GP gols pró · GC gols contra · SG saldo de gols.
-        Desempate: vitórias, saldo, gols pró, confronto direto e cartões.
+      <v-card-text v-if="!hideLegend" class="pt-2">
+        <StandingsLegend :tiebreakers="tiebreakers" :tied="hasTied" :qualifiers="qualifiers" />
       </v-card-text>
     </template>
   </v-card>

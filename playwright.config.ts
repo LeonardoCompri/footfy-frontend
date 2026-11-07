@@ -8,9 +8,11 @@ const OUT_DIR = 'node_modules/.cache/e2e-dist'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  workers: 4,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   expect: {
+    timeout: 10_000,
     toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled', caret: 'hide' },
   },
   use: {

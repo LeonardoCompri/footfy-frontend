@@ -15,6 +15,7 @@ import {
   gameStageLabel,
   gameStatusOption,
   knownPhasesOf,
+  scoreLabel,
 } from '@/types/game'
 import type { Game, GameListParams, GamePayload, GameStatus, KnownPhase } from '@/types/game'
 import type { Stadium } from '@/types/stadium'
@@ -41,7 +42,12 @@ const { items, meta, loading, errorMessage, fetchPage } = useCrud<Game, GamePayl
 
 const leagueId = leagueContext.activeLeagueId as number
 const league = leagueContext.activeLeague
-const canCreate = authStore.hasPermission('game:create')
+const isDrawLeague = league?.fixture_mode === 'draw'
+const canCreate = authStore.hasPermission('game:create') && !isDrawLeague
+const drawNotice =
+  league?.format === 'hybrid'
+    ? 'As partidas de rodada desta liga são criadas pelo sorteio e as de mata-mata são geradas pela classificação.'
+    : 'As partidas de rodada desta liga são criadas pelo sorteio.'
 const showRoundFilter = league?.format !== 'knockout'
 
 const teams = ref<Team[]>([])
@@ -184,8 +190,7 @@ const headers = computed(() => [
 ])
 
 function score(game: Game): string {
-  if (game.home_score === null || game.away_score === null) return '—'
-  return `${game.home_score} × ${game.away_score}`
+  return scoreLabel(game)
 }
 
 function gameRoute(game: Game) {
@@ -227,6 +232,29 @@ onMounted(() => {
     </PageHeader>
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
+
+    <v-alert
+      v-if="isDrawLeague"
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      data-test="games-draw-notice"
+    >
+      <div class="d-flex flex-wrap align-center ga-2">
+        <span class="flex-1-1-0">{{ drawNotice }}</span>
+        <v-btn
+          size="small"
+          variant="text"
+          color="primary"
+          append-icon="mdi-arrow-right"
+          :to="{ name: 'admin-league-draw', params: { leagueId } }"
+          data-test="games-draw-link"
+        >
+          Ir para o sorteio
+        </v-btn>
+      </div>
+    </v-alert>
 
     <v-card>
       <v-card-text>
@@ -352,6 +380,7 @@ onMounted(() => {
       :teams="teams"
       :stadiums="stadiums"
       :known-phases="knownPhases"
+      :fixture-mode="league?.fixture_mode"
       @saved="onCreated"
     />
   </div>
