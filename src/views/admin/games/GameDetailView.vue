@@ -15,6 +15,8 @@ import {
   GAME_LEG_OPTIONS,
   gameStageLabel,
   gameStatusOption,
+  hasPenalties,
+  isGeneratedKnockout,
   knownPhasesOf,
 } from '@/types/game'
 import type { Game, GamePayload, KnownPhase } from '@/types/game'
@@ -24,6 +26,9 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import QueryTabs from '@/components/common/QueryTabs.vue'
 import GameEventsPanel from '@/components/games/GameEventsPanel.vue'
 import GameFormDialog from '@/components/games/GameFormDialog.vue'
+import GamePenaltiesCard from '@/components/games/GamePenaltiesCard.vue'
+import { showsPenalties } from '@/components/games/gamePenalties'
+import { groupName } from '@/components/leagues/leagueGroups'
 
 const props = defineProps<{ id: string }>()
 
@@ -45,6 +50,7 @@ const initializing = ref(true)
 const teams = ref<Team[]>([])
 const stadiums = ref<Stadium[]>([])
 const knownPhases = ref<KnownPhase[]>([])
+const roundsPerTurn = ref<number | null>(null)
 const editDialog = ref(false)
 const deleteDialog = ref(false)
 
@@ -58,13 +64,35 @@ const tabs = [
 const homeName = computed(() => game.value?.homeTeam?.nickname || game.value?.homeTeam?.name || 'Mandante')
 const awayName = computed(() => game.value?.awayTeam?.nickname || game.value?.awayTeam?.name || 'Visitante')
 const status = computed(() => (game.value ? gameStatusOption(game.value.status) : null))
+const isDrawn = computed(() => game.value?.group_number != null)
+const isKnockout = computed(() => isGeneratedKnockout(game.value))
+const deleteLock = computed(() => {
+  if (isKnockout.value) {
+    return {
+      text: 'Partidas geradas pelo mata-mata não podem ser excluídas. Desfaça a fase no Mata-mata do Sorteio.',
+      test: 'game-delete-knockout',
+    }
+  }
+  if (isDrawn.value) {
+    return {
+      text: 'Partidas sorteadas não podem ser excluídas. Use “Desfazer rodada” no Sorteio.',
+      test: 'game-delete-drawn',
+    }
+  }
+  return null
+})
+const showGroup = computed(() => isDrawn.value && (league?.groups_count ?? 1) > 1)
 const hasScore = computed(() => game.value?.home_score != null && game.value?.away_score != null)
+const showPenalties = computed(() => !!game.value && hasScore.value && hasPenalties(game.value))
 
 const details = computed(() => {
   const g = game.value
   if (!g) return []
   const usesPhase = g.round == null && !!g.phase
   return [
+    ...(showGroup.value && g.group_number != null
+      ? [{ icon: 'mdi-account-group', label: 'Grupo', value: groupName(g.group_number) }]
+      : []),
     { icon: 'mdi-flag-checkered', label: usesPhase ? 'Fase' : 'Rodada', value: usesPhase ? g.phase : g.round ? `${g.round}ª rodada` : '—' },
     ...(usesPhase
       ? [
@@ -91,7 +119,16 @@ function loadKnownPhases(): Promise<KnownPhase[]> {
     .catch(() => [])
 }
 
+function loadRoundsPerTurn(): Promise<number | null> {
+  if (!isDrawn.value || league?.group_legs !== 2) return Promise.resolve(null)
+  return leaguesService
+    .draw(leagueId)
+    .then((state) => state.rounds_per_turn)
+    .catch(() => null)
+}
+
 async function openEdit() {
+  if (isDrawn.value && roundsPerTurn.value === null) roundsPerTurn.value = await loadRoundsPerTurn()
   if (teams.value.length === 0) {
     const phases = loadKnownPhases()
     const [leagueTeams, leagueStadiums] = await Promise.all([
@@ -103,6 +140,10 @@ async function openEdit() {
     knownPhases.value = await phases
   }
   editDialog.value = true
+}
+
+function onPenaltiesSaved(updated: Game) {
+  game.value = updated
 }
 
 async function handleDelete() {
@@ -162,8 +203,24 @@ onMounted(async () => {
             >
               Editar
             </v-btn>
+            <v-tooltip v-if="can.delete && deleteLock" :text="deleteLock.text" location="bottom">
+              <template #activator="{ props: tooltipProps }">
+                <span v-bind="tooltipProps" tabindex="0" :data-test="deleteLock.test">
+                  <v-btn
+                    variant="tonal"
+                    size="small"
+                    color="error"
+                    prepend-icon="mdi-delete"
+                    disabled
+                    data-test="game-delete"
+                  >
+                    Excluir
+                  </v-btn>
+                </span>
+              </template>
+            </v-tooltip>
             <v-btn
-              v-if="can.delete"
+              v-else-if="can.delete"
               variant="tonal"
               size="small"
               color="error"
@@ -176,16 +233,49 @@ onMounted(async () => {
           </div>
 
           <div class="scoreboard">
-            <div class="team text-end">
-              <div class="text-h6 text-sm-h5 font-weight-bold text-break">{{ homeName }}</div>
+            <div class="team home text-end">
+              <div
+                class="team-name text-subtitle-1 text-sm-h5 font-weight-bold"
+                data-test="game-home-name"
+              >
+                {{ homeName }}
+              </div>
               <div class="text-caption text-medium-emphasis">Mandante</div>
             </div>
-            <div class="text-h4 font-weight-bold tabular text-no-wrap" data-test="game-score">
-              <template v-if="hasScore">{{ game.home_score }} × {{ game.away_score }}</template>
-              <span v-else class="text-medium-emphasis">×</span>
+            <div class="score text-center">
+              <div class="text-h4 font-weight-bold tabular text-no-wrap" data-test="game-score">
+                <template v-if="hasScore && showPenalties">
+                  {{ game.home_score }}
+                  <span
+                    class="text-h6 text-medium-emphasis d-none d-sm-inline"
+                    v-text="`(${game.home_penalties})`"
+                  />
+                  ×
+                  <span
+                    class="text-h6 text-medium-emphasis d-none d-sm-inline"
+                    v-text="`(${game.away_penalties})`"
+                  />
+                  {{ game.away_score }}
+                </template>
+                <template v-else-if="hasScore">{{ game.home_score }} × {{ game.away_score }}</template>
+                <span v-else class="text-medium-emphasis">×</span>
+              </div>
+              <div
+                v-if="showPenalties"
+                class="d-sm-none text-caption text-medium-emphasis tabular"
+                data-test="game-score-penalties"
+              >
+                <div>Pênaltis</div>
+                <div class="text-no-wrap">{{ game.home_penalties }} × {{ game.away_penalties }}</div>
+              </div>
             </div>
-            <div class="team">
-              <div class="text-h6 text-sm-h5 font-weight-bold text-break">{{ awayName }}</div>
+            <div class="team away">
+              <div
+                class="team-name text-subtitle-1 text-sm-h5 font-weight-bold"
+                data-test="game-away-name"
+              >
+                {{ awayName }}
+              </div>
               <div class="text-caption text-medium-emphasis">Visitante</div>
             </div>
           </div>
@@ -207,6 +297,11 @@ onMounted(async () => {
           </v-card>
         </template>
         <template #sumula>
+          <GamePenaltiesCard
+            v-if="can.update && showsPenalties(game)"
+            :game="game"
+            @saved="onPenaltiesSaved"
+          />
           <GameEventsPanel
             :key="`${game.home_team_id}-${game.away_team_id}`"
             :game="game"
@@ -223,6 +318,9 @@ onMounted(async () => {
         :stadiums="stadiums"
         :game="game"
         :known-phases="knownPhases"
+        :fixture-mode="league?.fixture_mode"
+        :rounds-per-turn="roundsPerTurn"
+        :groups-count="league?.groups_count"
         @saved="loadGame"
       />
       <ConfirmDialog
@@ -238,12 +336,34 @@ onMounted(async () => {
 <style scoped>
 .scoreboard {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-areas:
+    'score score'
+    'home away';
+  grid-template-columns: 1fr 1fr;
   align-items: center;
-  gap: 16px;
+  gap: 8px 16px;
+}
+@media (min-width: 600px) {
+  .scoreboard {
+    grid-template-areas: 'home score away';
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+  }
+}
+.home {
+  grid-area: home;
+}
+.score {
+  grid-area: score;
+}
+.away {
+  grid-area: away;
 }
 .team {
   min-width: 0;
+}
+.team-name {
+  overflow-wrap: break-word;
 }
 .tabular {
   font-variant-numeric: tabular-nums;

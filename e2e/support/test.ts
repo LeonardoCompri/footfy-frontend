@@ -54,3 +54,12 @@ export async function signIn(page: Page, options: SessionOptions = {}) {
 export function openDialog(page: Page) {
   return page.locator('.v-dialog.v-overlay--active')
 }
+
+export function openMenu(page: Page) {
+  return page.locator('.v-menu.v-overlay--active')
+}
+
+export async function pickOption(page: Page, name: string) {
+  await openMenu(page).getByRole('option', { name, exact: true }).click()
+  await expect(openMenu(page)).toHaveCount(0)
+}

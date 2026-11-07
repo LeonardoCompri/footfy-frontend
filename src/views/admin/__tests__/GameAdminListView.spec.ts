@@ -7,6 +7,7 @@ import { leaguesService } from '@/services/api/leagues.service'
 import { stadiumsService } from '@/services/api/stadiums.service'
 import { teamsService } from '@/services/api/teams.service'
 import type { LeagueFormat } from '@/types/championship'
+import type { FixtureMode } from '@/types/leagueRules'
 import {
   championshipA,
   createTestRouter,
@@ -72,8 +73,11 @@ async function mountList(
   permissions: string[] = ALL,
   format: LeagueFormat = 'round_robin',
   query = '',
+  fixtureMode: FixtureMode = 'manual',
 ) {
-  setupLeagueSession(makeUser('admin', permissions), [makeLeague(7, championshipA, { format })])
+  setupLeagueSession(makeUser('admin', permissions), [
+    makeLeague(7, championshipA, { format, fixture_mode: fixtureMode }),
+  ])
   const router = createTestRouter()
   await router.push(`/admin/liga/7/partidas${query}`)
   const wrapper = mount(GameAdminListView, {
@@ -165,6 +169,27 @@ describe('GameAdminListView', () => {
     expect(rows[2]).toContain('Final · Ida')
     expect(rows[2]).toContain('Sport Club do Recife × Bahia')
     expect(wrapper.find('[data-test="games-table"]').text()).toContain('1-20 de 45')
+  })
+
+  it('placar de jogo decidido nos pênaltis mostra os pênaltis entre parênteses', async () => {
+    vi.mocked(gamesService.listPaginated).mockResolvedValue(
+      makePage([
+        makeGame(9, {
+          league_id: 7,
+          round: null,
+          phase: 'Final',
+          knockout_stage: 'F',
+          home_score: 1,
+          away_score: 1,
+          home_penalties: 3,
+          away_penalties: 4,
+          status: 'finished',
+        }),
+      ]),
+    )
+    const { wrapper } = await mountList()
+
+    expect(tableRows(wrapper)[0]).toContain('1 (3) × (4) 1')
   })
 
   it('itens por página não oferecem "Todos" (per_page=-1 daria 422)', async () => {
@@ -311,6 +336,28 @@ describe('GameAdminListView', () => {
     expect(wrapper.findAll('[data-test="game-view"]')).toHaveLength(3)
     expect(wrapper.find('[data-test="game-edit"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="game-delete"]').exists()).toBe(false)
+  })
+
+  it.each([
+    ['round_robin', 'As partidas de rodada desta liga são criadas pelo sorteio.'],
+    [
+      'hybrid',
+      'As partidas de rodada desta liga são criadas pelo sorteio e as de mata-mata são geradas pela classificação.',
+    ],
+  ] as const)('liga com sorteio (%s): sem Nova partida e com o aviso', async (format, notice) => {
+    const { wrapper } = await mountList(ALL, format, '', 'draw')
+
+    expect(wrapper.find('[data-test="games-draw-notice"]').text()).toContain(notice)
+    expect(wrapper.find('[data-test="games-draw-link"]').attributes('href')).toBe(
+      '/admin/liga/7/sorteio',
+    )
+    expect(wrapper.find('[data-test="game-create"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'GameFormDialog' }).exists()).toBe(false)
+  })
+
+  it('liga manual não mostra o aviso do sorteio', async () => {
+    const { wrapper } = await mountList()
+    expect(wrapper.find('[data-test="games-draw-notice"]').exists()).toBe(false)
   })
 
   it('o olho abre o detalhe da partida com uma única navegação', async () => {

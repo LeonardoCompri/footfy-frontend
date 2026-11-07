@@ -109,6 +109,41 @@ describe('adminGuard — contexto de Liga ativa', () => {
     }
   })
 
+  it('Sorteio exige game:read (as ações exigem tournament:update na própria tela)', async () => {
+    const leagueChildren =
+      adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
+    const draw = leagueChildren.find((r) => r.name === 'admin-league-draw')
+    expect(draw?.path).toBe('sorteio')
+    const meta = draw?.meta ?? {}
+    expect(meta.permission).toBe('game:read')
+
+    login('coach', ['team:read'])
+    expect(await adminGuard(leagueRoute(1, meta))).toEqual({ name: 'admin-home' })
+
+    login('admin', ['game:read'])
+    expect(await adminGuard(leagueRoute(1, meta))).toBeUndefined()
+  })
+
+  it('Regulamento exige tournament:update (mesma permissão da edição de liga)', async () => {
+    const leagueChildren =
+      adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
+    const meta = leagueChildren.find((r) => r.name === 'admin-league-rules')?.meta ?? {}
+    expect(meta.permission).toBe('tournament:update')
+
+    login('coach', ['team:read'])
+    expect(await adminGuard(leagueRoute(1, meta))).toEqual({ name: 'admin-home' })
+
+    login('admin', ['tournament:update'])
+    expect(await adminGuard(leagueRoute(1, meta))).toBeUndefined()
+    expect(await adminGuard(leagueRoute(999, meta))).toEqual({
+      name: 'admin-select-championship',
+      query: { negado: '1' },
+    })
+
+    login('master')
+    expect(await adminGuard(leagueRoute(1, meta))).toBeUndefined()
+  })
+
   it('não existem mais as rotas de formulário de partida/usuário', () => {
     const leagueChildren = adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
     const names = leagueChildren.map((r) => r.name)

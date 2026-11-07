@@ -42,9 +42,9 @@ async function loadTypes(types: EventTypeMeta[] = defaultEventTypes()) {
   await useEventTypesStore().load()
 }
 
-function mountDialog(event: GameEvent | null, type = event?.type ?? 'goal') {
+function mountDialog(event: GameEvent | null, type = event?.type ?? 'goal', locked = false) {
   return mount(GameEventFormDialog, {
-    props: { modelValue: true, gameId: 7, teams, type, event },
+    props: { modelValue: true, gameId: 7, teams, type, event, locked },
     global: { plugins: [createTestVuetify()] },
     attachTo: document.body,
   })
@@ -274,5 +274,28 @@ describe('GameEventFormDialog', () => {
       5,
       expect.objectContaining({ player_id: 99, related_player_id: 98, minute: 41 }),
     )
+  })
+
+  it.each([
+    [true, 'travado', true],
+    [false, 'livre', false],
+  ])('jogo %s (%s): tipo e time desabilitados na edição', async (locked, _label, disabled) => {
+    const wrapper = mountDialog(
+      makeEvent(3, { game_id: 7, team_id: 1, player_id: 11 }),
+      'goal',
+      locked,
+    )
+    await flushPromises()
+
+    expect(field(wrapper, 'event-type', 'VSelect').props('disabled')).toBe(disabled)
+    expect(field(wrapper, 'event-team', 'VSelect').props('disabled')).toBe(disabled)
+    expect(field(wrapper, 'event-player').props('disabled')).toBe(false)
+    expect(field(wrapper, 'event-minute', 'VTextField').props('disabled')).toBeFalsy()
+  })
+
+  it('na criação a trava não desabilita o time', async () => {
+    const wrapper = mountDialog(null, 'goal', true)
+    await flushPromises()
+    expect(field(wrapper, 'event-team', 'VSelect').props('disabled')).toBeFalsy()
   })
 })

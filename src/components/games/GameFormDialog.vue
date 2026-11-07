@@ -3,12 +3,20 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { gamesService } from '@/services/api/games.service'
-import { GAME_LEG_OPTIONS, GAME_STATUS_OPTIONS } from '@/types/game'
+import {
+  GAME_LEG_OPTIONS,
+  GAME_STATUS_OPTIONS,
+  gameStageLabel,
+  isGeneratedKnockout,
+} from '@/types/game'
 import type { Game, GamePayload } from '@/types/game'
 import type { LeagueFormat } from '@/types/championship'
+import type { FixtureMode } from '@/types/leagueRules'
 import type { Stadium } from '@/types/stadium'
 import type { Team } from '@/types/team'
 import FormDialog from '@/components/common/FormDialog.vue'
+import { groupName } from '@/components/leagues/leagueGroups'
+import { isReturnLegGame } from '@/components/leagues/leagueDraw'
 
 const props = defineProps<{
   modelValue: boolean
@@ -18,6 +26,9 @@ const props = defineProps<{
   stadiums: Stadium[]
   game?: Game | null
   knownPhases?: { phase: string; phase_order: number | null }[]
+  fixtureMode?: FixtureMode | null
+  roundsPerTurn?: number | null
+  groupsCount?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -33,6 +44,39 @@ const DEFAULT_PHASES = ['Oitavas de final', 'Quartas de final', 'Semifinal', 'Fi
 type Stage = 'round' | 'phase'
 const stage = ref<Stage>('round')
 const isEditing = computed(() => !!props.game)
+const isDrawn = computed(() => props.game?.group_number != null)
+const isKnockout = computed(() => isGeneratedKnockout(props.game))
+const isLocked = computed(() => props.game?.results_locked === true)
+const roundUnavailable = computed(
+  () => props.fixtureMode === 'draw' && !(isEditing.value && props.game?.round != null),
+)
+const phaseUnavailable = computed(
+  () => props.fixtureMode === 'draw' && !(isEditing.value && props.game?.phase != null),
+)
+const knockoutLabel = computed(() =>
+  props.game ? `${gameStageLabel(props.game)} · ${props.game.tie_key}` : '',
+)
+const unavailableHint = computed(() => {
+  if (isKnockout.value) return null
+  const phase = phaseUnavailable.value && props.format === 'hybrid'
+  if (roundUnavailable.value && phase) {
+    return 'Em ligas com sorteio, as partidas de rodada são criadas na tela Sorteio e as de mata-mata são geradas pela classificação.'
+  }
+  if (roundUnavailable.value) {
+    return 'Em ligas com sorteio, as partidas de rodada são criadas na tela Sorteio.'
+  }
+  if (phase) {
+    return 'Em ligas com sorteio, as partidas de mata-mata são geradas pela classificação.'
+  }
+  return null
+})
+const isReturnLeg = computed(() => !!props.game && isReturnLegGame(props.game, props.roundsPerTurn))
+const drawnLabel = computed(() => {
+  const game = props.game
+  if (!game || game.group_number == null) return ''
+  const round = `${game.round}ª rodada`
+  return (props.groupsCount ?? 1) > 1 ? `${groupName(game.group_number)} · ${round}` : round
+})
 
 const form = reactive({
   home_team_id: null as number | null,
@@ -64,6 +108,12 @@ function toNullableNumber(value: unknown): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function swapTeams() {
+  const home = form.home_team_id
+  form.home_team_id = form.away_team_id
+  form.away_team_id = home
+}
+
 function onPhaseChange(phase: string | null) {
   if (!phase || form.phase_order) return
   const known = props.knownPhases?.find((item) => item.phase === phase)
@@ -88,6 +138,7 @@ watch(
     form.tie_key = game?.tie_key ?? null
     form.leg = game?.leg ?? null
     if (props.format === 'knockout') stage.value = 'phase'
+    else if (props.format === 'hybrid' && roundUnavailable.value) stage.value = 'phase'
     else if (props.format === 'hybrid') stage.value = game?.phase ? 'phase' : 'round'
     else stage.value = 'round'
   },
@@ -96,6 +147,8 @@ watch(
 
 async function handleSubmit() {
   if (sameTeam.value) return
+  if (roundUnavailable.value && stage.value === 'round') return
+  if (phaseUnavailable.value && stage.value === 'phase') return
   const usesPhase = stage.value === 'phase'
   const payload: GamePayload = {
     league_id: props.leagueId,
@@ -128,6 +181,42 @@ async function handleSubmit() {
     @update:model-value="emit('update:modelValue', $event)"
     @submit="handleSubmit"
   >
+    <v-alert
+      v-if="isLocked"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      data-test="game-locked-notice"
+    >
+      <strong>Mata-mata já gerado:</strong> o resultado desta partida está travado. Dá para mudar só
+      data e estádio; para corrigir o resultado, desfaça o mata-mata.
+    </v-alert>
+    <v-alert
+      v-else-if="isDrawn"
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      data-test="game-drawn-notice"
+    >
+      <strong>Partida sorteada ({{ drawnLabel }}).</strong>
+      Dá para mudar data, estádio e status e inverter o mando. Para excluir, desfaça a rodada no
+      Sorteio.
+    </v-alert>
+    <v-alert
+      v-if="isKnockout && game"
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      data-test="game-knockout-notice"
+    >
+      <strong>Partida gerada pelo mata-mata ({{ knockoutLabel }}).</strong>
+      Dá para mudar data, estádio e status. Times, fase e confronto vêm da classificação; para
+      excluir ou refazer, desfaça a fase no Mata-mata do Sorteio.
+    </v-alert>
+
     <v-row dense>
       <v-col cols="12">
         <v-autocomplete
@@ -136,6 +225,7 @@ async function handleSubmit() {
           item-title="name"
           item-value="id"
           label="Mandante"
+          :disabled="isReturnLeg || isKnockout || isLocked"
           :error-messages="fieldErrors.home_team_id"
           data-test="game-home-team"
         />
@@ -147,9 +237,26 @@ async function handleSubmit() {
           item-title="name"
           item-value="id"
           label="Visitante"
+          :disabled="isReturnLeg || isKnockout || isLocked"
+          :hint="
+            isReturnLeg && !isLocked
+              ? 'No returno os confrontos seguem o turno; só é possível inverter o mando.'
+              : undefined
+          "
+          :persistent-hint="isReturnLeg && !isLocked"
           :error-messages="sameTeam ? ['O visitante deve ser diferente do mandante.'] : fieldErrors.away_team_id"
           data-test="game-away-team"
         />
+      </v-col>
+      <v-col v-if="isDrawn && !isLocked" cols="12" class="mb-2">
+        <v-btn
+          variant="tonal"
+          prepend-icon="mdi-swap-vertical"
+          data-test="game-swap-teams"
+          @click="swapTeams"
+        >
+          Inverter mando
+        </v-btn>
       </v-col>
       <v-col v-if="isEditing" cols="12" sm="6">
         <v-select
@@ -158,6 +265,7 @@ async function handleSubmit() {
           item-title="title"
           item-value="value"
           label="Status"
+          :disabled="isLocked"
           :error-messages="fieldErrors.status"
           data-test="game-status"
         />
@@ -180,18 +288,26 @@ async function handleSubmit() {
       color="primary"
       variant="outlined"
       density="comfortable"
-      class="mb-4"
+      :disabled="isDrawn || isKnockout || isLocked"
+      :class="unavailableHint ? 'mb-1' : 'mb-4'"
       data-test="game-stage-toggle"
     >
-      <v-btn value="round">
+      <v-btn value="round" :disabled="roundUnavailable">
         <span class="d-none d-sm-inline">Rodada (grupos)</span>
         <span class="d-sm-none">Rodada</span>
       </v-btn>
-      <v-btn value="phase">
+      <v-btn value="phase" :disabled="phaseUnavailable">
         <span class="d-none d-sm-inline">Fase (mata-mata)</span>
         <span class="d-sm-none">Fase</span>
       </v-btn>
     </v-btn-toggle>
+    <p
+      v-if="unavailableHint"
+      class="text-caption text-medium-emphasis mb-4"
+      data-test="game-stage-unavailable"
+    >
+      {{ unavailableHint }}
+    </p>
 
     <v-row dense>
       <v-col cols="12" sm="6">
@@ -201,6 +317,7 @@ async function handleSubmit() {
           label="Rodada"
           type="number"
           min="1"
+          :disabled="isDrawn || roundUnavailable || isLocked"
           :error-messages="fieldErrors.round"
           data-test="game-round"
         />
@@ -209,6 +326,7 @@ async function handleSubmit() {
           v-model="form.phase"
           :items="phaseItems"
           label="Fase"
+          :disabled="isKnockout || phaseUnavailable"
           :error-messages="fieldErrors.phase"
           data-test="game-phase"
           @update:model-value="onPhaseChange"
@@ -234,6 +352,7 @@ async function handleSubmit() {
             type="number"
             min="1"
             hint="1 = primeira fase"
+            :disabled="isKnockout || phaseUnavailable"
             :error-messages="fieldErrors.phase_order"
             data-test="game-phase-order"
           />
@@ -243,6 +362,7 @@ async function handleSubmit() {
             v-model="form.tie_key"
             label="Confronto"
             hint="Mesma chave na ida e na volta (ex.: QF1)"
+            :disabled="isKnockout || phaseUnavailable"
             :error-messages="fieldErrors.tie_key"
             data-test="game-tie-key"
           />
@@ -254,6 +374,7 @@ async function handleSubmit() {
             item-title="title"
             item-value="value"
             label="Perna"
+            :disabled="isKnockout || phaseUnavailable"
             :error-messages="fieldErrors.leg"
             data-test="game-leg"
           />

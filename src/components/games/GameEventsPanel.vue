@@ -38,6 +38,9 @@ function byMinuteDesc(a: GameEvent, b: GameEvent): number {
   return minuteB - minuteA
 }
 
+const locked = computed(() => props.game.results_locked === true)
+const canDelete = computed(() => can.delete && !locked.value)
+
 const events = computed(() => [...(props.game.events ?? [])].sort(byMinuteDesc))
 const formDialog = ref(false)
 const formType = ref('')
@@ -165,7 +168,20 @@ onMounted(loadTypes)
         </template>
       </v-alert>
 
-      <template v-if="can.create">
+      <v-alert
+        v-if="locked"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="mb-4"
+        data-test="events-locked"
+      >
+        Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para
+        corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos
+        lançados.
+      </v-alert>
+
+      <template v-if="can.create && !locked">
         <v-row v-if="typesPending" dense class="mb-2" data-test="event-actions-loading">
           <v-col v-for="n in 4" :key="n" cols="6" sm="3">
             <v-skeleton-loader type="list-item-avatar" class="rounded-lg" />
@@ -235,7 +251,7 @@ onMounted(loadTypes)
             Assistência: {{ assistPlayer(event)?.name }}
             <RemovedBadge v-if="assistPlayer(event)?.removed" />
           </v-list-item-subtitle>
-          <template v-if="can.update || can.delete" #append>
+          <template v-if="can.update || canDelete" #append>
             <v-btn
               v-if="can.update"
               icon="mdi-pencil"
@@ -246,7 +262,7 @@ onMounted(loadTypes)
               @click="openEdit(event)"
             />
             <v-btn
-              v-if="can.delete"
+              v-if="canDelete"
               icon="mdi-delete"
               variant="text"
               size="small"
@@ -265,6 +281,7 @@ onMounted(loadTypes)
       :teams="teams"
       :type="formType"
       :event="eventToEdit"
+      :locked="locked"
       @saved="emit('changed')"
     />
     <ConfirmDialog

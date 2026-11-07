@@ -1,0 +1,22 @@
+{
+  "data": {
+    "league_id": 1,
+    "format": "round_robin",
+    "fixture_mode": "manual",
+    "groups_count": 1,
+    "group_legs": 1,
+    "group_size": 4,
+    "rounds_per_turn": 3,
+    "total_rounds": 3,
+    "drawn_rounds": 0,
+    "next_round": 1,
+    "can_draw": false,
+    "draw_blocked_reason": "O sorteio de rodadas só está disponível em ligas com sorteio.",
+    "can_undo": false,
+    "undo_blocked_reason": "Nenhuma rodada foi sorteada.",
+    "can_reset": false,
+    "reset_blocked_reason": "Nenhuma rodada foi sorteada.",
+    "manual_round_games": { "total": 6, "with_results": 6 },
+    "groups": [{ "group_number": 1, "byes": [] }]
+  }
+}

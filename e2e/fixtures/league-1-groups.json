@@ -1,0 +1,40 @@
+{
+  "data": {
+    "league_id": 1,
+    "fixture_mode": "manual",
+    "groups_count": 1,
+    "locked": false,
+    "groups": [
+      {
+        "group_number": 1,
+        "teams": [
+          {
+            "id": 1,
+            "name": "Atlético Serrano",
+            "nickname": "Serrano",
+            "logo": null
+          },
+          {
+            "id": 2,
+            "name": "Clube Ribeirinho",
+            "nickname": "Ribeirinho",
+            "logo": null
+          },
+          {
+            "id": 3,
+            "name": "Estrela do Vale",
+            "nickname": "Estrela",
+            "logo": null
+          },
+          {
+            "id": 4,
+            "name": "União Central",
+            "nickname": "União",
+            "logo": null
+          }
+        ]
+      }
+    ],
+    "unassigned": []
+  }
+}
