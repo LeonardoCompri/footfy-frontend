@@ -2,7 +2,16 @@ import type { Page } from '@playwright/test'
 import { API_BASE_URL } from './support/env'
 import { samplePng, sampleImageUrl } from './support/images'
 import { fixture, type MockApi } from './support/mock-api'
-import { DESKTOP, expect, MOBILE, openDialog, pickOption, signIn, test } from './support/test'
+import {
+  DESKTOP,
+  expect,
+  MOBILE,
+  openDialog,
+  openMenu,
+  pickOption,
+  signIn,
+  test,
+} from './support/test'
 
 function apiCalls(page: Page) {
   const calls: string[] = []
@@ -334,13 +343,21 @@ test.describe('Formulários de criação e edição', () => {
     await page.getByRole('button', { name: 'Gol contra', exact: true }).click()
     const dialog = openDialog(page)
     await expect(dialog.locator('[data-test=event-form-title]')).toHaveText('Registrar Gol contra')
-    await expect(dialog.locator('[data-test=event-type]')).toHaveCount(0)
+    await expect(dialog.locator('[data-test=event-type]')).toContainText('Gol contra')
     await expect(dialog).toContainText('o evento conta para o adversário')
     await expect(dialog.locator('[data-test=event-assist]')).toHaveCount(0)
-    await dialog.locator('[data-test=event-team]').click()
-    await pickOption(page, 'Ribeirinho')
-    await dialog.locator('[data-test=event-player]').click()
-    await pickOption(page, '10 · Gustavo Pires')
+    await expect(dialog.getByRole('spinbutton', { name: 'Minuto' })).toBeFocused()
+    await page.keyboard.type('47')
+    await page.keyboard.press('Tab')
+    await expect(dialog.locator('[data-test=event-type] input')).toBeFocused()
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('v')
+    await expect(dialog.locator('[data-test=event-team]')).toContainText('Visitante · Ribeirinho')
+    await page.keyboard.press('Tab')
+    await page.keyboard.type('10')
+    await expect(openMenu(page).getByRole('option')).toHaveText(['10 · Gustavo Pires'])
+    await page.keyboard.press('Tab')
+    await expect(dialog.locator('[data-test=event-player]')).toContainText('10 · Gustavo Pires')
     await dialog.locator('[data-test=form-submit]').click()
 
     await expect(openDialog(page)).toHaveCount(0)
@@ -350,6 +367,7 @@ test.describe('Formulários de criação e edição', () => {
       player_id: 8,
       type: 'own_goal',
       related_player_id: null,
+      minute: 47,
     })
     await expect.poll(() => calls.filter((call) => call === 'GET /games/1').length).toBe(2)
     expect(calls.filter((call) => call.includes('/teams'))).toEqual([])
@@ -1594,7 +1612,10 @@ test.describe('Mata-mata gerado pela classificação', () => {
     })
   })
 
-  test('pênaltis na súmula: valida, salva e mostra no placar', async ({ page, api }) => {
+  test('pênaltis na súmula: cobranças vão para o endpoint próprio e o placar vem da resposta', async ({
+    page,
+    api,
+  }) => {
     await signIn(page, { role: 'admin' })
     const base = fixture<Body<Record<string, unknown>>>('game-1').data
     const decisive = {
@@ -1613,31 +1634,68 @@ test.describe('Mata-mata gerado pela classificação', () => {
       away_penalties: null,
       events: [],
     }
-    const puts: unknown[] = []
+    const puts: string[] = []
+    let kicks: unknown = null
     api
       .on('GET', '/leagues', { body: knockoutLeagues() })
       .on('GET', '/games/1', { body: { data: decisive } })
       .on('PUT', '/games/1', ({ request }) => {
-        const body = request.postDataJSON() as Record<string, unknown>
-        puts.push(body)
-        return { body: { data: { ...decisive, ...body } } }
+        puts.push(request.url())
+        return { body: { data: decisive } }
+      })
+      .on('PUT', '/games/1/penalty-kicks', ({ request }) => {
+        kicks = request.postDataJSON()
+        return {
+          body: { data: { ...decisive, home_penalties: 3, away_penalties: 0, penaltyKicks: [] } },
+        }
       })
 
     await page.goto('/admin/liga/1/partidas/1?tab=sumula')
     await expect(page.locator('[data-test=game-score]')).toHaveText('1 × 1')
     await expect(page.locator('[data-test=game-delete]')).toBeDisabled()
     const card = page.locator('[data-test=game-penalties]')
-    await card.getByRole('spinbutton', { name: 'Serrano' }).fill('3')
-    await card.getByRole('spinbutton', { name: 'Ribeirinho' }).fill('3')
-    await card.getByRole('button', { name: 'Salvar pênaltis' }).click()
-    await expect(card).toContainText('A disputa de pênaltis não pode terminar empatada.')
-    expect(puts).toEqual([])
+    await card.getByRole('radio', { name: 'Ribeirinho (visitante)' }).check()
+    const shootout: [number, 'scored' | 'missed'][] = [
+      [9, 'scored'],
+      [1, 'missed'],
+      [10, 'scored'],
+      [4, 'missed'],
+      [1, 'scored'],
+    ]
+    for (const [index, [number, result]] of shootout.entries()) {
+      await card.locator(`[data-test=kick-player-${index}]`).click()
+      await page.keyboard.type(String(number))
+      await page.keyboard.press('Enter')
+      await card
+        .locator('[data-test=kick-row]')
+        .nth(index)
+        .locator(`[data-test=kick-${result}]`)
+        .click()
+    }
+    await expect(card.locator('[data-test=kick-repeated]')).toHaveCount(0)
+    await expect(card.locator('[data-test=kick-row]')).toHaveCount(6)
+    await expect(card.getByRole('button', { name: 'Salvar disputa' })).toBeDisabled()
+    await card.locator('[data-test=kick-player-5]').click()
+    await page.keyboard.type('8')
+    await page.keyboard.press('Enter')
+    await card.locator('[data-test=kick-row]').nth(5).locator('[data-test=kick-missed]').click()
+    await expect(card.locator('[data-test=shootout-result]')).toHaveText(
+      'Disputa decidida: 0 × 3, Ribeirinho vence',
+    )
+    await card.getByRole('button', { name: 'Salvar disputa' }).click()
 
-    await card.getByRole('spinbutton', { name: 'Ribeirinho' }).fill('4')
-    await card.getByRole('button', { name: 'Salvar pênaltis' }).click()
-    await expect(page.locator('[data-test=game-score]')).toHaveText('1 (3) × (4) 1')
-    expect(puts).toEqual([{ home_penalties: 3, away_penalties: 4 }])
-    await expect(card.getByRole('button', { name: 'Limpar pênaltis' })).toBeVisible()
+    await expect(page.locator('[data-test=game-score]')).toHaveText('1 (3) × (0) 1')
+    expect(puts).toEqual([])
+    expect(kicks).toEqual({
+      kicks: [
+        { team_id: 2, player_id: 7, scored: true },
+        { team_id: 1, player_id: 1, scored: false },
+        { team_id: 2, player_id: 8, scored: true },
+        { team_id: 1, player_id: 2, scored: false },
+        { team_id: 2, player_id: 6, scored: true },
+        { team_id: 1, player_id: 3, scored: false },
+      ],
+    })
   })
 
   for (const [name, viewport] of [

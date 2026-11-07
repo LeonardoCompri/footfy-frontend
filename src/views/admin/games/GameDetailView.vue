@@ -26,8 +26,9 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import QueryTabs from '@/components/common/QueryTabs.vue'
 import GameEventsPanel from '@/components/games/GameEventsPanel.vue'
 import GameFormDialog from '@/components/games/GameFormDialog.vue'
-import GamePenaltiesCard from '@/components/games/GamePenaltiesCard.vue'
-import { showsPenalties } from '@/components/games/gamePenalties'
+import GameShootoutCard from '@/components/games/GameShootoutCard.vue'
+import PenaltyShootoutEditor from '@/components/games/PenaltyShootoutEditor.vue'
+import { hasShootout, showsShootoutEditor } from '@/components/games/shootout'
 import { groupName } from '@/components/leagues/leagueGroups'
 
 const props = defineProps<{ id: string }>()
@@ -43,6 +44,7 @@ const league = leagueContext.activeLeague
 const can = {
   update: authStore.hasPermission('game:update'),
   delete: authStore.hasPermission('game:delete'),
+  print: authStore.hasPermission('game_event:create'),
 }
 
 const game = ref<Game | null>(null)
@@ -194,6 +196,16 @@ onMounted(async () => {
             <v-chip v-if="status" :color="status.color" size="small" variant="tonal">{{ status.title }}</v-chip>
             <v-spacer />
             <v-btn
+              v-if="can.print"
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-printer"
+              :to="{ name: 'admin-games-scoresheet', params: { leagueId, id: game.id } }"
+              data-test="game-print-scoresheet"
+            >
+              Imprimir súmula
+            </v-btn>
+            <v-btn
               v-if="can.update"
               variant="tonal"
               size="small"
@@ -297,11 +309,12 @@ onMounted(async () => {
           </v-card>
         </template>
         <template #sumula>
-          <GamePenaltiesCard
-            v-if="can.update && showsPenalties(game)"
+          <PenaltyShootoutEditor
+            v-if="can.update && showsShootoutEditor(game)"
             :game="game"
             @saved="onPenaltiesSaved"
           />
+          <GameShootoutCard v-else-if="hasShootout(game)" :game="game" />
           <GameEventsPanel
             :key="`${game.home_team_id}-${game.away_team_id}`"
             :game="game"

@@ -10,6 +10,7 @@ export interface EventTypeMeta {
   id: number
   slug: string
   name: string
+  abbreviation?: string | null
   icon: string
   color: string
   counts_for: EventTypeCountsFor | null
@@ -47,8 +48,11 @@ export type GameEventPayload = Pick<
   'game_id' | 'team_id' | 'player_id' | 'related_player_id' | 'type' | 'minute'
 >
 
+export type TeamSide = 'home' | 'away'
+
 export interface SummaryTeam {
   id: number
   name: string
+  side: TeamSide
   players: Player[]
 }

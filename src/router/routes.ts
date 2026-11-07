@@ -187,4 +187,11 @@ export const adminRoutes: RouteRecordRaw[] = [
       },
     ],
   },
+  {
+    path: '/admin/liga/:leagueId/partidas/:id/sumula',
+    name: 'admin-games-scoresheet',
+    component: () => import('@/views/admin/games/GameScoresheetView.vue'),
+    props: idProp,
+    meta: { requiresAuth: true, requiresLeague: true, permission: 'game_event:create' },
+  },
 ]
