@@ -246,7 +246,6 @@ function undo() {
                 variant="flat"
                 color="warning"
                 append-icon="mdi-arrow-right"
-                class="text-none"
                 :to="sumulaRoute(item.game_id)"
                 data-test="knockout-awaiting-link"
               >

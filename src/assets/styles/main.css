@@ -16,9 +16,10 @@ html {
   font-family: 'Poppins', 'Inter', sans-serif !important;
 }
 
-.v-btn {
+.v-btn.v-btn {
   text-transform: none;
   letter-spacing: normal;
+  text-indent: 0;
   font-weight: 600;
 }
 

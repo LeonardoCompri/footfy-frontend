@@ -229,7 +229,7 @@ async function handleLogout() {
             prepend-icon="mdi-account-circle"
             append-icon="mdi-menu-down"
             aria-label="Menu da conta"
-            class="text-none mr-2"
+            class="mr-2"
             data-test="account-menu"
           >
             <span class="d-none d-md-inline">{{ authStore.user?.name }}</span>

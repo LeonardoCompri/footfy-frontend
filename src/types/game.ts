@@ -8,6 +8,34 @@ export type GameStatus = 'scheduled' | 'in_progress' | 'finished' | 'cancelled'
 
 export type GameLeg = 1 | 2
 
+export interface GameLeague {
+  id: number
+  name: string
+  championship: { id: number; name: string } | null
+}
+
+export interface GamePenaltyKickPlayer {
+  id: number
+  name: string
+  number: number | null
+  removed: boolean
+}
+
+export interface GamePenaltyKick {
+  id: number
+  order: number
+  team_id: number
+  player_id: number
+  scored: boolean
+  player?: GamePenaltyKickPlayer | null
+}
+
+export interface PenaltyKickPayload {
+  team_id: number
+  player_id: number
+  scored: boolean
+}
+
 export interface Game {
   id: number
   league_id: number
@@ -20,6 +48,7 @@ export interface Game {
   home_penalties?: number | null
   away_penalties?: number | null
   penalties_allowed?: boolean
+  penalties_possible?: boolean
   round: number | null
   group_number?: number | null
   phase: string | null
@@ -28,13 +57,16 @@ export interface Game {
   leg: GameLeg | null
   knockout_stage?: KnockoutStageKey | null
   results_locked?: boolean
+  results_lock?: GameResultsLock | null
   status: GameStatus
   created_at: string
   updated_at: string
+  league?: GameLeague
   homeTeam?: Team
   awayTeam?: Team
   stadium?: Stadium | null
   events?: GameEvent[]
+  penaltyKicks?: GamePenaltyKick[]
 }
 
 export type GamePayload = Pick<
@@ -51,11 +83,6 @@ export type GamePayload = Pick<
   | 'leg'
   | 'status'
 >
-
-export interface GamePenaltiesPayload {
-  home_penalties: number | null
-  away_penalties: number | null
-}
 
 export type GameListParams = {
   league_id: number
@@ -131,6 +158,15 @@ export function scoreLabel(score: ScoreLine, empty = '—'): string {
   if (score.home_score === null || score.away_score === null) return empty
   if (!hasPenalties(score)) return `${score.home_score} × ${score.away_score}`
   return `${score.home_score} (${score.home_penalties}) × (${score.away_penalties}) ${score.away_score}`
+}
+
+export type GameResultsLock = 'group_stage' | 'next_stage'
+
+export function gameResultsLock(
+  game: Pick<Game, 'results_locked' | 'results_lock'> | null | undefined,
+): GameResultsLock | null {
+  if (game?.results_lock) return game.results_lock
+  return game?.results_locked ? 'group_stage' : null
 }
 
 export function isGeneratedKnockout(
