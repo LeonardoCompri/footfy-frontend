@@ -1,7 +1,7 @@
 import http from './http'
 import { createResourceService, unwrap } from './resource'
 import type { Paginated } from '@/types/api'
-import type { Game, GameListParams, GamePayload, GamePenaltiesPayload } from '@/types/game'
+import type { Game, GameListParams, GamePayload, PenaltyKickPayload } from '@/types/game'
 
 const baseUrl = '/games'
 const MAX_PER_PAGE = 100
@@ -26,6 +26,6 @@ export const gamesService = {
   ...createResourceService<Game, GamePayload>(baseUrl),
   listPaginated,
   listAll,
-  updatePenalties: (id: number | string, payload: GamePenaltiesPayload) =>
-    unwrap<Game>(http.put(`${baseUrl}/${id}`, payload)),
+  updatePenaltyKicks: (id: number | string, kicks: PenaltyKickPayload[]) =>
+    unwrap<Game>(http.put(`${baseUrl}/${id}/penalty-kicks`, { kicks })),
 }

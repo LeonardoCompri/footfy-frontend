@@ -6,6 +6,7 @@ import { gamesService } from '@/services/api/games.service'
 import {
   GAME_LEG_OPTIONS,
   GAME_STATUS_OPTIONS,
+  gameResultsLock,
   gameStageLabel,
   isGeneratedKnockout,
 } from '@/types/game'
@@ -46,7 +47,8 @@ const stage = ref<Stage>('round')
 const isEditing = computed(() => !!props.game)
 const isDrawn = computed(() => props.game?.group_number != null)
 const isKnockout = computed(() => isGeneratedKnockout(props.game))
-const isLocked = computed(() => props.game?.results_locked === true)
+const resultsLock = computed(() => gameResultsLock(props.game))
+const isLocked = computed(() => resultsLock.value !== null)
 const roundUnavailable = computed(
   () => props.fixtureMode === 'draw' && !(isEditing.value && props.game?.round != null),
 )
@@ -189,8 +191,15 @@ async function handleSubmit() {
       class="mb-4"
       data-test="game-locked-notice"
     >
-      <strong>Mata-mata já gerado:</strong> o resultado desta partida está travado. Dá para mudar só
-      data e estádio; para corrigir o resultado, desfaça o mata-mata.
+      <template v-if="resultsLock === 'next_stage'">
+        <strong>Fase seguinte do mata-mata já gerada:</strong> o resultado desta partida está
+        travado. Dá para mudar só data e estádio; para corrigir, desfaça a fase seguinte no
+        Mata-mata do Sorteio.
+      </template>
+      <template v-else>
+        <strong>Mata-mata já gerado:</strong> o resultado desta partida está travado. Dá para mudar
+        só data e estádio; para corrigir o resultado, desfaça o mata-mata.
+      </template>
     </v-alert>
     <v-alert
       v-else-if="isDrawn"

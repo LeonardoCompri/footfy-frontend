@@ -303,7 +303,6 @@ async function handleSubmit(event: SubmitEventPromise) {
                 variant="flat"
                 color="surface-variant"
                 rounded="lg"
-                class="text-none"
                 data-test="championship-image-empty"
                 @click="fileInput?.click()"
               >

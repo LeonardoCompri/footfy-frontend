@@ -6,9 +6,15 @@ import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { useEventTypesStore } from '@/stores/eventTypes'
 import { gameEventsService } from '@/services/api/gameEvents.service'
-import type { Game } from '@/types/game'
+import { gameResultsLock, type Game } from '@/types/game'
 import type { Team } from '@/types/team'
-import type { GameEvent, GameEventPayload, GameEventPlayer, SummaryTeam } from '@/types/gameEvent'
+import type {
+  GameEvent,
+  GameEventPayload,
+  GameEventPlayer,
+  SummaryTeam,
+  TeamSide,
+} from '@/types/gameEvent'
 import ActionCard from '@/components/common/ActionCard.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import RemovedBadge from '@/components/common/RemovedBadge.vue'
@@ -38,8 +44,23 @@ function byMinuteDesc(a: GameEvent, b: GameEvent): number {
   return minuteB - minuteA
 }
 
-const locked = computed(() => props.game.results_locked === true)
-const canDelete = computed(() => can.delete && !locked.value)
+const lock = computed(() => gameResultsLock(props.game))
+
+function isScoreEvent(event: GameEvent): boolean {
+  return eventTypes.bySlug(event.type).counts_for !== null
+}
+
+function canDelete(event: GameEvent): boolean {
+  if (!can.delete) return false
+  if (lock.value === 'next_stage') return !isScoreEvent(event)
+  return lock.value === null
+}
+
+const createTypes = computed(() =>
+  lock.value === 'next_stage'
+    ? eventTypes.active.filter((type) => type.counts_for === null)
+    : eventTypes.active,
+)
 
 const events = computed(() => [...(props.game.events ?? [])].sort(byMinuteDesc))
 const formDialog = ref(false)
@@ -49,15 +70,22 @@ const { open: confirmOpen, target: eventToDelete, ask: askDelete } = useConfirmD
 
 const typesPending = computed(() => !eventTypes.loaded && !eventTypes.errorMessage)
 
-const teams = computed<SummaryTeam[]>(() =>
-  [props.game.homeTeam, props.game.awayTeam]
-    .filter((team): team is Team => !!team)
-    .map((team) => ({
+function summaryTeam(team: Team | undefined, side: TeamSide): SummaryTeam[] {
+  if (!team) return []
+  return [
+    {
       id: team.id,
       name: team.nickname || team.name,
+      side,
       players: [...(team.players ?? [])].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)),
-    })),
-)
+    },
+  ]
+}
+
+const teams = computed<SummaryTeam[]>(() => [
+  ...summaryTeam(props.game.homeTeam, 'home'),
+  ...summaryTeam(props.game.awayTeam, 'away'),
+])
 
 const goalsByTeam = computed(() => {
   const { home_team_id: home, away_team_id: away } = props.game
@@ -169,31 +197,33 @@ onMounted(loadTypes)
       </v-alert>
 
       <v-alert
-        v-if="locked"
+        v-if="lock"
         type="warning"
         variant="tonal"
         density="compact"
         class="mb-4"
         data-test="events-locked"
       >
-        Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para
-        corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos
-        lançados.
+        <template v-if="lock === 'next_stage'">
+          O resultado desta partida está travado porque a fase seguinte do mata-mata já foi gerada.
+          Para corrigir os gols, desfaça a fase seguinte no Mata-mata do Sorteio. Cartões continuam
+          liberados, e ainda dá para corrigir o jogador, o minuto e a assistência dos gols.
+        </template>
+        <template v-else>
+          Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para
+          corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos
+          lançados.
+        </template>
       </v-alert>
 
-      <template v-if="can.create && !locked">
+      <template v-if="can.create && lock !== 'group_stage'">
         <v-row v-if="typesPending" dense class="mb-2" data-test="event-actions-loading">
           <v-col v-for="n in 4" :key="n" cols="6" sm="3">
             <v-skeleton-loader type="list-item-avatar" class="rounded-lg" />
           </v-col>
         </v-row>
-        <v-row
-          v-else-if="eventTypes.active.length > 0"
-          dense
-          class="mb-2"
-          data-test="event-actions"
-        >
-          <v-col v-for="type in eventTypes.active" :key="type.slug" cols="6" sm="3">
+        <v-row v-else-if="createTypes.length > 0" dense class="mb-2" data-test="event-actions">
+          <v-col v-for="type in createTypes" :key="type.slug" cols="6" sm="3">
             <ActionCard
               :icon="type.icon"
               :label="type.name"
@@ -251,7 +281,7 @@ onMounted(loadTypes)
             Assistência: {{ assistPlayer(event)?.name }}
             <RemovedBadge v-if="assistPlayer(event)?.removed" />
           </v-list-item-subtitle>
-          <template v-if="can.update || canDelete" #append>
+          <template v-if="can.update || canDelete(event)" #append>
             <v-btn
               v-if="can.update"
               icon="mdi-pencil"
@@ -262,7 +292,7 @@ onMounted(loadTypes)
               @click="openEdit(event)"
             />
             <v-btn
-              v-if="canDelete"
+              v-if="canDelete(event)"
               icon="mdi-delete"
               variant="text"
               size="small"
@@ -281,7 +311,7 @@ onMounted(loadTypes)
       :teams="teams"
       :type="formType"
       :event="eventToEdit"
-      :locked="locked"
+      :lock="lock"
       @saved="emit('changed')"
     />
     <ConfirmDialog

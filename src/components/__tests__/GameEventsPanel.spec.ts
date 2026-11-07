@@ -447,10 +447,15 @@ describe('GameEventsPanel (Súmula)', () => {
     expect(formTitle()).toBe('Registrar Cartão amarelo')
     expect(teamsService.get).not.toHaveBeenCalled()
     expect(field(wrapper, 'VSelect', 'event-team').props('items')).toEqual([
-      { id: 1, name: 'Vitória', players: [homeTeam.players![1], homeTeam.players![0]] },
-      { id: 2, name: 'Bahia', players: awayTeam.players },
+      {
+        id: 1,
+        name: 'Vitória',
+        side: 'home',
+        players: [homeTeam.players![1], homeTeam.players![0]],
+      },
+      { id: 2, name: 'Bahia', side: 'away', players: awayTeam.players },
     ])
-    expect(document.querySelector('.v-overlay--active [data-test="event-type"]')).toBeNull()
+    expect(field(wrapper, 'VSelect', 'event-type').props('modelValue')).toBe('yellow_card')
     expect(document.querySelector('.v-overlay--active [data-test="event-assist"]')).toBeNull()
     expect(field(wrapper, 'VAutocomplete', 'event-player').props('disabled')).toBe(true)
     await choose(wrapper, 'VSelect', 'event-team', 2)
@@ -618,12 +623,21 @@ describe('GameEventsPanel (Súmula)', () => {
     expect(wrapper.findAll('[data-test="event-edit"]')).toHaveLength(2)
   })
 
-  it('o aviso da trava explica o que ainda dá para corrigir', async () => {
-    const wrapper = await mountPanel(ALL, gameWith(defaultEvents(), { results_locked: true }))
-    expect(wrapper.find('[data-test="events-locked"]').text()).toBe(
-      'Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos lançados.',
-    )
-  })
+  it.each([
+    ['sem results_lock (back antigo)', {}],
+    ['group_stage', { results_lock: 'group_stage' as const }],
+  ])(
+    'o aviso da trava de grupos explica o que ainda dá para corrigir: %s',
+    async (_label, extra) => {
+      const wrapper = await mountPanel(
+        ALL,
+        gameWith(defaultEvents(), { results_locked: true, ...extra }),
+      )
+      expect(wrapper.find('[data-test="events-locked"]').text()).toBe(
+        'Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos lançados.',
+      )
+    },
+  )
 
   it('jogo travado: a edição só libera jogador, assistência e minuto e envia o mesmo tipo e time', async () => {
     vi.mocked(gameEventsService.update).mockImplementation(async (id, payload) =>
@@ -668,6 +682,62 @@ describe('GameEventsPanel (Súmula)', () => {
     expect(formOpen()).toBe(true)
     expect(wrapper.emitted('changed')).toBeUndefined()
   })
+
+  it('fase seguinte gerada: aviso próprio, só cartões para lançar e excluir só o que não é placar', async () => {
+    const wrapper = await mountPanel(
+      ALL,
+      gameWith(defaultEvents(), { results_locked: true, results_lock: 'next_stage' }),
+    )
+
+    expect(wrapper.find('[data-test="events-locked"]').text()).toBe(
+      'O resultado desta partida está travado porque a fase seguinte do mata-mata já foi gerada. Para corrigir os gols, desfaça a fase seguinte no Mata-mata do Sorteio. Cartões continuam liberados, e ainda dá para corrigir o jogador, o minuto e a assistência dos gols.',
+    )
+    expect(wrapper.findAll('[data-test="event-action"]').map((card) => card.text())).toEqual([
+      'Cartão amarelo',
+      'Cartão vermelho',
+    ])
+    const rows = wrapper.findAll('[data-test="event-row"]')
+    expect(rows.map((row) => row.find('[data-test="event-delete"]').exists())).toEqual([
+      true,
+      false,
+    ])
+    expect(wrapper.findAll('[data-test="event-edit"]')).toHaveLength(2)
+  })
+
+  it('fase seguinte gerada: lançar cartão oferece só tipos que não são de placar', async () => {
+    const wrapper = await mountPanel(
+      ALL,
+      gameWith(defaultEvents(), { results_locked: true, results_lock: 'next_stage' }),
+    )
+
+    await openCreate(wrapper, 'Cartão vermelho')
+    const select = field(wrapper, 'VSelect', 'event-type')
+    expect(select.props('modelValue')).toBe('red_card')
+    expect((select.props('items') as { slug: string }[]).map((t) => t.slug)).toEqual([
+      'yellow_card',
+      'red_card',
+    ])
+    expect(field(wrapper, 'VSelect', 'event-team').props('disabled')).toBeFalsy()
+  })
+
+  it.each([
+    [0, 'cartão', false],
+    [1, 'gol', true],
+  ])(
+    'fase seguinte gerada: editar %s (%s) trava tipo e time = %s',
+    async (index, _label, disabled) => {
+      const wrapper = await mountPanel(
+        ALL,
+        gameWith(defaultEvents(), { results_locked: true, results_lock: 'next_stage' }),
+      )
+
+      await wrapper.findAll('[data-test="event-edit"]')[index].trigger('click')
+      await flushPromises()
+      expect(field(wrapper, 'VSelect', 'event-type').props('disabled')).toBe(disabled)
+      expect(field(wrapper, 'VSelect', 'event-team').props('disabled')).toBe(disabled)
+      expect(field(wrapper, 'VAutocomplete', 'event-player').props('disabled')).toBe(false)
+    },
+  )
 
   it('avisa quando os gols da súmula não batem com o placar finalizado', async () => {
     const wrapper = await mountPanel(

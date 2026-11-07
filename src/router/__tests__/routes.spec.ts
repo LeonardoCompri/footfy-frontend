@@ -16,3 +16,22 @@ describe('rotas públicas', () => {
     expect(router.resolve('/times/5').name).toBe('teams-detail')
   })
 })
+
+describe('súmula impressa', () => {
+  it('fica fora do AdminLayout e exige liga e game_event:create', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [...publicRoutes, ...adminRoutes],
+    })
+
+    const route = router.resolve('/admin/liga/3/partidas/9/sumula')
+    expect(route.name).toBe('admin-games-scoresheet')
+    expect(route.matched).toHaveLength(1)
+    expect(route.meta).toEqual({
+      requiresAuth: true,
+      requiresLeague: true,
+      permission: 'game_event:create',
+    })
+    expect(router.resolve('/admin/liga/3/partidas/9').name).toBe('admin-games-detail')
+  })
+})

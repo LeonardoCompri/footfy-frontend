@@ -438,6 +438,29 @@ describe('GameFormDialog — ligas com sorteio', () => {
     )
   })
 
+  it('mata-mata com a fase seguinte gerada: aviso próprio e status e times travados', async () => {
+    const wrapper = await mountDraw({
+      game: makeGame(9, {
+        league_id: 7,
+        round: null,
+        phase: 'Semifinal',
+        tie_key: 'SF1',
+        knockout_stage: 'SF',
+        status: 'finished',
+        results_locked: true,
+        results_lock: 'next_stage',
+      }),
+    })
+
+    expect(document.querySelector('[data-test="game-locked-notice"]')?.textContent?.trim()).toBe(
+      'Fase seguinte do mata-mata já gerada: o resultado desta partida está travado. Dá para mudar só data e estádio; para corrigir, desfaça a fase seguinte no Mata-mata do Sorteio.',
+    )
+    expect(component(wrapper, 'VSelect', 'game-status').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VAutocomplete', 'game-home-team').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VTextField', 'game-match-date').props('disabled')).toBeFalsy()
+    expect(component(wrapper, 'VAutocomplete', 'game-stadium').props('disabled')).toBeFalsy()
+  })
+
   it('returno travado não mostra a dica de inverter o mando', async () => {
     await mountDraw({
       game: makeGame(5, { league_id: 7, round: 5, group_number: 1, results_locked: true }),

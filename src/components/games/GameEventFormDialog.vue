@@ -4,16 +4,18 @@ import { useCrud } from '@/composables/useCrud'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { gameEventsService } from '@/services/api/gameEvents.service'
 import { useEventTypesStore } from '@/stores/eventTypes'
+import type { GameResultsLock } from '@/types/game'
 import type {
   EventTypeMeta,
   GameEvent,
   GameEventPayload,
   GameEventPlayer,
   SummaryTeam,
+  TeamSide,
 } from '@/types/gameEvent'
-import type { Player } from '@/types/player'
 import FormDialog from '@/components/common/FormDialog.vue'
 import RemovedBadge from '@/components/common/RemovedBadge.vue'
+import { filterPlayer, playerTitle, type PlayerOption } from './playerSearch'
 
 const props = defineProps<{
   modelValue: boolean
@@ -21,7 +23,7 @@ const props = defineProps<{
   teams: SummaryTeam[]
   type: string
   event?: GameEvent | null
-  locked?: boolean
+  lock?: GameResultsLock | null
 }>()
 
 const emit = defineEmits<{
@@ -42,7 +44,11 @@ const form = reactive({
 })
 
 const isEditing = computed(() => !!props.event)
-const lockedEdit = computed(() => isEditing.value && props.locked === true)
+const scoreLocked = computed(() => props.lock === 'next_stage')
+const lockedEdit = computed(() => {
+  if (!isEditing.value || !props.lock) return false
+  return props.lock === 'group_stage' || eventTypes.bySlug(props.event!.type).counts_for !== null
+})
 const currentType = computed(() => eventTypes.bySlug(form.type))
 const title = computed(() =>
   isEditing.value ? 'Editar evento' : `Registrar ${currentType.value.name}`,
@@ -50,15 +56,23 @@ const title = computed(() =>
 
 const typeOptions = computed(() => {
   const saved = props.event?.type
-  if (!saved || eventTypes.active.some((type) => type.slug === saved)) return eventTypes.active
-  return [...eventTypes.active, eventTypes.bySlug(saved)]
+  const allowed = scoreLocked.value
+    ? eventTypes.active.filter((type) => type.counts_for === null)
+    : eventTypes.active
+  if (!saved || allowed.some((type) => type.slug === saved)) return allowed
+  return [...allowed, eventTypes.bySlug(saved)]
 })
 
 function typeTitle(type: EventTypeMeta): string {
-  return type.active ? type.name : `${type.name} (inativo)`
+  const name = type.abbreviation ? `${type.abbreviation} · ${type.name}` : type.name
+  return type.active ? name : `${name} (inativo)`
 }
 
-type PlayerOption = Pick<Player, 'id' | 'name' | 'number'> & { removed?: boolean }
+const SIDE_LABELS: Record<TeamSide, string> = { home: 'Mandante', away: 'Visitante' }
+
+function teamTitle(team: SummaryTeam): string {
+  return `${SIDE_LABELS[team.side]} · ${team.name}`
+}
 
 const teamPlayers = computed(
   () => props.teams.find((team) => team.id === form.team_id)?.players ?? [],
@@ -80,9 +94,11 @@ function isRemoved(options: PlayerOption[], id: number | null): boolean {
   return options.some((player) => player.id === id && player.removed)
 }
 
-function playerTitle(player: PlayerOption): string {
-  return player.number != null ? `${player.number} · ${player.name}` : player.name
-}
+const noPlayerText = computed(() =>
+  teamPlayers.value.length > 0
+    ? 'Nenhum jogador com esse nº ou nome neste time.'
+    : 'Nenhum jogador no elenco deste time.',
+)
 
 function onTeamChange() {
   form.player_id = null
@@ -157,8 +173,17 @@ async function handleSubmit() {
       </span>
     </template>
 
+    <v-text-field
+      v-model="form.minute"
+      label="Minuto"
+      type="number"
+      min="0"
+      autofocus
+      hint="Minuto corrido: o 2º tempo continua em 46, 47…"
+      :error-messages="fieldErrors.minute"
+      data-test="event-minute"
+    />
     <v-select
-      v-if="isEditing"
       v-model="form.type"
       :items="typeOptions"
       :item-title="typeTitle"
@@ -176,11 +201,10 @@ async function handleSubmit() {
         </v-list-item>
       </template>
     </v-select>
-
     <v-select
       v-model="form.team_id"
       :items="teams"
-      item-title="name"
+      :item-title="teamTitle"
       item-value="id"
       label="Time"
       :disabled="lockedEdit"
@@ -200,8 +224,11 @@ async function handleSubmit() {
       :item-title="playerTitle"
       item-value="id"
       label="Jogador"
+      hint="Digite o nº da camisa ou o nome."
+      :custom-filter="filterPlayer"
+      auto-select-first
       :disabled="!form.team_id"
-      no-data-text="Nenhum jogador no elenco deste time."
+      :no-data-text="noPlayerText"
       :error-messages="fieldErrors.player_id"
       data-test="event-player"
     >
@@ -221,8 +248,12 @@ async function handleSubmit() {
       :item-title="playerTitle"
       item-value="id"
       label="Assistência (opcional)"
+      hint="Digite o nº da camisa ou o nome."
+      :custom-filter="filterPlayer"
+      auto-select-first
       clearable
       :disabled="!form.player_id"
+      :no-data-text="noPlayerText"
       :error-messages="fieldErrors.related_player_id"
       data-test="event-assist"
     >
@@ -235,14 +266,6 @@ async function handleSubmit() {
         <RemovedBadge />
       </template>
     </v-autocomplete>
-    <v-text-field
-      v-model="form.minute"
-      label="Minuto"
-      type="number"
-      min="0"
-      :error-messages="fieldErrors.minute"
-      data-test="event-minute"
-    />
   </FormDialog>
 </template>
 

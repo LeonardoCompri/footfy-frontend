@@ -220,9 +220,9 @@ test.describe('Telas públicas', () => {
     await expect(page.getByRole('cell', { name: 'Carlos Andrade' })).toBeVisible()
   })
 
-  test('partida (placeholder): Voltar sem histórico vai para os campeonatos', async ({ page }) => {
+  test('partida: Voltar sem histórico vai para os campeonatos', async ({ page }) => {
     await page.goto('/partidas/1')
-    await expect(page.getByText('Detalhes da partida em breve')).toBeVisible()
+    await expect(page.locator('[data-test=public-game-home]')).toHaveText('Serrano')
 
     await page.getByRole('button', { name: 'Voltar' }).click()
     await expect(page).toHaveURL(/\/campeonatos$/)
