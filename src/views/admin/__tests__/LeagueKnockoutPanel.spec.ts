@@ -340,6 +340,62 @@ describe('Mata-mata na tela do Sorteio', () => {
     expect(leaguesService.knockoutNextStage).toHaveBeenCalledWith(7, { stage: 'F' })
   })
 
+  it.each([
+    [0, null],
+    [1, 'Há 1 partida cancelada que ficará sem resultado.'],
+    [2, 'Há 2 partidas canceladas que ficarão sem resultado.'],
+  ])('1ª fase com %s cancelada(s): avisa que a fase de grupos trava', async (cancelled, extra) => {
+    const { wrapper } = await mountPanel(makeKnockoutState({ cancelled_group_games: cancelled }))
+
+    await find(wrapper, 'knockout-generate').trigger('click')
+    await flushPromises()
+
+    const lock = activeDialog()!.querySelector('[data-test="knockout-dialog-lock"]')
+    expect(lock?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      [
+        'Depois de gerar, os resultados da fase de grupos não poderão mais ser alterados, inclusive partidas canceladas.',
+        ...(extra ? [extra] : []),
+      ].join(' '),
+    )
+    expect(activeDialog()!.querySelector('[data-test="knockout-dialog-cancelled"]') !== null).toBe(
+      extra !== null,
+    )
+  })
+
+  it('fases seguintes não repetem o aviso da trava nem as canceladas', async () => {
+    const { wrapper } = await mountPanel(
+      makeKnockoutState({
+        last_stage: 'QF',
+        generated_stages: ['QF'],
+        next_stage: { key: 'SF', label: 'Semifinal', legs: 2, with_third_place: false },
+        cancelled_group_games: 2,
+      }),
+    )
+
+    await find(wrapper, 'knockout-generate').trigger('click')
+    await flushPromises()
+
+    expect(activeDialog()!.querySelector('[data-test="knockout-dialog-lock"]')).toBeNull()
+    expect(activeDialog()!.textContent).not.toContain('cancelada')
+  })
+
+  it('desfazer a única fase gerada avisa que a fase de grupos destrava', async () => {
+    const { wrapper } = await mountPanel(
+      makeKnockoutState({
+        generated_stages: ['QF'],
+        last_stage: 'QF',
+        can_undo: true,
+        undo_blocked_reason: null,
+      }),
+    )
+
+    await find(wrapper, 'knockout-undo').trigger('click')
+    await flushPromises()
+    expect(activeDialog()?.textContent).toContain(
+      'As partidas das quartas de final serão apagadas. Os resultados da fase de grupos voltarão a poder ser corrigidos. Deseja continuar?',
+    )
+  })
+
   it('preview com 422 mostra o motivo e não deixa confirmar', async () => {
     vi.mocked(leaguesService.knockoutPreview).mockRejectedValue(
       apiError(422, 'O grupo B não tem 4 times para classificar ao mata-mata.'),
@@ -444,6 +500,7 @@ describe('Mata-mata na tela do Sorteio', () => {
     expect(activeDialog()?.textContent).toContain(
       'As partidas da final serão apagadas. A disputa de 3º lugar também será desfeita.',
     )
+    expect(activeDialog()?.textContent).not.toContain('fase de grupos')
     await click('.v-dialog.v-overlay--active .v-card-actions .v-btn:last-child')
 
     expect(leaguesService.undoKnockoutStage).toHaveBeenCalledWith(7, 'F')

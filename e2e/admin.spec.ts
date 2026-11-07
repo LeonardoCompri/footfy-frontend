@@ -659,6 +659,8 @@ test.describe('Campeonatos (master)', () => {
 })
 
 test.describe('Regulamento da liga', () => {
+  test.use({ reducedMotion: 'reduce' })
+
   type Body<T = Record<string, unknown>> = { data: T }
   interface GroupsBody {
     fixture_mode: string
@@ -710,38 +712,37 @@ test.describe('Regulamento da liga', () => {
     await pickOption(page, option)
   }
 
+  function unassignedTeams(page: Page) {
+    return page.locator('[data-test=groups-unassigned] [data-test=group-team]')
+  }
+
   function teamRow(page: Page, name: string) {
     return page.locator('[data-test=group-team]', { hasText: name })
   }
 
-  test('admin configura o sorteio, salva só o regulamento e monta os grupos', async ({
-    page,
-    api,
-  }) => {
+  function unassignedDrawGroups(): Body<GroupsBody> {
+    return groupsBody({
+      fixture_mode: 'draw',
+      groups_count: 2,
+      groups: [
+        { group_number: 1, teams: [] },
+        { group_number: 2, teams: [] },
+      ],
+      unassigned: groupsBody().data.groups[0].teams,
+    })
+  }
+
+  test('admin configura o sorteio e salva só o regulamento', async ({ page, api }) => {
     await signIn(page, { role: 'admin' })
     let groups = groupsBody()
     let sent: Record<string, unknown> = {}
-    let assignments: unknown = null
     api
       .on('GET', '/leagues/1', { body: leagueBody() })
       .on('GET', '/leagues/1/groups', () => ({ body: groups }))
       .on('PUT', '/leagues/1', ({ request }) => {
         sent = request.postDataJSON() as Record<string, unknown>
-        groups = groupsBody({
-          fixture_mode: 'draw',
-          groups_count: 2,
-          groups: [
-            { group_number: 1, teams: [] },
-            { group_number: 2, teams: [] },
-          ],
-          unassigned: groupsBody().data.groups[0].teams,
-        })
+        groups = unassignedDrawGroups()
         return { body: leagueBody(sent) }
-      })
-      .on('POST', '/leagues/1/groups/shuffle', () => ({ body: assignedGroups() }))
-      .on('PUT', '/leagues/1/groups', ({ request }) => {
-        assignments = (request.postDataJSON() as { groups: unknown }).groups
-        return { body: assignedGroups() }
       })
 
     await page.goto('/admin/liga/1')
@@ -776,8 +777,23 @@ test.describe('Regulamento da liga', () => {
     await expect(page.getByText('Regulamento salvo com sucesso.')).toBeVisible()
     await expect(page.locator('.v-dialog.v-overlay--active')).toHaveCount(0)
     expect(sent).toEqual(HYBRID_DRAW)
+    await expect(unassignedTeams(page)).toHaveCount(4)
+  })
 
-    await expect(page.locator('[data-test=groups-unassigned] [data-test=group-team]')).toHaveCount(4)
+  test('admin sorteia os grupos, corrige à mão e salva a montagem', async ({ page, api }) => {
+    await signIn(page, { role: 'admin' })
+    let assignments: unknown = null
+    api
+      .on('GET', '/leagues/1', { body: leagueBody(HYBRID_DRAW) })
+      .on('GET', '/leagues/1/groups', { body: unassignedDrawGroups() })
+      .on('POST', '/leagues/1/groups/shuffle', () => ({ body: assignedGroups() }))
+      .on('PUT', '/leagues/1/groups', ({ request }) => {
+        assignments = (request.postDataJSON() as { groups: unknown }).groups
+        return { body: assignedGroups() }
+      })
+
+    await page.goto('/admin/liga/1/regulamento')
+    await expect(unassignedTeams(page)).toHaveCount(4)
     await page.locator('[data-test=groups-shuffle]').click()
     const groupA = page.locator('[data-test=group-card]', { hasText: 'Grupo A' })
     await expect(groupA.locator('[data-test=group-team]')).toHaveCount(2)
@@ -1321,6 +1337,7 @@ test.describe('Mata-mata gerado pela classificação', () => {
       undo_blocked_reason: generated ? null : 'Nenhuma fase do mata-mata foi gerada.',
       manual_phase_games: { total: 0, with_results: 0 },
       awaiting_penalties: [],
+      cancelled_group_games: 0,
       ...extra,
     }
   }
@@ -1448,6 +1465,9 @@ test.describe('Mata-mata gerado pela classificação', () => {
       'Jogo único: Estrela × Ribeirinho',
     )
     await expect(dialog.locator('[data-test=knockout-dialog-manual]')).toHaveCount(0)
+    await expect(dialog.locator('[data-test=knockout-dialog-lock]')).toHaveText(
+      'Depois de gerar, os resultados da fase de grupos não poderão mais ser alterados, inclusive partidas canceladas.',
+    )
     await dialog.getByRole('button', { name: 'Confirmar e gerar' }).click()
 
     await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(2)
@@ -1464,7 +1484,9 @@ test.describe('Mata-mata gerado pela classificação', () => {
     await expect(future.nth(1)).toContainText('Vencedor SF-1')
 
     await page.locator('[data-test=knockout-undo]').click()
-    await expect(openDialog(page)).toContainText('As partidas das semifinais serão apagadas.')
+    await expect(openDialog(page)).toContainText(
+      'As partidas das semifinais serão apagadas. Os resultados da fase de grupos voltarão a poder ser corrigidos.',
+    )
     await openDialog(page).getByRole('button', { name: 'Desfazer', exact: true }).click()
     await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(0)
     await expect(page.locator('[data-test=knockout-generate]')).toHaveText('Gerar semifinal')
@@ -1482,7 +1504,10 @@ test.describe('Mata-mata gerado pela classificação', () => {
     await signIn(page, { role: 'admin' })
     const sent = installKnockout(
       api,
-      knockoutState(false, { manual_phase_games: { total: 2, with_results: 1 } }),
+      knockoutState(false, {
+        manual_phase_games: { total: 2, with_results: 1 },
+        cancelled_group_games: 2,
+      }),
     )
 
     await page.goto('/admin/liga/1/sorteio?tab=mata-mata')
@@ -1494,11 +1519,79 @@ test.describe('Mata-mata gerado pela classificação', () => {
     await expect(dialog.locator('[data-test=knockout-dialog-manual-results]')).toContainText(
       '1 delas tem resultado ou eventos, que também serão perdidos.',
     )
+    await expect(dialog.locator('[data-test=knockout-dialog-cancelled]')).toHaveText(
+      'Há 2 partidas canceladas que ficarão sem resultado.',
+    )
     await expect(dialog.locator('[data-test=knockout-dialog-tie]')).toHaveCount(2)
     await dialog.getByRole('button', { name: 'Apagar e gerar' }).click()
 
     await expect(page.locator('[data-test=knockout-tie]')).toHaveCount(2)
     expect(sent).toEqual([{ method: 'POST', body: { stage: 'SF', replace_manual_phases: true } }])
+  })
+
+  test('jogo de grupo travado pelo mata-mata: súmula só corrige jogador e minuto e o formulário trava resultado', async ({
+    page,
+    api,
+  }) => {
+    await signIn(page, { role: 'admin' })
+    const base = fixture<Body<Record<string, unknown>>>('game-1').data
+    const locked = { ...base, group_number: 1, results_locked: true }
+    let eventPut: Record<string, unknown> = {}
+    let gamePut: Record<string, unknown> = {}
+    api
+      .on('GET', '/leagues', { body: knockoutLeagues() })
+      .on('GET', '/games/1', { body: { data: locked } })
+      .on('PUT', '/game-events/4', ({ request }) => {
+        eventPut = request.postDataJSON() as Record<string, unknown>
+        return { body: { data: { id: 4, ...eventPut } } }
+      })
+      .on('PUT', '/games/1', ({ request }) => {
+        gamePut = request.postDataJSON() as Record<string, unknown>
+        return { body: { data: { ...locked, ...gamePut } } }
+      })
+
+    await page.goto('/admin/liga/1/partidas/1?tab=sumula')
+    await expect(page.locator('[data-test=event-row]')).toHaveCount(4)
+    await expect(page.locator('[data-test=events-locked]')).toHaveText(
+      'Os resultados da fase de grupos estão travados porque o mata-mata já foi gerado. Para corrigir, desfaça o mata-mata. Ainda dá para corrigir o jogador e o minuto dos eventos lançados.',
+    )
+    await expect(page.locator('[data-test=event-actions]')).toHaveCount(0)
+    await expect(page.locator('[data-test=event-delete]')).toHaveCount(0)
+    await expect(page.locator('[data-test=event-edit]')).toHaveCount(4)
+
+    await page.locator('[data-test=event-edit]').first().click()
+    const eventDialog = openDialog(page)
+    await expect(eventDialog.locator('[data-test=event-type]')).toHaveClass(/v-input--disabled/)
+    await expect(eventDialog.locator('[data-test=event-team]')).toHaveClass(/v-input--disabled/)
+    await expect(eventDialog.locator('[data-test=event-player]')).not.toHaveClass(
+      /v-input--disabled/,
+    )
+    await eventDialog.getByRole('spinbutton', { name: 'Minuto' }).fill('80')
+    await eventDialog.locator('[data-test=form-submit]').click()
+    await expect(openDialog(page)).toHaveCount(0)
+    expect(eventPut).toMatchObject({ team_id: 1, type: 'goal', player_id: 5, minute: 80 })
+
+    await page.locator('[data-test=game-edit]').click()
+    const gameDialog = openDialog(page)
+    await expect(gameDialog.locator('[data-test=game-locked-notice]')).toHaveText(
+      'Mata-mata já gerado: o resultado desta partida está travado. Dá para mudar só data e estádio; para corrigir o resultado, desfaça o mata-mata.',
+    )
+    await expect(gameDialog.locator('[data-test=game-drawn-notice]')).toHaveCount(0)
+    await expect(gameDialog.locator('[data-test=game-swap-teams]')).toHaveCount(0)
+    for (const field of ['game-status', 'game-home-team', 'game-away-team']) {
+      await expect(gameDialog.locator(`[data-test=${field}]`)).toHaveClass(/v-input--disabled/)
+    }
+    await expect(gameDialog.locator('[data-test=game-match-date]')).not.toHaveClass(
+      /v-input--disabled/,
+    )
+    await gameDialog.locator('[data-test=form-submit]').click()
+    await expect(openDialog(page)).toHaveCount(0)
+    expect(gamePut).toMatchObject({
+      status: 'finished',
+      home_team_id: 1,
+      away_team_id: 2,
+      round: 1,
+    })
   })
 
   test('pênaltis na súmula: valida, salva e mostra no placar', async ({ page, api }) => {

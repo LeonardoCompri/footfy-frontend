@@ -15,6 +15,7 @@ export interface KnockoutConfirmation {
   firstStage: boolean
   manualTotal: number
   manualWithResults: number
+  cancelledGroupGames: number
 }
 
 export interface BracketConfig {
@@ -74,11 +75,18 @@ export function undoLabel(state: LeagueKnockoutState): string {
   return `Desfazer ${lower(KNOCKOUT_STAGES[state.last_stage].label)}`
 }
 
+function undoesLastStage(state: LeagueKnockoutState): boolean {
+  return state.generated_stages.every((stage) => stage === state.last_stage || stage === '3P')
+}
+
 export function undoMessage(state: LeagueKnockoutState): string {
   if (!state.last_stage) return ''
   const games = `As partidas ${KNOCKOUT_STAGES[state.last_stage].of} serão apagadas.`
   const thirdPlace = undoesThirdPlace(state) ? ' A disputa de 3º lugar também será desfeita.' : ''
-  return `${games}${thirdPlace} Deseja continuar?`
+  const unlock = undoesLastStage(state)
+    ? ' Os resultados da fase de grupos voltarão a poder ser corrigidos.'
+    : ''
+  return `${games}${thirdPlace}${unlock} Deseja continuar?`
 }
 
 export function nextStageLabel(state: LeagueKnockoutState): string | null {
@@ -94,7 +102,14 @@ export function knockoutConfirmation(state: LeagueKnockoutState): KnockoutConfir
     firstStage,
     manualTotal: firstStage ? state.manual_phase_games.total : 0,
     manualWithResults: firstStage ? state.manual_phase_games.with_results : 0,
+    cancelledGroupGames: firstStage ? state.cancelled_group_games : 0,
   }
+}
+
+export function cancelledGroupGamesLabel(total: number): string {
+  return total === 1
+    ? 'Há 1 partida cancelada que ficará sem resultado.'
+    : `Há ${total} partidas canceladas que ficarão sem resultado.`
 }
 
 export function nextStagePayload(

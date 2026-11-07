@@ -65,6 +65,7 @@ export interface LeagueKnockoutState {
   undo_blocked_reason: string | null
   manual_phase_games: KnockoutManualPhaseGames
   awaiting_penalties: KnockoutAwaitingPenalties[]
+  cancelled_group_games: number
 }
 
 export interface KnockoutPreviewTeam {

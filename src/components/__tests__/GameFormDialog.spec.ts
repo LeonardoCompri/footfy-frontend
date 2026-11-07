@@ -399,6 +399,77 @@ describe('GameFormDialog — ligas com sorteio', () => {
     })
   })
 
+  it('jogo de grupo com mata-mata gerado: status, times e rodada travados e aviso no lugar do sorteado', async () => {
+    const locked = makeGame(5, {
+      league_id: 7,
+      round: 2,
+      group_number: 2,
+      home_team_id: 1,
+      away_team_id: 2,
+      status: 'finished',
+      results_locked: true,
+    })
+    vi.mocked(gamesService.update).mockResolvedValue(locked)
+    const wrapper = await mountDraw({ game: locked, roundsPerTurn: 3, groupsCount: 2 })
+
+    expect(document.querySelector('[data-test="game-locked-notice"]')?.textContent?.trim()).toBe(
+      'Mata-mata já gerado: o resultado desta partida está travado. Dá para mudar só data e estádio; para corrigir o resultado, desfaça o mata-mata.',
+    )
+    expect(has('game-drawn-notice')).toBe(false)
+    expect(has('game-swap-teams')).toBe(false)
+    expect(component(wrapper, 'VSelect', 'game-status').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VAutocomplete', 'game-home-team').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VAutocomplete', 'game-away-team').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VTextField', 'game-round').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VTextField', 'game-match-date').props('disabled')).toBeFalsy()
+    expect(component(wrapper, 'VAutocomplete', 'game-stadium').props('disabled')).toBeFalsy()
+
+    await choose(wrapper, 'VTextField', 'game-match-date', '2026-05-10T15:00')
+    await submit()
+    expect(gamesService.update).toHaveBeenCalledWith(
+      5,
+      expect.objectContaining({
+        status: 'finished',
+        home_team_id: 1,
+        away_team_id: 2,
+        round: 2,
+        match_date: '2026-05-10T15:00',
+      }),
+    )
+  })
+
+  it('returno travado não mostra a dica de inverter o mando', async () => {
+    await mountDraw({
+      game: makeGame(5, { league_id: 7, round: 5, group_number: 1, results_locked: true }),
+      roundsPerTurn: 3,
+    })
+    expect(document.querySelector('[data-test="game-away-team"]')?.textContent).not.toContain(
+      'só é possível inverter o mando',
+    )
+    expect(has('game-swap-teams')).toBe(false)
+  })
+
+  it('partida manual de rodada travada também bloqueia rodada e etapa', async () => {
+    const wrapper = await mountDraw({
+      game: makeGame(8, { league_id: 7, round: 3, group_number: null, results_locked: true }),
+    })
+    expect(has('game-locked-notice')).toBe(true)
+    expect(component(wrapper, 'VTextField', 'game-round').props('disabled')).toBe(true)
+    expect(component(wrapper, 'VBtnToggle', 'game-stage-toggle').props('disabled')).toBe(true)
+  })
+
+  it('jogo sorteado sem a trava continua com status e times livres', async () => {
+    const wrapper = await mountDraw({
+      game: makeGame(5, { league_id: 7, round: 2, group_number: 1, results_locked: false }),
+      roundsPerTurn: 3,
+    })
+    expect(has('game-locked-notice')).toBe(false)
+    expect(has('game-drawn-notice')).toBe(true)
+    expect(has('game-swap-teams')).toBe(true)
+    expect(component(wrapper, 'VSelect', 'game-status').props('disabled')).toBeFalsy()
+    expect(component(wrapper, 'VAutocomplete', 'game-home-team').props('disabled')).toBeFalsy()
+  })
+
   it('partida não sorteada não mostra aviso nem Inverter mando', async () => {
     await mountDraw({ game: makeGame(6, { league_id: 7, round: null, phase: 'Final' }) })
     expect(has('game-drawn-notice')).toBe(false)

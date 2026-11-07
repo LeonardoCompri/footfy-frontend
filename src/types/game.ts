@@ -27,6 +27,7 @@ export interface Game {
   tie_key: string | null
   leg: GameLeg | null
   knockout_stage?: KnockoutStageKey | null
+  results_locked?: boolean
   status: GameStatus
   created_at: string
   updated_at: string

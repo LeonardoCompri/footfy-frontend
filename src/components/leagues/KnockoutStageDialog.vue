@@ -9,7 +9,11 @@ import type {
   KnockoutPreviewTeam,
   KnockoutPreviewTie,
 } from '@/types/leagueKnockout'
-import { manualPhaseGamesLabel, type KnockoutConfirmation } from './leagueKnockout'
+import {
+  cancelledGroupGamesLabel,
+  manualPhaseGamesLabel,
+  type KnockoutConfirmation,
+} from './leagueKnockout'
 
 const props = defineProps<{
   modelValue: boolean
@@ -93,6 +97,20 @@ function confirm() {
     <v-card data-test="knockout-dialog">
       <v-card-title class="text-wrap">{{ title }}</v-card-title>
       <v-card-text>
+        <v-alert
+          v-if="confirmation.firstStage"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          class="mb-4"
+          data-test="knockout-dialog-lock"
+        >
+          Depois de gerar, os resultados da fase de grupos não poderão mais ser alterados, inclusive
+          partidas canceladas.
+          <span v-if="confirmation.cancelledGroupGames > 0" data-test="knockout-dialog-cancelled">
+            {{ cancelledGroupGamesLabel(confirmation.cancelledGroupGames) }}
+          </span>
+        </v-alert>
         <template v-if="replacing">
           <v-alert
             type="warning"

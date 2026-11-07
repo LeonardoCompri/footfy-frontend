@@ -21,6 +21,7 @@ const props = defineProps<{
   teams: SummaryTeam[]
   type: string
   event?: GameEvent | null
+  locked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +42,7 @@ const form = reactive({
 })
 
 const isEditing = computed(() => !!props.event)
+const lockedEdit = computed(() => isEditing.value && props.locked === true)
 const currentType = computed(() => eventTypes.bySlug(form.type))
 const title = computed(() =>
   isEditing.value ? 'Editar evento' : `Registrar ${currentType.value.name}`,
@@ -162,6 +164,7 @@ async function handleSubmit() {
       :item-title="typeTitle"
       item-value="slug"
       label="Tipo"
+      :disabled="lockedEdit"
       :error-messages="fieldErrors.type"
       data-test="event-type"
     >
@@ -180,6 +183,7 @@ async function handleSubmit() {
       item-title="name"
       item-value="id"
       label="Time"
+      :disabled="lockedEdit"
       :hint="
         currentType.counts_for === 'opponent'
           ? 'Time do jogador que fez o lance; o evento conta para o adversário.'

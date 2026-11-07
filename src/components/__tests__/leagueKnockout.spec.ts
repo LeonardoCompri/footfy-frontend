@@ -5,6 +5,7 @@ import {
   bracketSteps,
   canGenerateStage,
   canUndoStage,
+  cancelledGroupGamesLabel,
   firstStagePairs,
   generateLabel,
   knockoutConfirmation,
@@ -132,10 +133,55 @@ describe('leagueKnockout — botões e confirmação', () => {
     expect(undoLabel(finalOnly)).toBe('Desfazer final')
   })
 
+  it.each([
+    [
+      '1ª fase gerada',
+      knockoutState({ last_stage: 'QF', generated_stages: ['QF'] }),
+      'As partidas das quartas de final serão apagadas. Os resultados da fase de grupos voltarão a poder ser corrigidos. Deseja continuar?',
+    ],
+    [
+      'final e 3º lugar sem fase antes',
+      knockoutState({ last_stage: 'F', generated_stages: ['3P', 'F'] }),
+      'As partidas da final serão apagadas. A disputa de 3º lugar também será desfeita. Os resultados da fase de grupos voltarão a poder ser corrigidos. Deseja continuar?',
+    ],
+  ])(
+    'desfazer a última fase que resta (%s) avisa que a fase de grupos destrava',
+    (_, state, message) => {
+      expect(undoMessage(state)).toBe(message)
+    },
+  )
+
+  it('desfazer uma fase com outra gerada antes não fala da fase de grupos', () => {
+    for (const state of [
+      knockoutState({ last_stage: 'SF', generated_stages: ['QF', 'SF'] }),
+      knockoutState({ last_stage: 'F', generated_stages: ['SF', '3P', 'F'] }),
+    ]) {
+      expect(undoMessage(state)).not.toContain('fase de grupos')
+    }
+  })
+
+  it('partidas canceladas da fase de grupos: só na 1ª fase, singular e plural', () => {
+    expect(knockoutConfirmation(knockoutState({ cancelled_group_games: 2 }))).toMatchObject({
+      firstStage: true,
+      cancelledGroupGames: 2,
+    })
+    expect(
+      knockoutConfirmation(knockoutState({ last_stage: 'QF', cancelled_group_games: 2 }))
+        .cancelledGroupGames,
+    ).toBe(0)
+    expect(cancelledGroupGamesLabel(1)).toBe('Há 1 partida cancelada que ficará sem resultado.')
+    expect(cancelledGroupGamesLabel(3)).toBe('Há 3 partidas canceladas que ficarão sem resultado.')
+  })
+
   it('partidas manuais só contam na 1ª fase e mandam replace_manual_phases', () => {
     const manual = { total: 3, with_results: 1 }
     const first = knockoutConfirmation(knockoutState({ manual_phase_games: manual }))
-    expect(first).toEqual({ firstStage: true, manualTotal: 3, manualWithResults: 1 })
+    expect(first).toEqual({
+      firstStage: true,
+      manualTotal: 3,
+      manualWithResults: 1,
+      cancelledGroupGames: 0,
+    })
     expect(nextStagePayload('QF', first)).toEqual({ stage: 'QF', replace_manual_phases: true })
 
     const clean = knockoutConfirmation(knockoutState())

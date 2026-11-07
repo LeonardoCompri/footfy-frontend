@@ -46,6 +46,7 @@ const stage = ref<Stage>('round')
 const isEditing = computed(() => !!props.game)
 const isDrawn = computed(() => props.game?.group_number != null)
 const isKnockout = computed(() => isGeneratedKnockout(props.game))
+const isLocked = computed(() => props.game?.results_locked === true)
 const roundUnavailable = computed(
   () => props.fixtureMode === 'draw' && !(isEditing.value && props.game?.round != null),
 )
@@ -181,7 +182,18 @@ async function handleSubmit() {
     @submit="handleSubmit"
   >
     <v-alert
-      v-if="isDrawn"
+      v-if="isLocked"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      data-test="game-locked-notice"
+    >
+      <strong>Mata-mata já gerado:</strong> o resultado desta partida está travado. Dá para mudar só
+      data e estádio; para corrigir o resultado, desfaça o mata-mata.
+    </v-alert>
+    <v-alert
+      v-else-if="isDrawn"
       type="info"
       variant="tonal"
       density="compact"
@@ -213,7 +225,7 @@ async function handleSubmit() {
           item-title="name"
           item-value="id"
           label="Mandante"
-          :disabled="isReturnLeg || isKnockout"
+          :disabled="isReturnLeg || isKnockout || isLocked"
           :error-messages="fieldErrors.home_team_id"
           data-test="game-home-team"
         />
@@ -225,18 +237,18 @@ async function handleSubmit() {
           item-title="name"
           item-value="id"
           label="Visitante"
-          :disabled="isReturnLeg || isKnockout"
+          :disabled="isReturnLeg || isKnockout || isLocked"
           :hint="
-            isReturnLeg
+            isReturnLeg && !isLocked
               ? 'No returno os confrontos seguem o turno; só é possível inverter o mando.'
               : undefined
           "
-          :persistent-hint="isReturnLeg"
+          :persistent-hint="isReturnLeg && !isLocked"
           :error-messages="sameTeam ? ['O visitante deve ser diferente do mandante.'] : fieldErrors.away_team_id"
           data-test="game-away-team"
         />
       </v-col>
-      <v-col v-if="isDrawn" cols="12" class="mb-2">
+      <v-col v-if="isDrawn && !isLocked" cols="12" class="mb-2">
         <v-btn
           variant="tonal"
           prepend-icon="mdi-swap-vertical"
@@ -253,6 +265,7 @@ async function handleSubmit() {
           item-title="title"
           item-value="value"
           label="Status"
+          :disabled="isLocked"
           :error-messages="fieldErrors.status"
           data-test="game-status"
         />
@@ -275,7 +288,7 @@ async function handleSubmit() {
       color="primary"
       variant="outlined"
       density="comfortable"
-      :disabled="isDrawn || isKnockout"
+      :disabled="isDrawn || isKnockout || isLocked"
       :class="unavailableHint ? 'mb-1' : 'mb-4'"
       data-test="game-stage-toggle"
     >
@@ -304,7 +317,7 @@ async function handleSubmit() {
           label="Rodada"
           type="number"
           min="1"
-          :disabled="isDrawn || roundUnavailable"
+          :disabled="isDrawn || roundUnavailable || isLocked"
           :error-messages="fieldErrors.round"
           data-test="game-round"
         />

@@ -170,6 +170,7 @@ export function makeKnockoutState(extra: Partial<LeagueKnockoutState> = {}): Lea
     undo_blocked_reason: 'Nenhuma fase do mata-mata foi gerada.',
     manual_phase_games: { total: 0, with_results: 0 },
     awaiting_penalties: [],
+    cancelled_group_games: 0,
     ...extra,
   }
 }
