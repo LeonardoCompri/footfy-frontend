@@ -61,13 +61,23 @@ describe('gamesService', () => {
     expect(result.map((game) => game.id)).toEqual([1])
   })
 
-  it('updatePenalties envia só os pênaltis no PUT /games/{id}', async () => {
-    const game = makeGame(9, { home_penalties: 4, away_penalties: 3 })
+  it('updatePenaltyKicks envia a lista inteira no PUT /games/{id}/penalty-kicks', async () => {
+    const game = makeGame(9, { home_penalties: 1, away_penalties: 0 })
     vi.mocked(http.put).mockResolvedValue({ data: { data: game } })
+    const kicks = [
+      { team_id: 1, player_id: 3, scored: true },
+      { team_id: 2, player_id: 8, scored: false },
+    ]
 
-    expect(await gamesService.updatePenalties(9, { home_penalties: 4, away_penalties: 3 })).toEqual(
-      game,
-    )
-    expect(http.put).toHaveBeenCalledWith('/games/9', { home_penalties: 4, away_penalties: 3 })
+    expect(await gamesService.updatePenaltyKicks(9, kicks)).toEqual(game)
+    expect(http.put).toHaveBeenCalledWith('/games/9/penalty-kicks', { kicks })
+  })
+
+  it('updatePenaltyKicks com lista vazia limpa a disputa', async () => {
+    vi.mocked(http.put).mockResolvedValue({ data: { data: makeGame(9) } })
+
+    await gamesService.updatePenaltyKicks(9, [])
+
+    expect(http.put).toHaveBeenCalledWith('/games/9/penalty-kicks', { kicks: [] })
   })
 })

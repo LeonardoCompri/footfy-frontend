@@ -17,12 +17,12 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { apiError, defaultEventTypes, makeEvent, makeGame, makeTeam } from '@/test/factories'
+import { defaultEventTypes, makeEvent, makeGame, makeTeam } from '@/test/factories'
 import type { Game } from '@/types/game'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/games.service', () => ({
-  gamesService: { get: vi.fn(), update: vi.fn(), remove: vi.fn(), updatePenalties: vi.fn() },
+  gamesService: { get: vi.fn(), update: vi.fn(), remove: vi.fn(), updatePenaltyKicks: vi.fn() },
 }))
 vi.mock('@/services/api/eventTypes.service', () => ({ eventTypesService: { list: vi.fn() } }))
 vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
@@ -142,6 +142,19 @@ describe('GameDetailView', () => {
     const { wrapper } = await mountDetail(permissions)
     expect(wrapper.find('[data-test="game-edit"]').exists()).toBe(edit)
     expect(wrapper.find('[data-test="game-delete"]').exists()).toBe(del)
+  })
+
+  it.each([
+    ['game:read', ['game:read'], false],
+    ['game_event:create', ['game:read', 'game_event:create'], true],
+  ])('botão Imprimir súmula por permissão: %s', async (_label, permissions, visible) => {
+    const { wrapper } = await mountDetail(permissions)
+    const button = wrapper.find('[data-test="game-print-scoresheet"]')
+    expect(button.exists()).toBe(visible)
+    if (visible) {
+      expect(button.text()).toBe('Imprimir súmula')
+      expect(button.attributes('href')).toBe('/admin/liga/7/partidas/4/sumula')
+    }
   })
 
   it('editar abre o form já em modo Fase (liga mata-mata) com os dados da partida', async () => {
@@ -382,23 +395,6 @@ describe('GameDetailView', () => {
       return wrapper
     }
 
-    function penaltiesField(wrapper: ReturnType<typeof mount>, side: 'home' | 'away') {
-      return wrapper
-        .findAllComponents({ name: 'VTextField' })
-        .find((c) => c.attributes('data-test') === `game-penalties-${side}`)!
-    }
-
-    async function fill(wrapper: ReturnType<typeof mount>, home: string, away: string) {
-      penaltiesField(wrapper, 'home').vm.$emit('update:modelValue', home)
-      penaltiesField(wrapper, 'away').vm.$emit('update:modelValue', away)
-      await flushPromises()
-    }
-
-    async function save(wrapper: ReturnType<typeof mount>) {
-      await wrapper.find('[data-test="game-penalties"] form').trigger('submit')
-      await flushPromises()
-    }
-
     it('Excluir desabilitado com dica para desfazer a fase no mata-mata', async () => {
       const wrapper = await mountGenerated(generated())
 
@@ -420,89 +416,69 @@ describe('GameDetailView', () => {
       expect(mobileLine.classes()).toContain('d-sm-none')
     })
 
-    it.each([
-      ['permitido e sem pênaltis', { penalties_allowed: true }, true],
-      ['não permitido e sem pênaltis', { penalties_allowed: false }, false],
-      [
-        'não permitido mas com pênaltis gravados',
-        { penalties_allowed: false, home_penalties: 5, away_penalties: 4 },
-        true,
-      ],
-      ['jogo de fase manual', { knockout_stage: null, penalties_allowed: false }, false],
-    ] as const)('campos de pênaltis: %s', async (_label, extra, visible) => {
-      const wrapper = await mountGenerated(generated(extra))
-
-      expect(wrapper.find('[data-test="game-penalties"]').exists()).toBe(visible)
+    const kick = (order: number, team_id: number, scored: boolean) => ({
+      id: order,
+      order,
+      team_id,
+      player_id: order,
+      scored,
+      player: { id: order, name: `Cobrador ${order}`, number: order, removed: false },
     })
 
-    it('sem game:update não mostra os campos de pênaltis', async () => {
+    it.each([
+      ['permitido e sem cobranças', { penalties_allowed: true }, true, false],
+      ['não permitido e sem cobranças', { penalties_allowed: false }, false, false],
+      [
+        'não permitido mas com cobranças gravadas',
+        { penalties_allowed: false, penaltyKicks: [kick(1, 1, true)] },
+        true,
+        false,
+      ],
+      [
+        'jogo antigo só com o placar',
+        { penalties_allowed: false, home_penalties: 5, away_penalties: 4 },
+        false,
+        true,
+      ],
+      ['jogo de fase manual', { knockout_stage: null, penalties_allowed: false }, false, false],
+    ] as [string, Partial<Game>, boolean, boolean][])('disputa de pênaltis: %s', async (_label, extra, editor, readOnly) => {
+      const wrapper = await mountGenerated(generated(extra))
+
+      expect(wrapper.find('[data-test="game-penalties"]').exists()).toBe(editor)
+      expect(wrapper.find('[data-test="game-shootout"]').exists()).toBe(readOnly)
+    })
+
+    it('sem game:update mostra só a grade das cobranças gravadas', async () => {
+      const kicks = [kick(1, 1, true), kick(2, 2, false)]
+      const wrapper = await mountGenerated(
+        generated({ penalties_allowed: true, penaltyKicks: kicks }),
+        ['game:read'],
+      )
+
+      expect(wrapper.find('[data-test="game-penalties"]').exists()).toBe(false)
+      expect(wrapper.findAll('[data-test="game-shootout"] [data-test="shootout-kick"]')).toHaveLength(10)
+    })
+
+    it('sem game:update e sem pênaltis não mostra a disputa', async () => {
       const wrapper = await mountGenerated(generated({ penalties_allowed: true }), ['game:read'])
 
       expect(wrapper.find('[data-test="game-penalties"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="game-shootout"]').exists()).toBe(false)
     })
 
-    it.each([
-      ['', '3', 'Informe os pênaltis dos dois times.'],
-      ['3', '3', 'A disputa de pênaltis não pode terminar empatada.'],
-      ['100', '3', 'Informe um número inteiro de 0 a 99.'],
-      ['2.5', '3', 'Informe um número inteiro de 0 a 99.'],
-      ['-1', '3', 'Informe um número inteiro de 0 a 99.'],
-    ])('valida antes de enviar: "%s" × "%s"', async (home, away, message) => {
+    it('depois de salvar usa o jogo da resposta no placar, sem novo GET', async () => {
       const wrapper = await mountGenerated(generated({ penalties_allowed: true }))
 
-      await fill(wrapper, home, away)
-      await save(wrapper)
-
-      expect(gamesService.updatePenalties).not.toHaveBeenCalled()
-      expect(penaltiesField(wrapper, 'home').props('errorMessages')).toEqual([message])
-    })
-
-    it('salvar envia só os pênaltis e atualiza o placar com a resposta', async () => {
-      vi.mocked(gamesService.updatePenalties).mockResolvedValue(
-        generated({ penalties_allowed: true, home_penalties: 4, away_penalties: 3 }),
-      )
-      const wrapper = await mountGenerated(generated({ penalties_allowed: true }))
-
-      await fill(wrapper, '4', '3')
-      await save(wrapper)
-
-      expect(gamesService.updatePenalties).toHaveBeenCalledWith(4, {
-        home_penalties: 4,
-        away_penalties: 3,
-      })
-      expect(wrapper.find('[data-test="game-score"]').text()).toBe('1 (4) × (3) 1')
-      expect(wrapper.find('[data-test="game-penalties-clear"]').exists()).toBe(true)
-    })
-
-    it('422 do back aparece no campo do mandante', async () => {
-      vi.mocked(gamesService.updatePenalties).mockRejectedValue(
-        apiError(422, 'Erro', {
-          home_penalties: ['Os pênaltis são lançados no jogo de volta do confronto.'],
-        }),
-      )
-      const wrapper = await mountGenerated(generated({ penalties_allowed: true }))
-
-      await fill(wrapper, '4', '3')
-      await save(wrapper)
-
-      expect(penaltiesField(wrapper, 'home').props('errorMessages')).toEqual([
-        'Os pênaltis são lançados no jogo de volta do confronto.',
-      ])
-    })
-
-    it('limpar envia os dois pênaltis nulos', async () => {
-      vi.mocked(gamesService.updatePenalties).mockResolvedValue(generated())
-      const wrapper = await mountGenerated(generated({ home_penalties: 5, away_penalties: 4 }))
-
-      await wrapper.find('[data-test="game-penalties-clear"]').trigger('click')
+      wrapper
+        .findComponent({ name: 'PenaltyShootoutEditor' })
+        .vm.$emit(
+          'saved',
+          generated({ penalties_allowed: true, home_penalties: 4, away_penalties: 3 }),
+        )
       await flushPromises()
 
-      expect(gamesService.updatePenalties).toHaveBeenCalledWith(4, {
-        home_penalties: null,
-        away_penalties: null,
-      })
-      expect(wrapper.find('[data-test="game-penalties"]').exists()).toBe(false)
-      expect(wrapper.find('[data-test="game-score"]').text()).toBe('1 × 1')
+      expect(wrapper.find('[data-test="game-score"]').text()).toBe('1 (4) × (3) 1')
+      expect(gamesService.get).toHaveBeenCalledTimes(1)
     })
   })
 })

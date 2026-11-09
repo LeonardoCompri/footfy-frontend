@@ -153,7 +153,6 @@ async function save() {
             variant="tonal"
             color="primary"
             prepend-icon="mdi-shuffle-variant"
-            class="text-none"
             :loading="shuffling"
             :disabled="disabled || !!structureProblem || saving"
             data-test="groups-shuffle"
@@ -164,7 +163,6 @@ async function save() {
           <v-btn
             color="primary"
             prepend-icon="mdi-content-save"
-            class="text-none"
             :loading="saving"
             :disabled="disabled || !changed || shuffling"
             data-test="groups-save"
