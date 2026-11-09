@@ -11,6 +11,7 @@
     "home_penalties": null,
     "away_penalties": null,
     "penalties_allowed": false,
+    "penalties_possible": false,
     "round": 1,
     "phase": null,
     "phase_order": null,
@@ -21,6 +22,14 @@
     "status": "finished",
     "created_at": "2026-03-01T12:00:00.000000Z",
     "updated_at": "2026-03-01T12:00:00.000000Z",
+    "league": {
+      "id": 1,
+      "name": "Série A",
+      "championship": {
+        "id": 1,
+        "name": "Copa Footfy"
+      }
+    },
     "homeTeam": {
       "id": 1,
       "name": "Atlético Serrano",
@@ -36,7 +45,7 @@
           "position": "GOL",
           "number": 1,
           "birth_date": "1996-04-12",
-          "document": null,
+          "document": "52998224725",
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         },
@@ -47,7 +56,7 @@
           "position": "ZAG",
           "number": 4,
           "birth_date": "1999-08-30",
-          "document": null,
+          "document": "11144477735",
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         },
@@ -58,7 +67,7 @@
           "position": "MEI",
           "number": 8,
           "birth_date": "2001-01-17",
-          "document": null,
+          "document": "39053344705",
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         },
@@ -69,7 +78,7 @@
           "position": "ATA",
           "number": 9,
           "birth_date": "2000-11-05",
-          "document": null,
+          "document": "86288366757",
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         },
@@ -80,7 +89,18 @@
           "position": "ATA",
           "number": 11,
           "birth_date": "2002-06-21",
-          "document": null,
+          "document": "71428793860",
+          "created_at": "2026-03-01T12:00:00.000000Z",
+          "updated_at": "2026-03-01T12:00:00.000000Z"
+        }
+      ],
+      "technicalCommitteeMembers": [
+        {
+          "id": 1,
+          "team_id": 1,
+          "name": "Marcos Vieira",
+          "role": "Treinador",
+          "birth_date": null,
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         }
@@ -127,7 +147,8 @@
           "created_at": "2026-03-01T12:00:00.000000Z",
           "updated_at": "2026-03-01T12:00:00.000000Z"
         }
-      ]
+      ],
+      "technicalCommitteeMembers": []
     },
     "stadium": {
       "id": 1,
@@ -219,6 +240,7 @@
         "created_at": "2026-03-01T12:00:00.000000Z",
         "updated_at": "2026-03-01T12:00:00.000000Z"
       }
-    ]
+    ],
+    "penaltyKicks": []
   }
 }

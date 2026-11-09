@@ -47,7 +47,6 @@ function add(value: Tiebreaker | null) {
         variant="text"
         size="small"
         prepend-icon="mdi-restore"
-        class="text-none"
         :disabled="isDefault"
         data-test="tiebreakers-restore"
         @click="update([...DEFAULT_TIEBREAKERS])"

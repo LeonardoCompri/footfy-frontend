@@ -1,0 +1,209 @@
+{
+  "data": {
+    "id": 1,
+    "league_id": 1,
+    "home_team_id": 1,
+    "away_team_id": 2,
+    "stadium_id": 1,
+    "match_date": "2026-03-08 16:00:00",
+    "home_score": 1,
+    "away_score": 1,
+    "home_penalties": 4,
+    "away_penalties": 2,
+    "round": null,
+    "phase": "Final",
+    "phase_order": 4,
+    "tie_key": "F1",
+    "leg": null,
+    "knockout_stage": "F",
+    "status": "finished",
+    "created_at": "2026-03-01T12:00:00.000000Z",
+    "updated_at": "2026-03-01T12:00:00.000000Z",
+    "homeTeam": {
+      "id": 1,
+      "name": "Atlético Serrano",
+      "nickname": "Serrano",
+      "logo": null,
+      "created_at": "2026-03-01T12:00:00.000000Z",
+      "updated_at": "2026-03-01T12:00:00.000000Z"
+    },
+    "awayTeam": {
+      "id": 2,
+      "name": "Clube Ribeirinho",
+      "nickname": "Ribeirinho",
+      "logo": null,
+      "created_at": "2026-03-01T12:00:00.000000Z",
+      "updated_at": "2026-03-01T12:00:00.000000Z"
+    },
+    "stadium": {
+      "id": 1,
+      "league_id": 1,
+      "name": "Estádio Municipal",
+      "city": "Campinas",
+      "capacity": 15000,
+      "created_at": "2026-03-01T12:00:00.000000Z",
+      "updated_at": "2026-03-01T12:00:00.000000Z"
+    },
+    "events": [
+      {
+        "id": 2,
+        "game_id": 1,
+        "team_id": 2,
+        "player_id": 7,
+        "related_player_id": null,
+        "player": {
+          "id": 7,
+          "name": "Felipe Nunes",
+          "removed": false
+        },
+        "related_player": null,
+        "league_id": 1,
+        "type": "goal",
+        "minute": 40,
+        "created_at": "2026-03-01T12:00:00.000000Z",
+        "updated_at": "2026-03-01T12:00:00.000000Z"
+      },
+      {
+        "id": 1,
+        "game_id": 1,
+        "team_id": 1,
+        "player_id": 4,
+        "related_player_id": 3,
+        "player": {
+          "id": 4,
+          "name": "Lucas Ferreira",
+          "removed": false
+        },
+        "related_player": {
+          "id": 3,
+          "name": "Diego Martins",
+          "removed": false
+        },
+        "league_id": 1,
+        "type": "goal",
+        "minute": 23,
+        "created_at": "2026-03-01T12:00:00.000000Z",
+        "updated_at": "2026-03-01T12:00:00.000000Z"
+      }
+    ],
+    "penaltyKicks": [
+      {
+        "id": 1,
+        "order": 1,
+        "team_id": 1,
+        "player_id": 1,
+        "scored": true,
+        "player": {
+          "id": 1,
+          "name": "Rafael Souza",
+          "number": 1,
+          "removed": false
+        }
+      },
+      {
+        "id": 2,
+        "order": 2,
+        "team_id": 2,
+        "player_id": 6,
+        "scored": true,
+        "player": {
+          "id": 6,
+          "name": "Caio Almeida",
+          "number": 1,
+          "removed": false
+        }
+      },
+      {
+        "id": 3,
+        "order": 3,
+        "team_id": 1,
+        "player_id": 2,
+        "scored": true,
+        "player": {
+          "id": 2,
+          "name": "Bruno Lima",
+          "number": 4,
+          "removed": false
+        }
+      },
+      {
+        "id": 4,
+        "order": 4,
+        "team_id": 2,
+        "player_id": 7,
+        "scored": false,
+        "player": {
+          "id": 7,
+          "name": "Felipe Nunes",
+          "number": 9,
+          "removed": false
+        }
+      },
+      {
+        "id": 5,
+        "order": 5,
+        "team_id": 1,
+        "player_id": 3,
+        "scored": false,
+        "player": {
+          "id": 3,
+          "name": "Diego Martins",
+          "number": 8,
+          "removed": false
+        }
+      },
+      {
+        "id": 6,
+        "order": 6,
+        "team_id": 2,
+        "player_id": 8,
+        "scored": true,
+        "player": {
+          "id": 8,
+          "name": "Gustavo Pires",
+          "number": 10,
+          "removed": false
+        }
+      },
+      {
+        "id": 7,
+        "order": 7,
+        "team_id": 1,
+        "player_id": 4,
+        "scored": true,
+        "player": {
+          "id": 4,
+          "name": "Lucas Ferreira",
+          "number": 9,
+          "removed": false
+        }
+      },
+      {
+        "id": 8,
+        "order": 8,
+        "team_id": 2,
+        "player_id": 6,
+        "scored": false,
+        "player": {
+          "id": 6,
+          "name": "Caio Almeida",
+          "number": 1,
+          "removed": false
+        }
+      },
+      {
+        "id": 9,
+        "order": 9,
+        "team_id": 1,
+        "player_id": 5,
+        "scored": true,
+        "player": {
+          "id": 5,
+          "name": "Thiago Rocha",
+          "number": 11,
+          "removed": false
+        }
+      }
+    ]
+  }
+}
