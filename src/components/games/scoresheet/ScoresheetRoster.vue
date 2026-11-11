@@ -11,7 +11,7 @@ const teams = computed(() =>
     badge: side === 'home' ? 'M' : 'V',
     word: side === 'home' ? 'Mandante' : 'Visitante',
     team: props.data[side],
-    rows: rosterSheet(props.data[side].roster, props.sheet),
+    rows: rosterSheet(props.data[side].roster, props.sheet, props.data.rosterRows),
   })),
 )
 </script>
@@ -32,12 +32,19 @@ const teams = computed(() =>
       <div class="score">
         <div class="score-label">Placar final · tempo normal</div>
         <div class="score-boxes">
-          <span class="score-box" />
+          <span class="score-box" data-test="scoresheet-score-home">{{ data.home.score }}</span>
           <span class="score-x">×</span>
-          <span class="score-box" />
+          <span class="score-box" data-test="scoresheet-score-away">{{ data.away.score }}</span>
         </div>
-        <div v-if="data.penalties" class="score-note">
-          Terminou empatado? Preencha a disputa de pênaltis na pág. {{ data.rosterSheets + 2 }}
+        <div
+          v-if="data.penaltiesScore"
+          class="score-note penalties"
+          data-test="scoresheet-penalties-score"
+        >
+          Pênaltis: {{ data.penaltiesScore }}
+        </div>
+        <div v-else-if="data.penalties && !data.filled" class="score-note">
+          Terminou empatado? Preencha a disputa de pênaltis na pág. {{ data.penaltiesPage }}
         </div>
       </div>
       <div class="club away">
@@ -54,7 +61,9 @@ const teams = computed(() =>
     <section class="cards" data-test="scoresheet-cards">
       <div class="card">
         <span class="label">Competição</span>
-        <span class="value">{{ data.competition.join(' · ') }}</span>
+        <span class="value" data-test="scoresheet-competition">{{
+          data.competition.join(' · ')
+        }}</span>
       </div>
       <div class="card" :class="{ fill: !data.stage }">
         <span class="label">{{ data.stageLabel }}</span>
@@ -82,7 +91,7 @@ const teams = computed(() =>
     <template v-if="data.matchline">· {{ data.matchline }}</template>
   </div>
 
-  <section class="teams">
+  <section class="teams" :style="{ '--roster-rows': data.rosterRows }">
     <div
       v-for="item in teams"
       :key="item.side"
@@ -99,10 +108,10 @@ const teams = computed(() =>
       </div>
       <table class="roster">
         <colgroup>
-          <col style="width: 9mm" />
+          <col style="width: 7mm" />
           <col />
-          <col style="width: 25mm" />
-          <col style="width: 40mm" />
+          <col style="width: 24mm" />
+          <col style="width: 35mm" />
         </colgroup>
         <thead>
           <tr>
@@ -128,22 +137,11 @@ const teams = computed(() =>
       </table>
     </div>
   </section>
-  <p class="hint">
-    Linhas em branco: atletas fora da relação impressa. Cadastre-os no Futy antes de digitar os
-    eventos.
+  <p class="hint" data-test="scoresheet-roster-hint">
+    <template v-if="data.filled">Relação conforme o cadastro atual do time</template>
+    <template v-else>
+      Linhas em branco: atletas fora da relação impressa. Cadastre-os no Futy antes de digitar os
+      eventos.
+    </template>
   </p>
-  <section class="signs">
-    <div class="sign">
-      <span class="sign-line" />
-      <span class="sign-label">Capitão · {{ data.home.name }}</span>
-    </div>
-    <div class="sign">
-      <span class="sign-line" />
-      <span class="sign-label">Árbitro principal</span>
-    </div>
-    <div class="sign">
-      <span class="sign-line" />
-      <span class="sign-label">Capitão · {{ data.away.name }}</span>
-    </div>
-  </section>
 </template>

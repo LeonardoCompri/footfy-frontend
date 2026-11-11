@@ -12,7 +12,15 @@ import {
   makeUser,
   setupLeagueSession,
 } from '@/test/utils'
-import { apiError, defaultEventTypes, makeEventType, makeGame, makeTeam } from '@/test/factories'
+import {
+  apiError,
+  defaultEventTypes,
+  makeEvent,
+  makeEventType,
+  makeGame,
+  makePlayer,
+  makeTeam,
+} from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({ default: {} }))
 vi.mock('@/services/api/games.service', () => ({ gamesService: { get: vi.fn() } }))
@@ -76,7 +84,7 @@ describe('GameScoresheetView', () => {
 
     expect(gamesService.get).toHaveBeenCalledWith('4')
     expect(wrapper.findAll('[data-test="scoresheet-sheet"]')).toHaveLength(2)
-    expect(wrapper.find('[data-test="scoresheet-competition"]').text()).toBe('Brasileiro›Série A')
+    expect(wrapper.find('[data-test="scoresheet-competition"]').text()).toBe('Brasileiro · Série A')
     expect(wrapper.findAll('[data-test="scoresheet-legend-type"]')).toHaveLength(4)
     expect(document.title).toBe('Súmula #0004 - Esporte Clube Vitória x Esporte Clube Bahia')
   })
@@ -110,6 +118,101 @@ describe('GameScoresheetView', () => {
     await flushPromises()
     expect(print).toHaveBeenCalledTimes(1)
     Reflect.deleteProperty(document, 'fonts')
+  })
+
+  it.each(['scheduled', 'in_progress', 'cancelled'] as const)(
+    'partida %s imprime em branco, sem o controle',
+    async (status) => {
+      vi.mocked(gamesService.get).mockResolvedValue({
+        ...game,
+        status,
+        home_score: 3,
+        events: [makeEvent(1, { minute: 10 })],
+      })
+      const { wrapper } = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-test="scoresheet-mode"]').exists()).toBe(false)
+      expect(wrapper.find('.cb.on').exists()).toBe(false)
+      expect(wrapper.find('[data-test="scoresheet-score-home"]').text()).toBe('')
+    },
+  )
+
+  it('partida finalizada sai preenchida e pode trocar para em branco e voltar', async () => {
+    vi.mocked(gamesService.get).mockResolvedValue({
+      ...game,
+      status: 'finished',
+      home_score: 3,
+      away_score: 1,
+      events: [makeEvent(1, { minute: 10, team_id: 1 })],
+    })
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    const mode = wrapper.find('[data-test="scoresheet-mode"]')
+    expect(mode.exists()).toBe(true)
+    expect(mode.element.closest('.d-print-none')).not.toBeNull()
+    expect(wrapper.find('[data-test="scoresheet-mode-filled"]').classes()).toContain(
+      'v-btn--active',
+    )
+    expect(wrapper.find('[data-test="scoresheet-score-home"]').text()).toBe('3')
+    expect(wrapper.find('.cb.on').exists()).toBe(true)
+
+    await wrapper.find('[data-test="scoresheet-mode-blank"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="scoresheet-score-home"]').text()).toBe('')
+    expect(wrapper.find('.cb.on').exists()).toBe(false)
+
+    await wrapper.find('[data-test="scoresheet-mode-filled"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="scoresheet-score-home"]').text()).toBe('3')
+  })
+
+  it('evento de tipo desativado ganha caixa na preenchida', async () => {
+    vi.mocked(gamesService.get).mockResolvedValue({
+      ...game,
+      status: 'finished',
+      events: [makeEvent(1, { minute: 10, type: 'legacy' })],
+    })
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-test="scoresheet-legend-type"]')).toHaveLength(5)
+    const marked = wrapper
+      .find('[data-test="scoresheet-event-row"]')
+      .findAll('.opt')
+      .filter((option) => option.find('.cb.on').exists())
+      .map((option) => option.text())
+    expect(marked).toEqual(['TA', 'M'])
+
+    await wrapper.find('[data-test="scoresheet-mode-blank"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-test="scoresheet-legend-type"]')).toHaveLength(4)
+  })
+
+  it('elenco acima do limite avisa fora da impressão e mantém a continuação', async () => {
+    vi.mocked(gamesService.get).mockResolvedValue({
+      ...game,
+      league: { id: 7, name: 'Série A', championship: null, max_players_per_team: 11 },
+      homeTeam: makeTeam(1, 'Esporte Clube Vitória', {
+        players: Array.from({ length: 13 }, (_, index) => makePlayer(index + 1, `Atleta ${index}`)),
+      }),
+    })
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    const alert = wrapper.find('[data-test="scoresheet-roster-limit"]')
+    expect(alert.classes()).toContain('d-print-none')
+    expect(alert.text()).toContain('A liga permite 11 jogadores por time')
+    expect(alert.text()).toContain('Esporte Clube Vitória tem 13 atletas')
+    expect(wrapper.findAll('[data-test="scoresheet-sheet"]')).toHaveLength(3)
+  })
+
+  it('elenco dentro do limite não mostra aviso', async () => {
+    const { wrapper } = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="scoresheet-roster-limit"]').exists()).toBe(false)
   })
 
   it('voltar leva para o detalhe da partida', async () => {

@@ -24,12 +24,17 @@ const scale = computed(() => Math.min(1, (width.value - DESK_PADDING_PX) / SHEET
 const rosterSheets = computed(() =>
   Array.from({ length: props.data.rosterSheets }, (_, index) => index),
 )
-const pages = computed(() => props.data.rosterSheets + 1 + (props.data.penalties ? 1 : 0))
+const eventSheets = computed(() =>
+  Array.from({ length: props.data.eventSheets }, (_, index) => index),
+)
+const pages = computed(
+  () => props.data.rosterSheets + props.data.eventSheets + (props.data.penalties ? 1 : 0),
+)
 const base = computed(() => ({
   pages: pages.value,
   code: props.data.code,
-  competition: props.data.competition,
   generatedAt: props.generatedAt,
+  filled: props.data.filled,
 }))
 </script>
 
@@ -47,20 +52,23 @@ const base = computed(() => ({
       <ScoresheetRoster :data="data" :sheet="sheet" />
     </ScoresheetSheet>
     <ScoresheetSheet
+      v-for="sheet in eventSheets"
+      :key="`events-${sheet}`"
       v-bind="base"
-      :page="data.rosterSheets + 1"
-      subtitle="Registro de eventos e ocorrências"
+      :page="data.rosterSheets + sheet + 1"
+      :subtitle="
+        sheet === 0 ? 'Registro de eventos e ocorrências' : 'Registro de eventos (continuação)'
+      "
       section="Registro de eventos"
     >
-      <ScoresheetEvents :data="data" :event-types="eventTypes" />
+      <ScoresheetEvents :data="data" :event-types="eventTypes" :sheet="sheet" />
     </ScoresheetSheet>
     <ScoresheetSheet
       v-if="data.penalties"
       v-bind="base"
-      :page="data.rosterSheets + 2"
+      :page="data.penaltiesPage"
       subtitle="Disputa de pênaltis"
       section="Disputa de pênaltis"
-      knockout
     >
       <ScoresheetPenalties :data="data" />
     </ScoresheetSheet>

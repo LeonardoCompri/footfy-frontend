@@ -208,6 +208,18 @@ describe('ChampionshipFormView', () => {
     expect(wrapper.router.currentRoute.value.name).toBe('admin-championships-edit')
   })
 
+  it('erro 422 do limite de jogadores aparece no alerta do formulário', async () => {
+    const message = 'O time Vitória tem 32 atletas, acima do limite da liga.'
+    service.update.mockRejectedValue(
+      apiError(422, message, { 'leagues.0.max_players_per_team': [message] }),
+    )
+    const wrapper = await mountForm('5')
+
+    await submit(wrapper)
+
+    expect(wrapper.find('.v-alert').text()).toContain(message)
+  })
+
   it('erro 422 leagues.N.id aparece no topo do painel N', async () => {
     service.update.mockRejectedValue(
       apiError(422, 'Dados inválidos.', {

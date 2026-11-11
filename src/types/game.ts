@@ -12,6 +12,7 @@ export interface GameLeague {
   id: number
   name: string
   championship: { id: number; name: string } | null
+  max_players_per_team?: number | null
 }
 
 export interface GamePenaltyKickPlayer {

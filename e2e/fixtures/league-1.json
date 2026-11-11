@@ -16,6 +16,7 @@
     "final_legs": null,
     "third_place": false,
     "tiebreakers": null,
-    "knockout_tiebreakers": null
+    "knockout_tiebreakers": null,
+    "max_players_per_team": 35
   }
 }

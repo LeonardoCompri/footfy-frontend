@@ -25,6 +25,7 @@ export type EventTypePayload = Omit<EventTypeMeta, 'id'>
 export interface GameEventPlayer {
   id: number
   name: string
+  number?: number | null
   removed: boolean
 }
 

@@ -26,9 +26,12 @@ export interface LeagueRules {
   third_place: boolean
   tiebreakers: Tiebreaker[] | null
   knockout_tiebreakers: KnockoutTiebreaker[] | null
+  max_players_per_team: number
 }
 
 export const MAX_GROUPS = 16
+export const MIN_PLAYERS_PER_TEAM = 11
+export const MAX_PLAYERS_PER_TEAM = 35
 export const KNOCKOUT_SIZES: KnockoutSize[] = [16, 8, 4, 2]
 
 export const FIXTURE_MODE_LABELS: Record<FixtureMode, string> = {
