@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { EVENT_ROWS, eventTypeAbbreviation } from './scoresheet'
+import { EVENT_ROWS, eventSheet, eventTypeAbbreviation } from './scoresheet'
 import type { ScoresheetData } from './scoresheet'
 import type { EventTypeMeta } from '@/types/gameEvent'
 
-const props = defineProps<{ data: ScoresheetData; eventTypes: EventTypeMeta[] }>()
+const props = defineProps<{
+  data: ScoresheetData
+  eventTypes: EventTypeMeta[]
+  sheet: number
+}>()
 
 const types = computed(() =>
   props.eventTypes.map((type) => ({
@@ -14,7 +18,7 @@ const types = computed(() =>
   })),
 )
 const typeColumnWidth = computed(() => `${Math.max(4, types.value.length) * 10.5}mm`)
-const rows = Array.from({ length: EVENT_ROWS }, (_, index) => index + 1)
+const rows = computed(() => eventSheet(props.data.events, props.sheet))
 </script>
 
 <template>
@@ -23,7 +27,7 @@ const rows = Array.from({ length: EVENT_ROWS }, (_, index) => index + 1)
     <template v-if="data.matchline">· {{ data.matchline }}</template>
   </div>
   <section class="legend" data-test="scoresheet-legend">
-    <span class="legend-title">Marque com X</span>
+    <span class="legend-title">{{ data.filled ? 'Legenda' : 'Marque com X' }}</span>
     <span class="key-group">
       <b>Tipo</b>
       <span v-for="type in types" :key="type.slug" class="key" data-test="scoresheet-legend-type">
@@ -63,35 +67,37 @@ const rows = Array.from({ length: EVENT_ROWS }, (_, index) => index + 1)
       </tr>
     </thead>
     <tbody>
-      <tr v-for="row in rows" :key="row" data-test="scoresheet-event-row">
-        <td class="idx">{{ row }}</td>
-        <td />
+      <tr v-for="row in rows" :key="row.index" data-test="scoresheet-event-row">
+        <td class="idx">{{ row.index }}</td>
+        <td class="c">{{ row.event?.minute }}</td>
         <td>
           <span v-for="type in types" :key="type.slug" class="opt">
-            <span class="cb" />{{ type.abbreviation }}
+            <span class="cb" :class="{ on: row.event?.type === type.slug }" />{{
+              type.abbreviation
+            }}
           </span>
         </td>
         <td>
-          <span class="opt"><span class="cb" />M</span>
-          <span class="opt"><span class="cb" />V</span>
+          <span class="opt"><span class="cb" :class="{ on: row.event?.side === 'home' }" />M</span>
+          <span class="opt"><span class="cb" :class="{ on: row.event?.side === 'away' }" />V</span>
         </td>
-        <td />
-        <td />
-        <td />
-        <td />
+        <td class="c">{{ row.event?.number }}</td>
+        <td class="text">{{ row.event?.athlete }}</td>
+        <td class="c">{{ row.event?.assistNumber }}</td>
+        <td class="text">{{ row.event?.observation }}</td>
       </tr>
     </tbody>
   </table>
-  <p class="hint">
+  <p v-if="!data.filled" class="hint">
     Mais eventos do que linhas? Use uma folha extra desta página e numere a partir do
     {{ EVENT_ROWS + 1 }}.
   </p>
-  <section class="bottom">
+  <section class="bottom" :class="{ single: data.filled }">
     <div class="box">
       <div class="box-title">Relatório de ocorrências / incidentes</div>
       <div class="ruled"><span /><span /><span /></div>
     </div>
-    <div class="box office">
+    <div v-if="!data.filled" class="box office">
       <div class="box-title">Uso do escritório · conferência da digitação</div>
       <div class="checks">
         <span class="opt"><span class="cb" />Atletas conferidos</span>
@@ -114,11 +120,11 @@ const rows = Array.from({ length: EVENT_ROWS }, (_, index) => index + 1)
     </div>
     <div class="sign">
       <span class="sign-line" />
-      <span class="sign-label">Árbitro assistente 1</span>
+      <span class="sign-label">Capitão · {{ data.home.name }}</span>
     </div>
     <div class="sign">
       <span class="sign-line" />
-      <span class="sign-label">Árbitro assistente 2</span>
+      <span class="sign-label">Capitão · {{ data.away.name }}</span>
     </div>
   </section>
 </template>

@@ -750,6 +750,32 @@ test.describe('Regulamento da liga', () => {
     })
   }
 
+  test('card Elenco salva o limite de jogadores e mostra o 422 do back', async ({ page, api }) => {
+    const message = 'O time Atlético Serrano tem 32 atletas, acima do limite de 30.'
+    const puts: unknown[] = []
+    api.allowedConsoleErrors.push(/status of 422/)
+    api.on('GET', '/leagues/1', { body: leagueBody({ max_players_per_team: 35 }) })
+    api.on('PUT', '/leagues/1', ({ request }) => {
+      puts.push(request.postDataJSON())
+      return { status: 422, body: { message, errors: { max_players_per_team: [message] } } }
+    })
+    await signIn(page, { role: 'admin' })
+    await page.goto('/admin/liga/1/regulamento')
+
+    const field = page.locator('[data-test=rules-max-players]')
+    await expect(field.locator('input')).toHaveValue('35')
+    await field.locator('input').fill('9')
+    await page.locator('[data-test=rules-submit]').click()
+    await expect(field).toContainText('Informe um número inteiro de 11 a 35.')
+    expect(puts).toHaveLength(0)
+
+    await field.locator('input').fill('30')
+    await page.locator('[data-test=rules-submit]').click()
+    await expect(field).toContainText(message)
+    await expect(page.locator('[data-test=rules-error]')).toHaveText(message)
+    expect(puts[0]).toMatchObject({ max_players_per_team: 30 })
+  })
+
   test('admin configura o sorteio e salva só o regulamento', async ({ page, api }) => {
     await signIn(page, { role: 'admin' })
     let groups = groupsBody()
@@ -794,7 +820,7 @@ test.describe('Regulamento da liga', () => {
     await page.locator('[data-test=rules-submit]').click()
     await expect(page.getByText('Regulamento salvo com sucesso.')).toBeVisible()
     await expect(page.locator('.v-dialog.v-overlay--active')).toHaveCount(0)
-    expect(sent).toEqual(HYBRID_DRAW)
+    expect(sent).toEqual({ ...HYBRID_DRAW, max_players_per_team: 35 })
     await expect(unassignedTeams(page)).toHaveCount(4)
   })
 
