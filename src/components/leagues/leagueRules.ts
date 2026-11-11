@@ -4,6 +4,8 @@ import {
   KNOCKOUT_SIZE_LABELS,
   KNOCKOUT_SIZES,
   KNOCKOUT_TIEBREAKER_OPTIONS,
+  MAX_PLAYERS_PER_TEAM,
+  MIN_PLAYERS_PER_TEAM,
   TIEBREAKER_LABELS,
   GROUP_LEGS_LABELS,
   type FixtureMode,
@@ -25,6 +27,7 @@ export interface LeagueRulesForm {
   third_place: boolean
   tiebreakers: Tiebreaker[]
   knockout_tiebreakers: string | null
+  max_players_per_team: number | string
 }
 
 export type RulesErrors = Partial<Record<keyof LeagueRules, string>>
@@ -126,6 +129,7 @@ export function toRulesForm(league: Partial<LeagueRules>): LeagueRulesForm {
     third_place: league.third_place ?? false,
     tiebreakers: normalizeTiebreakers(league.tiebreakers),
     knockout_tiebreakers: knockoutTiebreakerKey(league.knockout_tiebreakers),
+    max_players_per_team: league.max_players_per_team ?? MAX_PLAYERS_PER_TEAM,
   }
 }
 
@@ -141,6 +145,7 @@ export function toRulesPayload(form: LeagueRulesForm, format: LeagueFormat): Lea
     third_place: form.third_place,
     tiebreakers: tiebreakersPayload(form.tiebreakers),
     knockout_tiebreakers: knockoutTiebreakerSequence(form.knockout_tiebreakers),
+    max_players_per_team: Number(form.max_players_per_team),
   }
 
   if (format === 'knockout') {
@@ -250,6 +255,15 @@ export function validateRules(rules: LeagueRules, context: RulesContext): RulesE
     ) {
       errors.qualifiers_per_group = `Os classificados por grupo devem ser menos que os ${teamsCount / groups} times de cada grupo.`
     }
+  }
+
+  const maxPlayers = rules.max_players_per_team
+  if (
+    !Number.isInteger(maxPlayers) ||
+    maxPlayers < MIN_PLAYERS_PER_TEAM ||
+    maxPlayers > MAX_PLAYERS_PER_TEAM
+  ) {
+    errors.max_players_per_team = `Informe um número inteiro de ${MIN_PLAYERS_PER_TEAM} a ${MAX_PLAYERS_PER_TEAM}.`
   }
 
   return errors

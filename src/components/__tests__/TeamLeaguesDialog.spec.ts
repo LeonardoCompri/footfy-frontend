@@ -30,6 +30,30 @@ describe('TeamLeaguesDialog', () => {
     vi.clearAllMocks()
   })
 
+  it('time acima do limite da liga mostra o 422 do back', async () => {
+    const message = 'O time Vitória tem 32 atletas e a liga Série B permite 30.'
+    setupLeagueSession(makeUser('admin', ['team:update']), [
+      makeLeague(1, championshipA, { name: 'Série A' }),
+      makeLeague(2, championshipA, { name: 'Série B', max_players_per_team: 30 }),
+    ])
+    vi.mocked(teamsService.attachLeagues).mockRejectedValue(apiError(422, message))
+    const wrapper = mount(TeamLeaguesDialog, {
+      props: {
+        modelValue: true,
+        team: makeTeam(5, 'Vitória', { leagues: [{ id: 1, name: 'Série A' }] }),
+      },
+      global: { plugins: [createTestVuetify()] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    wrapper.findComponent(LeagueLinksDialog).vm.$emit('toggle', 2, false)
+    await flushPromises()
+
+    expect(useSnackbar().message.value).toBe(message)
+    expect(wrapper.emitted('updated')).toBeUndefined()
+  })
+
   it('vincular a uma liga já sorteada mostra o 422 do back e mantém o vínculo como estava', async () => {
     setupLeagueSession(makeUser('admin', ['team:update']), [
       makeLeague(1, championshipA, { name: 'Série A' }),

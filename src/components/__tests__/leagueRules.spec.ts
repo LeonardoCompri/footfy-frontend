@@ -27,6 +27,7 @@ function rules(extra: Partial<LeagueRules> = {}): LeagueRules {
     third_place: false,
     tiebreakers: null,
     knockout_tiebreakers: null,
+    max_players_per_team: 35,
     ...extra,
   }
 }
@@ -39,6 +40,49 @@ const HYBRID_DRAW = rules({
   knockout_legs: 1,
   final_legs: 1,
   knockout_tiebreakers: ['penalties'],
+})
+
+describe('máximo de jogadores por time', () => {
+  it('vem da liga, com 35 como padrão, e sai como número em todos os formatos', () => {
+    expect(toRulesForm({ max_players_per_team: 30 }).max_players_per_team).toBe(30)
+    expect(toRulesForm({}).max_players_per_team).toBe(35)
+    for (const format of ['round_robin', 'knockout', 'hybrid'] as const) {
+      const form = { ...toRulesForm({}), max_players_per_team: '28' }
+      expect(toRulesPayload(form, format).max_players_per_team).toBe(28)
+    }
+  })
+
+  it.each([
+    [11, false],
+    [20, false],
+    [35, false],
+    [10, true],
+    [36, true],
+    [0, true],
+    [12.5, true],
+    [Number.NaN, true],
+  ])('%d é inválido? %s', (value, invalid) => {
+    const errors = validateRules(rules({ max_players_per_team: value }), {
+      format: 'round_robin',
+      teamsCount: null,
+    })
+    expect(!!errors.max_players_per_team).toBe(invalid)
+  })
+
+  it('o limite inválido não esconde a validação da conta de times', () => {
+    const errors = validateRules(
+      rules({
+        fixture_mode: 'draw',
+        groups_count: 3,
+        qualifiers_per_group: 2,
+        knockout_size: null,
+        max_players_per_team: 5,
+      }),
+      { format: 'round_robin', teamsCount: 16 },
+    )
+    expect(errors.max_players_per_team).toBeDefined()
+    expect(errors.groups_count).toBeDefined()
+  })
 })
 
 describe('toRulesForm / toRulesPayload', () => {
@@ -56,6 +100,7 @@ describe('toRulesForm / toRulesPayload', () => {
       third_place: false,
       tiebreakers: DEFAULT_TIEBREAKERS,
       knockout_tiebreakers: null,
+      max_players_per_team: 35,
     })
     expect(toRulesPayload(form, 'hybrid')).toEqual(rules())
   })

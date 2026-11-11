@@ -119,6 +119,71 @@ describe('Regulamento da liga', () => {
     vi.clearAllMocks()
   })
 
+  describe('card Elenco', () => {
+    const input = (wrapper: VueWrapper) =>
+      wrapper.find<HTMLInputElement>('[data-test="rules-max-players"] input')
+
+    it.each(['round_robin', 'knockout', 'hybrid'] as const)(
+      'aparece no formato %s com o padrão 35',
+      async (format) => {
+        const wrapper = await mountView({ format })
+
+        expect(wrapper.find('[data-test="rules-squad"]').text()).toContain('Elenco')
+        expect(input(wrapper).element.value).toBe('35')
+      },
+    )
+
+    it('mostra o valor salvo e continua editável com a liga sorteada', async () => {
+      const wrapper = await mountView(
+        { ...HYBRID_DRAW, max_players_per_team: 28 },
+        groupsData({ ...ASSIGNED_GROUPS, locked: true }),
+      )
+
+      expect(wrapper.find('[data-test="rules-locked"]').exists()).toBe(true)
+      expect(input(wrapper).element.value).toBe('28')
+      expect(input(wrapper).element.disabled).toBe(false)
+    })
+
+    it.each(['10', '36', '', '12.5'])('valor "%s" bloqueia o salvamento', async (value) => {
+      const wrapper = await mountView({ format: 'round_robin' })
+
+      await input(wrapper).setValue(value)
+      await submit(wrapper)
+
+      expect(leaguesService.update).not.toHaveBeenCalled()
+      expect(errorOf(wrapper, 'rules-max-players')).toBe('Informe um número inteiro de 11 a 35.')
+    })
+
+    it('salva o valor como número', async () => {
+      vi.mocked(leaguesService.update).mockResolvedValue(
+        makeLeague(7, championshipA, { format: 'round_robin', max_players_per_team: 30 }),
+      )
+      const wrapper = await mountView({ format: 'round_robin' })
+
+      await input(wrapper).setValue('30')
+      await submit(wrapper)
+
+      expect(vi.mocked(leaguesService.update).mock.calls[0][1]).toMatchObject({
+        max_players_per_team: 30,
+      })
+      expect(input(wrapper).element.value).toBe('30')
+    })
+
+    it('422 aparece no campo e no alerta do topo', async () => {
+      const message = 'O time Vitória tem 32 atletas, acima do limite de 30.'
+      vi.mocked(leaguesService.update).mockRejectedValue(
+        apiError(422, message, { max_players_per_team: [message] }),
+      )
+      const wrapper = await mountView({ format: 'round_robin' })
+
+      await input(wrapper).setValue('30')
+      await submit(wrapper)
+
+      expect(errorOf(wrapper, 'rules-max-players')).toBe(message)
+      expect(wrapper.find('[data-test="rules-error"]').text()).toBe(message)
+    })
+  })
+
   it('liga com sorteio salvo tem link para a tela Sorteio (quem tem game:read)', async () => {
     const draw = await mountView(HYBRID_DRAW, ASSIGNED_GROUPS, ['tournament:update', 'game:read'])
     expect(draw.find('[data-test="rules-draw-link"]').exists()).toBe(true)
@@ -201,6 +266,7 @@ describe('Regulamento da liga', () => {
       third_place: false,
       tiebreakers: null,
       knockout_tiebreakers: ['penalties'],
+      max_players_per_team: 35,
     })
     expect(leaguesService.groups).toHaveBeenCalledTimes(2)
     expect(leaguesService.list).toHaveBeenCalled()

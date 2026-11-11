@@ -15,6 +15,8 @@ import {
   KNOCKOUT_SIZES,
   KNOCKOUT_TIEBREAKER_OPTIONS,
   MAX_GROUPS,
+  MAX_PLAYERS_PER_TEAM,
+  MIN_PLAYERS_PER_TEAM,
   type FixtureMode,
   type LeagueGroups,
   type LeagueRules,
@@ -252,6 +254,27 @@ async function persist() {
             >
               {{ summary.problem }}
             </v-alert>
+          </v-card-text>
+        </v-card>
+
+        <v-card class="mb-4" data-test="rules-squad">
+          <v-card-title class="text-wrap">Elenco</v-card-title>
+          <v-card-text>
+            <v-row>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="form.max_players_per_team"
+                  type="number"
+                  :min="MIN_PLAYERS_PER_TEAM"
+                  :max="MAX_PLAYERS_PER_TEAM"
+                  label="Máximo de jogadores por time"
+                  :hint="`De ${MIN_PLAYERS_PER_TEAM} a ${MAX_PLAYERS_PER_TEAM}. Define também as linhas da relação de atletas na súmula.`"
+                  persistent-hint
+                  :error-messages="fieldError('max_players_per_team')"
+                  data-test="rules-max-players"
+                />
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
 
