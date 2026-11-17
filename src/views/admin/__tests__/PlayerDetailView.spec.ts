@@ -16,7 +16,7 @@ vi.mock('@/services/api/players.service', () => ({
   playersService: { get: vi.fn(), positions: vi.fn(), remove: vi.fn(), update: vi.fn(), create: vi.fn() },
 }))
 vi.mock('@/services/api/eventTypes.service', () => ({ eventTypesService: { list: vi.fn() } }))
-vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
+vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { listAll: vi.fn() } }))
 
 const player = makePlayer(10, 'Fulano da Silva', {
   team_id: 5,
@@ -101,7 +101,7 @@ describe('PlayerDetailView', () => {
   })
 
   it('estatísticas contam gols, assistências e cartões apenas da liga ativa', async () => {
-    vi.mocked(gameEventsService.list).mockResolvedValue([
+    vi.mocked(gameEventsService.listAll).mockResolvedValue([
       event(1, 'goal', 10),
       event(2, 'goal', 10),
       event(3, 'goal', 99, 1, 10),

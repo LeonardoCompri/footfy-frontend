@@ -24,3 +24,8 @@ export interface Paginated<T> {
   data: T[]
   meta: PaginationMeta
 }
+
+export interface PageResponse<T> {
+  data: T[]
+  meta?: PaginationMeta
+}

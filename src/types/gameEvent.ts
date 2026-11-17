@@ -49,6 +49,16 @@ export type GameEventPayload = Pick<
   'game_id' | 'team_id' | 'player_id' | 'related_player_id' | 'type' | 'minute'
 >
 
+export type GameEventListParams = {
+  league_id: number
+  team_id?: number
+  player_id?: number
+  game_id?: number
+  type?: GameEventType
+  page?: number
+  per_page?: number
+}
+
 export type TeamSide = 'home' | 'away'
 
 export interface SummaryTeam {
