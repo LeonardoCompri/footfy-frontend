@@ -2,6 +2,24 @@ import { fixture, type MockApi } from './mock-api'
 
 const json = (name: string) => () => ({ body: fixture(name) })
 
+const listOrPage =
+  (name: string) =>
+  ({ url }: { url: URL }) => {
+    const body = fixture<{ data: { name: string }[] }>(name)
+    if (!url.searchParams.has('page')) return { body }
+    const search = url.searchParams.get('search')?.toLocaleLowerCase('pt-BR')
+    const data = search
+      ? body.data.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(search))
+      : body.data
+    const perPage = Number(url.searchParams.get('per_page') ?? 20)
+    return {
+      body: {
+        data,
+        meta: { current_page: 1, per_page: perPage, total: data.length, last_page: 1 },
+      },
+    }
+  }
+
 export function registerDefaultRoutes(api: MockApi) {
   api
     .on('POST', '/login', json('login-master'))
@@ -32,7 +50,7 @@ export function registerDefaultRoutes(api: MockApi) {
     .on('GET', '/leagues/1/dashboard', json('league-1-dashboard'))
     .on('GET', '/leagues/1/table', json('league-1-table'))
     .on('GET', '/leagues/1/statistics', json('league-1-statistics'))
-    .on('GET', '/teams', json('teams'))
+    .on('GET', '/teams', listOrPage('teams'))
     .on('GET', /^\/teams\/(\d+)$/, ({ params }) => ({ body: fixture(`team-${params[0]}`) }))
     .on('GET', '/players', json('players'))
     .on('GET', '/players/positions', json('players-positions'))
@@ -46,5 +64,5 @@ export function registerDefaultRoutes(api: MockApi) {
     .on('GET', '/games/1', json('game-1'))
     .on('GET', '/game-events', json('game-events'))
     .on('GET', '/event-types', json('event-types'))
-    .on('GET', '/users', json('users'))
+    .on('GET', '/users', listOrPage('users'))
 }
