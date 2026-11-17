@@ -8,9 +8,14 @@ export function registerDefaultRoutes(api: MockApi) {
     .on('POST', '/logout', { body: { message: 'Logout realizado' } })
     .on('GET', '/me', json('me'))
 
-    .on('GET', '/public/championships', json('public-championships'))
+    .on('GET', '/public/championships', ({ url }) => ({
+      body: fixture(
+        url.searchParams.has('page') ? 'public-championships-paginated' : 'public-championships',
+      ),
+    }))
     .on('GET', '/public/championships/1', json('public-championship-1'))
     .on('GET', '/public/leagues/1', json('public-league-1'))
+    .on('GET', '/public/leagues/1/games', json('public-league-1-games'))
     .on('GET', '/public/leagues/1/table', json('league-1-table'))
     .on('GET', '/public/leagues/1/statistics', json('league-1-statistics'))
     .on('GET', '/public/teams/1', json('public-team-1'))
