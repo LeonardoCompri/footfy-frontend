@@ -29,8 +29,11 @@ const tiles = computed(() => {
 
 onMounted(async () => {
   try {
-    const [allEvents] = await Promise.all([gameEventsService.list(), eventTypes.load()])
-    events.value = allEvents.filter((event) => event.league_id === props.leagueId)
+    const [playerEvents] = await Promise.all([
+      gameEventsService.listAll({ league_id: props.leagueId, player_id: props.playerId }),
+      eventTypes.load(),
+    ])
+    events.value = playerEvents.filter((event) => event.league_id === props.leagueId)
   } catch (err) {
     errorMessage.value = extractErrorMessage(err)
   } finally {

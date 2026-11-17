@@ -23,6 +23,13 @@ function apiCalls(page: Page) {
   return calls
 }
 
+async function waitForGameEventsQuery(page: Page) {
+  const request = await page.waitForRequest(
+    (req) => req.method() === 'GET' && new URL(req.url()).pathname.endsWith('/game-events'),
+  )
+  return Object.fromEntries(new URL(request.url()).searchParams)
+}
+
 const PREVIEW_IMG =
   '[data-test=championship-image-preview] [data-test=championship-image-front] img'
 
@@ -78,6 +85,7 @@ test.describe('Telas da liga', () => {
   })
 
   test('detalhe do time com elenco, comissão e estatísticas', async ({ page }) => {
+    const eventsRequest = waitForGameEventsQuery(page)
     await page.goto('/admin/liga/1/times/1')
     await expect(page.locator('[data-test=team-title]')).toHaveText('Atlético Serrano')
     await expect(page.locator('[data-test=players-table]')).toContainText('Lucas Ferreira')
@@ -87,9 +95,16 @@ test.describe('Telas da liga', () => {
 
     await page.getByRole('tab', { name: 'Estatísticas' }).click()
     await expect(page.locator('[data-test=team-stats]')).toBeVisible()
+    expect(await eventsRequest).toEqual({
+      league_id: '1',
+      team_id: '1',
+      page: '1',
+      per_page: '100',
+    })
   })
 
   test('detalhe do jogador', async ({ page }) => {
+    const eventsRequest = waitForGameEventsQuery(page)
     await page.goto('/admin/liga/1/times/1')
     await expect(page.locator('[data-test=player-view]').first()).toBeVisible()
     await expect(page.locator('[data-test=player-edit], [data-test=player-delete]')).toHaveCount(0)
@@ -102,6 +117,12 @@ test.describe('Telas da liga', () => {
 
     await page.getByRole('tab', { name: 'Estatísticas' }).click()
     await expect(page.locator('[data-test=player-stats]')).toBeVisible()
+    expect(await eventsRequest).toEqual({
+      league_id: '1',
+      player_id: '4',
+      page: '1',
+      per_page: '100',
+    })
   })
 
   test('detalhe do membro da comissão técnica', async ({ page }) => {
