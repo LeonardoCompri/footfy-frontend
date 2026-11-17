@@ -119,31 +119,6 @@ export function gameStageLabel(game: Pick<Game, 'round' | 'phase'> & { leg?: Gam
   return leg ? `${game.phase} · ${leg.title}` : game.phase
 }
 
-type ListingKey = Pick<Game, 'id' | 'round' | 'phase_order' | 'match_date'>
-
-function compareNullsLast(a: number | null, b: number | null): number {
-  if (a === b) return 0
-  if (a === null) return 1
-  if (b === null) return -1
-  return a - b
-}
-
-function compareDates(a: string | null, b: string | null): number {
-  if (a === b) return 0
-  if (a === null) return -1
-  if (b === null) return 1
-  return a < b ? -1 : 1
-}
-
-export function compareGamesForListing(a: ListingKey, b: ListingKey): number {
-  return (
-    compareNullsLast(a.round, b.round) ||
-    compareNullsLast(a.phase_order, b.phase_order) ||
-    compareDates(a.match_date, b.match_date) ||
-    a.id - b.id
-  )
-}
-
 export interface ScoreLine {
   home_score: number | null
   away_score: number | null

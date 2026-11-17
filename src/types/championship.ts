@@ -1,4 +1,4 @@
-import type { Game } from './game'
+import type { PageParams } from './api'
 import type { LeagueRules } from './leagueRules'
 import type { Stadium } from './stadium'
 import type { Team } from './team'
@@ -22,8 +22,10 @@ export interface League extends Partial<LeagueRules> {
   championship_id?: number
   championship?: Championship
   teams?: Team[]
-  games?: Game[]
   stadiums?: Stadium[]
+  teams_count?: number
+  games_count?: number
+  stadiums_count?: number
 }
 
 export interface LeaguePayload {
@@ -42,7 +44,14 @@ export interface Championship {
   name: string
   image: string | null
   leagues?: League[]
+  leagues_count?: number
 }
+
+export interface ChampionshipFilters {
+  search?: string
+}
+
+export type ChampionshipListParams = ChampionshipFilters & PageParams
 
 export interface ChampionshipPayload {
   name: string
