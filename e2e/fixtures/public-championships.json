@@ -3,12 +3,14 @@
     {
       "id": 1,
       "name": "Copa Footfy",
-      "image": null
+      "image": null,
+      "leagues_count": 2
     },
     {
       "id": 2,
       "name": "Torneio de Verão",
-      "image": null
+      "image": null,
+      "leagues_count": 1
     }
   ]
 }

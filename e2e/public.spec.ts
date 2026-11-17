@@ -12,6 +12,50 @@ test.describe('Telas públicas', () => {
     await page.goto('/campeonatos')
     await expect(page.getByRole('heading', { name: 'Campeonatos', exact: true })).toBeVisible()
     await expect(page.getByText('Torneio de Verão')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Carregar mais' })).toHaveCount(0)
+  })
+
+  test('lista de campeonatos: Carregar mais acumula e a busca reinicia na página 1', async ({
+    page,
+    api,
+  }) => {
+    const [copa, verao] = fixture<{ data: Record<string, unknown>[] }>('public-championships').data
+    const serra = { ...copa, id: 3, name: 'Liga da Serra' }
+    const reply = (data: unknown[], current_page: number, last_page: number) => ({
+      body: { data, meta: { current_page, per_page: 12, total: 3, last_page } },
+    })
+    api.on('GET', '/public/championships', ({ url }) => {
+      if (url.searchParams.get('search')) return reply([verao], 1, 1)
+      return url.searchParams.get('page') === '2'
+        ? reply([serra], 2, 2)
+        : reply([copa, verao], 1, 2)
+    })
+    const championshipsRequest = (params: Record<string, string>) =>
+      page.waitForRequest((request) => {
+        const url = new URL(request.url())
+        return (
+          request.method() === 'GET' &&
+          url.pathname.endsWith('/public/championships') &&
+          JSON.stringify(Object.fromEntries(url.searchParams)) === JSON.stringify(params)
+        )
+      })
+    const titles = page.locator('.v-card-title')
+
+    const firstPage = championshipsRequest({ page: '1', per_page: '12' })
+    await page.goto('/campeonatos')
+    await firstPage
+    await expect(titles).toHaveText(['Copa Footfy', 'Torneio de Verão'])
+
+    const secondPage = championshipsRequest({ page: '2', per_page: '12' })
+    await page.getByRole('button', { name: 'Carregar mais' }).click()
+    await secondPage
+    await expect(titles).toHaveText(['Copa Footfy', 'Torneio de Verão', 'Liga da Serra'])
+    await expect(page.getByRole('button', { name: 'Carregar mais' })).toHaveCount(0)
+
+    const search = championshipsRequest({ search: 'verão', page: '1', per_page: '12' })
+    await page.getByRole('textbox', { name: 'Buscar campeonato' }).fill('verão')
+    await search
+    await expect(titles).toHaveText(['Torneio de Verão'])
   })
 
   test('detalhe do campeonato com as ligas', async ({ page }) => {
@@ -25,6 +69,11 @@ test.describe('Telas públicas', () => {
     await page.goto('/ligas/1')
     await expect(page.getByRole('heading', { name: 'Série A' })).toBeVisible()
     await expect(page.getByText('Atlético Serrano')).toBeVisible()
+    await expect(page.locator('[data-test=league-counts] .v-card')).toHaveText([
+      /4\s*Times/,
+      /6\s*Partidas/,
+      /2\s*Estádios/,
+    ])
 
     await page.getByRole('tab', { name: 'Tabela' }).click()
     await expect(page.locator('[data-test=standings-row]')).toHaveCount(4)
@@ -33,35 +82,57 @@ test.describe('Telas públicas', () => {
     await expect(page.locator('[data-test=top-scorers]')).toContainText('Lucas Ferreira')
   })
 
-  test('aba Partidas lista as rodadas antes do mata-mata, com a fase e os pênaltis', async ({
+  test('aba Partidas carrega só ao abrir, pagina no servidor e mostra a fase e os pênaltis', async ({
     page,
     api,
   }) => {
-    const body = fixture<{ data: { games: Record<string, unknown>[] } }>('public-league-1')
-    const games = body.data.games
-    body.data.games = [
-      {
-        ...games[0],
-        id: 7,
-        round: null,
-        phase: 'Final',
-        phase_order: 2,
-        home_score: 2,
-        away_score: 2,
-        home_penalties: 4,
-        away_penalties: 3,
-      },
-      ...games,
-    ]
-    api.on('GET', '/public/leagues/1', { body })
+    const games = fixture<{ data: Record<string, unknown>[] }>('public-league-1-games').data
+    const final = {
+      ...games[0],
+      id: 7,
+      round: null,
+      phase: 'Final',
+      phase_order: 2,
+      home_score: 2,
+      away_score: 2,
+      home_penalties: 4,
+      away_penalties: 3,
+    }
+    const meta = (current_page: number) => ({ current_page, per_page: 20, total: 7, last_page: 2 })
+    api.on('GET', '/public/leagues/1/games', ({ url }) =>
+      url.searchParams.get('page') === '2'
+        ? { body: { data: [final], meta: meta(2) } }
+        : { body: { data: games, meta: meta(1) } },
+    )
+    const gamesRequests: Record<string, string>[] = []
+    page.on('request', (request) => {
+      const url = new URL(request.url())
+      if (request.method() === 'GET' && url.pathname.endsWith('/public/leagues/1/games')) {
+        gamesRequests.push(Object.fromEntries(url.searchParams))
+      }
+    })
 
-    await page.goto('/ligas/1?tab=partidas')
+    await page.goto('/ligas/1')
+    await expect(page.getByText('Atlético Serrano')).toBeVisible()
+    expect(gamesRequests).toEqual([])
+
+    await page.getByRole('tab', { name: 'Partidas' }).click()
     const rows = page.locator('[data-test=public-games-table] tbody tr')
-    await expect(rows).toHaveCount(7)
+    await expect(rows).toHaveCount(6)
     await expect(page.locator('[data-test=public-games-table] thead')).toContainText('Etapa')
-    await expect(rows.first().locator('td').first()).toHaveText('1ª rodada')
-    await expect(rows.last().locator('td').nth(0)).toHaveText('Final')
-    await expect(rows.last().locator('td').nth(2)).toHaveText('2 (4) × (3) 2')
+    await expect(rows.first().locator('td').nth(0)).toHaveText('1ª rodada')
+    await expect(rows.first().locator('td').nth(1)).toHaveText('Atlético Serrano')
+    await expect(rows.first().locator('td').nth(3)).toHaveText('Clube Ribeirinho')
+    expect(gamesRequests).toEqual([{ page: '1', per_page: '20' }])
+
+    await page.getByRole('button', { name: 'Próxima página' }).click()
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first().locator('td').nth(0)).toHaveText('Final')
+    await expect(rows.first().locator('td').nth(2)).toHaveText('2 (4) × (3) 2')
+    expect(gamesRequests).toEqual([
+      { page: '1', per_page: '20' },
+      { page: '2', per_page: '20' },
+    ])
   })
 
   test('tabela pública com 2 grupos mostra uma tabela por grupo', async ({ page, api }) => {
