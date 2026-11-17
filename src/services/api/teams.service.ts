@@ -1,6 +1,6 @@
 import http from './http'
-import { createResourceService, unwrap } from './resource'
-import type { Team, TeamPayload } from '@/types/team'
+import { createResourceService, paginatedList, unwrap } from './resource'
+import type { Team, TeamListParams, TeamPayload } from '@/types/team'
 
 const baseUrl = '/teams'
 
@@ -19,6 +19,7 @@ const base = createResourceService<Team, TeamPayload>(baseUrl)
 
 export const teamsService = {
   ...base,
+  listPaginated: paginatedList<Team, TeamListParams>(baseUrl),
   create: (payload: TeamPayload) => unwrap<Team>(http.post(baseUrl, toFormData(payload))),
   update: (id: number | string, payload: TeamPayload) =>
     unwrap<Team>(

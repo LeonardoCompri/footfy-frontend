@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import http from '@/services/api/http'
 import { teamsService } from '@/services/api/teams.service'
-import { makeTeam } from '@/test/factories'
+import { makePage, makeTeam } from '@/test/factories'
 
 vi.mock('@/services/api/http', () => ({
-  default: { post: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }))
 
 function sentFormData(): FormData {
@@ -31,5 +31,23 @@ describe('teamsService', () => {
     expect(http.post).toHaveBeenCalledWith('/teams/7?_method=PUT', expect.any(FormData))
     expect(sentFormData().get('name')).toBe('Time A')
     expect(sentFormData().has('league_ids[]')).toBe(false)
+  })
+
+  it('listPaginated manda liga, página, busca e ordenação e devolve data + meta', async () => {
+    const page = makePage([makeTeam(1, 'Time A')], { total: 41, last_page: 3 })
+    vi.mocked(http.get).mockResolvedValue({ data: page })
+
+    const params = {
+      league_id: 7,
+      page: 2,
+      per_page: 20,
+      search: 'time',
+      sort: 'name' as const,
+      order: 'desc' as const,
+    }
+    const result = await teamsService.listPaginated(params)
+
+    expect(http.get).toHaveBeenCalledWith('/teams', { params })
+    expect(result).toEqual(page)
   })
 })
