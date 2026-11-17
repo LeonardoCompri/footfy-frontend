@@ -51,7 +51,7 @@ vi.mock('@/services/api/technicalCommitteeMembers.service', () => ({
 }))
 vi.mock('@/services/api/games.service', () => ({ gamesService: { listAll: vi.fn() } }))
 vi.mock('@/services/api/eventTypes.service', () => ({ eventTypesService: { list: vi.fn() } }))
-vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { list: vi.fn() } }))
+vi.mock('@/services/api/gameEvents.service', () => ({ gameEventsService: { listAll: vi.fn() } }))
 
 const team = makeTeam(5, 'Vitória FC', {
   nickname: 'Vitória',
@@ -171,7 +171,7 @@ describe('TeamDetailView', () => {
       game(2, 8, 5, 0, 0),
       game(3, 8, 9, 3, 0),
     ])
-    vi.mocked(gameEventsService.list).mockResolvedValue([
+    vi.mocked(gameEventsService.listAll).mockResolvedValue([
       goal(1, 1, 11, 10),
       goal(2, 1, 11),
       goal(3, 2, 11),
