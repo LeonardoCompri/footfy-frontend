@@ -29,3 +29,8 @@ export interface PageParams {
   page: number
   per_page: number
 }
+
+export interface PageResponse<T> {
+  data: T[]
+  meta?: PaginationMeta
+}

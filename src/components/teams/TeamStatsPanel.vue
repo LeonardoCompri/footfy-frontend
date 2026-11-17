@@ -49,17 +49,17 @@ const scorers = computed(() =>
 
 onMounted(async () => {
   try {
-    const [leagueGames, allEvents] = await Promise.all([
+    const [leagueGames, teamEvents] = await Promise.all([
       gamesService.listAll({
         league_id: props.leagueId,
         team_id: props.teamId,
         status: 'finished',
       }),
-      gameEventsService.list(),
+      gameEventsService.listAll({ league_id: props.leagueId, team_id: props.teamId }),
       eventTypes.load(),
     ])
     games.value = leagueGames
-    events.value = allEvents.filter((event) => event.league_id === props.leagueId)
+    events.value = teamEvents.filter((event) => event.league_id === props.leagueId)
   } catch (err) {
     errorMessage.value = extractErrorMessage(err)
   } finally {
