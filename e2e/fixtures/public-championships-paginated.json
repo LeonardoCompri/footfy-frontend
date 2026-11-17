@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Copa Footfy",
+      "image": null,
+      "leagues_count": 2
+    },
+    {
+      "id": 2,
+      "name": "Torneio de Verão",
+      "image": null,
+      "leagues_count": 1
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 12,
+    "total": 2,
+    "last_page": 1
+  }
+}

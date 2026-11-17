@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { usePublicItem } from '@/composables/usePublicItem'
 import { publicLeaguesService } from '@/services/api/publicLeagues.service'
-import {
-  compareGamesForListing,
-  GAME_STATUS_OPTIONS,
-  gameStageLabel,
-  scoreLabel,
-} from '@/types/game'
-import type { Game } from '@/types/game'
 import type { League } from '@/types/championship'
 import QueryTabs from '@/components/common/QueryTabs.vue'
 import StatTiles from '@/components/common/StatTiles.vue'
 import TeamCard from '@/components/teams/TeamCard.vue'
+import LeagueGamesPanel from '@/components/leagues/LeagueGamesPanel.vue'
 import LeagueStatisticsPanel from '@/components/leagues/LeagueStatisticsPanel.vue'
 import LeagueTablePanel from '@/components/leagues/LeagueTablePanel.vue'
 import { bracketConfig } from '@/components/leagues/leagueKnockout'
@@ -21,7 +14,6 @@ import { groupQualifiers } from '@/components/leagues/standings'
 
 const props = defineProps<{ id: string }>()
 
-const router = useRouter()
 const { item: league, loading, errorMessage, fetchOne } = usePublicItem<League>(publicLeaguesService)
 const tabs = [
   { value: 'times', title: 'Times' },
@@ -32,13 +24,12 @@ const tabs = [
 ]
 
 const teams = computed(() => league.value?.teams ?? [])
-const games = computed(() => [...(league.value?.games ?? [])].sort(compareGamesForListing))
 const stadiums = computed(() => league.value?.stadiums ?? [])
 
 const statTiles = computed(() => [
-  { label: 'Times', value: teams.value.length },
-  { label: 'Partidas', value: games.value.length },
-  { label: 'Estádios', value: stadiums.value.length },
+  { label: 'Times', value: league.value?.teams_count ?? '—' },
+  { label: 'Partidas', value: league.value?.games_count ?? '—' },
+  { label: 'Estádios', value: league.value?.stadiums_count ?? '—' },
 ])
 
 const backTo = computed(() =>
@@ -46,23 +37,6 @@ const backTo = computed(() =>
     ? { name: 'championships-detail', params: { id: league.value.championship.id } }
     : { name: 'championships-list' },
 )
-
-function teamName(id: number): string {
-  return teams.value.find((team) => team.id === id)?.name ?? '—'
-}
-
-function statusLabel(status: Game['status']): string {
-  return GAME_STATUS_OPTIONS.find((option) => option.value === status)?.title ?? status
-}
-
-function formatDate(date: string | null): string {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('pt-BR')
-}
-
-function goToGame(id: number) {
-  router.push({ name: 'games-detail', params: { id } })
-}
 
 onMounted(() => fetchOne(props.id))
 </script>
@@ -92,7 +66,7 @@ onMounted(() => fetchOne(props.id))
         </p>
       </div>
 
-      <StatTiles :items="statTiles" class="mb-6" />
+      <StatTiles :items="statTiles" class="mb-6" data-test="league-counts" />
 
       <QueryTabs :tabs="tabs">
         <template #times>
@@ -107,31 +81,7 @@ onMounted(() => fetchOne(props.id))
         </template>
 
         <template #partidas>
-          <v-alert v-if="games.length === 0" type="info" variant="tonal">
-            Nenhuma partida cadastrada para esta liga ainda.
-          </v-alert>
-          <v-table v-else data-test="public-games-table">
-            <thead>
-              <tr>
-                <th>Etapa</th>
-                <th>Mandante</th>
-                <th>Placar</th>
-                <th>Visitante</th>
-                <th>Data</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="game in games" :key="game.id" class="cursor-pointer" @click="goToGame(game.id)">
-                <td>{{ gameStageLabel(game) }}</td>
-                <td>{{ teamName(game.home_team_id) }}</td>
-                <td class="text-no-wrap">{{ scoreLabel(game, '— × —') }}</td>
-                <td>{{ teamName(game.away_team_id) }}</td>
-                <td>{{ formatDate(game.match_date) }}</td>
-                <td>{{ statusLabel(game.status) }}</td>
-              </tr>
-            </tbody>
-          </v-table>
+          <LeagueGamesPanel :load="(params) => publicLeaguesService.games(props.id, params)" />
         </template>
 
         <template #estadios>
