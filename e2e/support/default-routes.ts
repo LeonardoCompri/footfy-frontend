@@ -52,7 +52,7 @@ export function registerDefaultRoutes(api: MockApi) {
     .on('GET', '/leagues/1/statistics', json('league-1-statistics'))
     .on('GET', '/teams', listOrPage('teams'))
     .on('GET', /^\/teams\/(\d+)$/, ({ params }) => ({ body: fixture(`team-${params[0]}`) }))
-    .on('GET', '/players', json('players'))
+    .on('GET', '/players', listOrPage('players'))
     .on('GET', '/players/positions', json('players-positions'))
     .on('GET', /^\/players\/(\d+)$/, ({ params }) => ({ body: fixture(`player-${params[0]}`) }))
     .on('GET', '/technical-committee-members/roles', json('technical-committee-members-roles'))

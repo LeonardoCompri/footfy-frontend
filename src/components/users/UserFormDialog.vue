@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useCrud } from '@/composables/useCrud'
+import { useRemoteSelect } from '@/composables/useRemoteSelect'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { playersService } from '@/services/api/players.service'
+import { fetchAllPages } from '@/services/api/resource'
 import { teamsService } from '@/services/api/teams.service'
 import { usersService } from '@/services/api/users.service'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { USER_ROLE_OPTIONS } from '@/types/user'
 import { cpfDigits } from '@/components/common/format'
-import type { Player } from '@/types/player'
 import type { Team } from '@/types/team'
-import type { User, UserPayload, UserRole } from '@/types/user'
+import type { User, UserPayload, UserPlayer, UserRole } from '@/types/user'
 import FormDialog from '@/components/common/FormDialog.vue'
 import CpfTextField from '@/components/common/CpfTextField.vue'
 
@@ -49,11 +50,36 @@ const form = reactive({
   playerId: null as number | null,
 })
 
-const teams = ref<Team[]>([])
-const players = ref<Player[]>([])
-const linksLoading = ref(false)
-let teamsRequest: Promise<void> | null = null
-let playersRequest: Promise<void> | null = null
+const SEARCH_PER_PAGE = 20
+
+const leagueTeamNames = ref(new Map<number, string>())
+let leagueTeamsLoaded = false
+
+const teamSelect = reactive(
+  useRemoteSelect<Pick<Team, 'id' | 'name'>>({
+    fetch: (search) =>
+      teamsService
+        .listPaginated({
+          league_id: leagueContext.activeLeagueId ?? undefined,
+          search: search || undefined,
+          sort: 'name',
+          order: 'asc',
+          page: 1,
+          per_page: SEARCH_PER_PAGE,
+        })
+        .then((result) => result.data),
+    title: (team) => team.name,
+    onError: () => snackbar.error('Não foi possível carregar os times da liga.'),
+  }),
+)
+
+const playerSelect = reactive(
+  useRemoteSelect<UserPlayer>({
+    fetch: (search) => searchPlayers(search, SEARCH_PER_PAGE),
+    title: playerTitle,
+    onError: () => snackbar.error('Não foi possível carregar os jogadores.'),
+  }),
+)
 
 const leagueItems = computed(() =>
   leagueContext.leagues.map((league) => ({
@@ -62,64 +88,65 @@ const leagueItems = computed(() =>
   })),
 )
 
-const teamItems = computed(() => {
-  const items = teams.value.map((team) => ({ id: team.id, title: team.name }))
-  const current = props.user?.roles.includes('coach') ? props.user.team : null
-  if (current && !items.some((item) => item.id === current.id)) {
-    items.push({ id: current.id, title: current.name })
-  }
-  return items
-})
+function searchPlayers(search: string, perPage: number) {
+  return playersService
+    .listPaginated({
+      league_id: leagueContext.activeLeagueId ?? undefined,
+      search: search || undefined,
+      sort: 'name',
+      order: 'asc',
+      page: 1,
+      per_page: perPage,
+    })
+    .then((result) => result.data)
+}
 
-const leaguePlayers = computed(() => {
-  const teamIds = new Set(teams.value.map((team) => team.id))
-  return players.value.filter((player) => player.team_id !== null && teamIds.has(player.team_id))
-})
+function playerTitle(player: UserPlayer) {
+  const teamName = player.team_id === null ? undefined : leagueTeamNames.value.get(player.team_id)
+  return teamName ? `${player.name} (${teamName})` : player.name
+}
 
-const playerItems = computed(() => {
-  const teamNames = new Map(teams.value.map((team) => [team.id, team.name]))
-  const items = leaguePlayers.value.map((player) => ({
-    id: player.id,
-    title: `${player.name} (${teamNames.get(player.team_id as number)})`,
-  }))
-  const current = props.user?.player
-  if (current && !items.some((item) => item.id === current.id)) {
-    const teamName = props.user?.team?.name
-    items.push({ id: current.id, title: teamName ? `${current.name} (${teamName})` : current.name })
-  }
-  return items
-})
+function loadLeagueTeamNames() {
+  const leagueId = leagueContext.activeLeagueId
+  if (leagueTeamsLoaded || !leagueId) return
+  leagueTeamsLoaded = true
+  fetchAllPages((page, perPage) =>
+    teamsService.listPaginated({ league_id: leagueId, page, per_page: perPage }),
+  )
+    .then((teams) => {
+      const names = new Map(leagueTeamNames.value)
+      teams.forEach((team) => names.set(team.id, team.name))
+      leagueTeamNames.value = names
+    })
+    .catch(() => (leagueTeamsLoaded = false))
+}
 
 const requiredLink = (message: string) => (value: number | null) =>
   isMaster || value !== null || message
 
 function loadLinkOptions() {
-  if (!props.modelValue || (form.role !== 'coach' && form.role !== 'player')) return
-  const requests: Promise<void>[] = []
-  teamsRequest ??= teamsService
-    .list({ league_id: leagueContext.activeLeagueId ?? undefined })
-    .then((data) => {
-      teams.value = data
-    })
-    .catch(() => {
-      teamsRequest = null
-      snackbar.error('Não foi possível carregar os times da liga.')
-    })
-  requests.push(teamsRequest)
+  if (!props.modelValue) return
+  if (form.role === 'coach') teamSelect.load()
   if (form.role === 'player') {
-    playersRequest ??= playersService
-      .list()
-      .then((data) => {
-        players.value = data
-      })
-      .catch(() => {
-        playersRequest = null
-        snackbar.error('Não foi possível carregar os jogadores.')
-      })
-    requests.push(playersRequest)
+    loadLeagueTeamNames()
+    playerSelect.load()
   }
-  linksLoading.value = true
-  Promise.all(requests).finally(() => (linksLoading.value = false))
+}
+
+async function suggestPlayerByDocument() {
+  if (!props.modelValue || form.role !== 'player' || form.playerId !== null) return
+  const digits = cpfDigits(form.document)
+  if (digits.length !== 11) return
+  const players = await searchPlayers(digits, 5).catch(() => [])
+  const match = players.find((player) => cpfDigits(player.document) === digits)
+  const stillPending =
+    props.modelValue &&
+    form.role === 'player' &&
+    form.playerId === null &&
+    cpfDigits(form.document) === digits
+  if (!match || !stillPending) return
+  playerSelect.selected = match
+  form.playerId = match.id
 }
 
 watch(
@@ -135,10 +162,15 @@ watch(
     form.password = ''
     form.role = (props.user?.roles[0] as UserRole | undefined) ?? (isMaster ? 'admin' : 'coach')
     form.leagueIds = leagueContext.activeLeagueId ? [leagueContext.activeLeagueId] : []
-    form.teamId = form.role === 'coach' ? (props.user?.team?.id ?? null) : null
+    const currentTeam = form.role === 'coach' ? (props.user?.team ?? null) : null
+    form.teamId = currentTeam?.id ?? null
     form.playerId = props.user?.player?.id ?? null
-    teamsRequest = null
-    playersRequest = null
+    leagueTeamsLoaded = false
+    leagueTeamNames.value = new Map(
+      props.user?.team ? [[props.user.team.id, props.user.team.name]] : [],
+    )
+    teamSelect.reset(currentTeam)
+    playerSelect.reset(props.user?.player ?? null)
     loadLinkOptions()
   },
   { immediate: true },
@@ -146,12 +178,8 @@ watch(
 
 watch(() => form.role, loadLinkOptions)
 
-watch([() => form.document, () => form.role, leaguePlayers], () => {
-  if (form.role !== 'player' || form.playerId !== null) return
-  const digits = cpfDigits(form.document)
-  if (digits.length !== 11) return
-  const match = leaguePlayers.value.find((player) => cpfDigits(player.document) === digits)
-  if (match) form.playerId = match.id
+watch([() => props.modelValue, () => form.document, () => form.role], suggestPlayerByDocument, {
+  immediate: true,
 })
 
 async function handleSubmit() {
@@ -226,37 +254,43 @@ async function handleSubmit() {
       :error-messages="fieldErrors.role"
       data-test="user-role"
     />
-    <v-select
+    <v-autocomplete
       v-if="form.role === 'coach'"
       v-model="form.teamId"
-      :items="teamItems"
+      :items="teamSelect.items"
       item-title="title"
       item-value="id"
       label="Time"
-      :loading="linksLoading"
+      no-filter
+      :loading="teamSelect.loading"
       :clearable="isMaster"
       :rules="[requiredLink('Informe o time do coach.')]"
-      no-data-text="Nenhum time nesta liga."
+      no-data-text="Nenhum time encontrado nesta liga."
       :class="{ 'mt-2': !canChangeRole }"
       :error-messages="fieldErrors.team_id"
       data-test="user-team"
+      @update:model-value="teamSelect.select"
+      @update:search="teamSelect.search"
     />
     <v-autocomplete
       v-if="form.role === 'player'"
       v-model="form.playerId"
-      :items="playerItems"
+      :items="playerSelect.items"
       item-title="title"
       item-value="id"
       label="Jogador"
-      hint="Sugerido pelo CPF quando há um jogador com o mesmo documento."
+      hint="Busque por nome ou CPF. O jogador com o mesmo CPF do usuário é sugerido."
       persistent-hint
-      :loading="linksLoading"
+      no-filter
+      :loading="playerSelect.loading"
       :clearable="isMaster"
       :rules="[requiredLink('Informe o jogador vinculado ao usuário.')]"
-      no-data-text="Nenhum jogador nesta liga."
+      no-data-text="Nenhum jogador encontrado."
       :class="{ 'mt-2': !canChangeRole }"
       :error-messages="fieldErrors.player_id"
       data-test="user-player"
+      @update:model-value="playerSelect.select"
+      @update:search="playerSelect.search"
     />
     <v-autocomplete
       v-if="!isEditing && form.role === 'admin'"
