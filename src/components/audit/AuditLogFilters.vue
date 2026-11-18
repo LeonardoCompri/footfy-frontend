@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useLeagueContextStore } from '@/stores/leagueContext'
-import { AUDIT_ACTION_OPTIONS, AUDITABLE_TYPE_OPTIONS } from '@/types/auditLog'
+import { AUDIT_ACTION_OPTIONS, AUDITABLE_TYPE_OPTIONS, auditActionCode } from '@/types/auditLog'
 import type { AuditableType, AuditLogFilters } from '@/types/auditLog'
 import AuditUserFilter from './AuditUserFilter.vue'
 
@@ -100,7 +100,7 @@ function toFilters(): AuditLogFilters {
   if (from) filters.from = from
   if (to) filters.to = to
   if (user_id) filters.user_id = user_id
-  if (action?.trim()) filters.action = action.trim()
+  if (action?.trim()) filters.action = auditActionCode(action)
   if (championship_id) filters.championship_id = championship_id
   if (league_id) filters.league_id = league_id
   if (auditable_type) filters.auditable_type = auditable_type

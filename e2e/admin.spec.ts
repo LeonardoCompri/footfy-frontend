@@ -1862,6 +1862,33 @@ test.describe('Auditoria (master)', () => {
     await expect.poll(() => queries.at(-1)).toEqual({ ...filtered, page: '2', per_page: '20' })
   })
 
+  for (const { typed, keys } of [
+    { typed: 'draw.round_undone', keys: ['Enter'] },
+    { typed: 'Rodada desfeita', keys: ['Tab'] },
+    { typed: 'Rodada desfeita', keys: ['ArrowDown', 'Enter'] },
+  ]) {
+    test(`ação "${typed}" + ${keys.join(' + ')} filtra pelo código (BUG-056)`, async ({ page }) => {
+      await signIn(page)
+      const queries = auditQueries(page)
+      await page.goto('/admin/auditoria')
+      await expect(page.locator('[data-test=audit-table] tbody tr').first()).toBeVisible()
+
+      const action = page.locator('[data-test=audit-action] input')
+      await action.fill(typed)
+      for (const key of keys) await page.keyboard.press(key)
+      await expect(action).toHaveValue('Rodada desfeita')
+      await page.locator('[data-test=audit-search]').click()
+
+      await expect
+        .poll(() => queries.at(-1))
+        .toEqual({
+          action: 'draw.round_undone',
+          page: '1',
+          per_page: '20',
+        })
+    })
+  }
+
   test('detalhe mostra o diff, a meta e copia o request_id', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await signIn(page)

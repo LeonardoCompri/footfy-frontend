@@ -178,6 +178,90 @@ describe('AuditLogListView', () => {
     expect(lastQuery()).toEqual({ ...BASE, action: 'game.updated' })
   })
 
+  describe('ação digitada e confirmada pelo teclado vai como código (BUG-056)', () => {
+    async function typeAction(wrapper: VueWrapper, text: string) {
+      const input = field(wrapper, 'VCombobox', 'audit-action').find('input')
+      await input.trigger('focus')
+      await input.setValue(text)
+      await flushPromises()
+      return input
+    }
+
+    function actionInput(wrapper: VueWrapper) {
+      return field(wrapper, 'VCombobox', 'audit-action').find('input').element as HTMLInputElement
+    }
+
+    it.each(['draw.round_undone', 'Rodada desfeita', '  rodada DESFEITA '])(
+      '"%s" + Enter',
+      async (text) => {
+        const wrapper = await mountView()
+        const input = await typeAction(wrapper, text)
+        await input.trigger('keydown', { key: 'Enter' })
+        await flushPromises()
+
+        await click(wrapper, 'audit-search')
+
+        expect(lastQuery()).toEqual({ ...BASE, action: 'draw.round_undone' })
+      },
+    )
+
+    it.each(['draw.round_undone', 'Rodada desfeita'])('"%s" + Tab', async (text) => {
+      const wrapper = await mountView()
+      const input = await typeAction(wrapper, text)
+      await input.trigger('keydown', { key: 'Tab' })
+      await input.trigger('blur')
+      await flushPromises()
+
+      await click(wrapper, 'audit-search')
+
+      expect(lastQuery()).toEqual({ ...BASE, action: 'draw.round_undone' })
+    })
+
+    it.each(['draw.round_undone', 'Rodada desfeita'])(
+      '"%s" + seta para baixo + Enter',
+      async (text) => {
+        const wrapper = await mountView()
+        const input = await typeAction(wrapper, text)
+        await input.trigger('keydown', { key: 'ArrowDown' })
+        await flushPromises()
+        const focused = document.activeElement as HTMLElement
+        focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        await flushPromises()
+
+        await click(wrapper, 'audit-search')
+
+        expect(actionInput(wrapper).value).toBe('Rodada desfeita')
+        expect(lastQuery()).toEqual({ ...BASE, action: 'draw.round_undone' })
+      },
+    )
+
+    it('texto que não é de nenhuma ação vai como digitado', async () => {
+      const wrapper = await mountView()
+      const input = await typeAction(wrapper, ' team.merged ')
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+
+      await click(wrapper, 'audit-search')
+
+      expect(lastQuery()).toEqual({ ...BASE, action: 'team.merged' })
+    })
+
+    it('clicar na opção continua enviando o código', async () => {
+      const wrapper = await mountView()
+      await typeAction(wrapper, 'Rodada')
+      const option = [
+        ...document.querySelectorAll<HTMLElement>('.v-menu.v-overlay--active [role="option"]'),
+      ].find((el) => el.textContent?.trim() === 'Rodada desfeita')
+      option!.click()
+      await flushPromises()
+
+      await click(wrapper, 'audit-search')
+
+      expect(actionInput(wrapper).value).toBe('Rodada desfeita')
+      expect(lastQuery()).toEqual({ ...BASE, action: 'draw.round_undone' })
+    })
+  })
+
   it('período com a data final antes da inicial mostra erro e não busca', async () => {
     const wrapper = await mountView()
     await choose(wrapper, 'VTextField', 'audit-from', '2026-11-17')

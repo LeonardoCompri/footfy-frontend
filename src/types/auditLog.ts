@@ -101,6 +101,16 @@ export function auditActionLabel(action: string): string {
   return AUDIT_ACTION_OPTIONS.find((option) => option.value === action)?.title ?? action
 }
 
+export function auditActionCode(text: string): string {
+  const typed = text.trim()
+  const key = typed.toLocaleLowerCase('pt-BR')
+  const option = AUDIT_ACTION_OPTIONS.find(
+    ({ value, title }) =>
+      value.toLocaleLowerCase('pt-BR') === key || title.toLocaleLowerCase('pt-BR') === key,
+  )
+  return option?.value ?? typed
+}
+
 export function auditableTypeLabel(type: string): string {
   return AUDITABLE_TYPE_OPTIONS.find((option) => option.value === type)?.title ?? type
 }
