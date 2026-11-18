@@ -24,6 +24,12 @@ export function registerDefaultRoutes(api: MockApi) {
     .on('GET', '/leagues', json('leagues'))
     .on('GET', '/championships', json('championships'))
     .on('GET', '/championships/1', json('championship-1'))
+    .on('GET', '/audit-logs', ({ url }) => {
+      const body = fixture<{ meta: { current_page: number; per_page: number } }>('audit-logs')
+      body.meta.current_page = Number(url.searchParams.get('page') ?? 1)
+      body.meta.per_page = Number(url.searchParams.get('per_page') ?? 20)
+      return { body }
+    })
 
     .on('GET', '/leagues/1', json('league-1'))
     .on('GET', '/leagues/1/groups', json('league-1-groups'))
