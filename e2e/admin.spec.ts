@@ -23,6 +23,17 @@ function apiCalls(page: Page) {
   return calls
 }
 
+function listQueries(page: Page, path: string) {
+  const queries: string[] = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (request.method() === 'GET' && url.href.startsWith(`${API_BASE_URL}${path}?`)) {
+      queries.push(url.searchParams.toString())
+    }
+  })
+  return queries
+}
+
 async function waitForGameEventsQuery(page: Page) {
   const request = await page.waitForRequest(
     (req) => req.method() === 'GET' && new URL(req.url()).pathname.endsWith('/game-events'),
@@ -79,9 +90,29 @@ test.describe('Telas da liga', () => {
     await expect(page.locator('[data-test=cards-chart]')).toBeVisible()
   })
 
-  test('lista de times', async ({ page }) => {
+  test('lista de times paginada e com busca no servidor', async ({ page }) => {
+    const queries = listQueries(page, '/teams')
     await page.goto('/admin/liga/1/times')
-    await expect(page.locator('[data-test=team-card]')).toHaveCount(4)
+    const rows = page.locator('[data-test=teams-table] tbody tr')
+    await expect(rows).toHaveCount(4)
+    await expect(page.locator('[data-test=teams-table]')).toContainText('1-4 de 4')
+
+    await page.locator('[data-test=teams-search] input').fill('estrela')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toContainText('Estrela do Vale')
+
+    await page.getByRole('columnheader', { name: 'Apelido' }).click()
+    await expect.poll(() => queries.at(-1)).toContain('sort=nickname')
+    expect(queries).toEqual([
+      'page=1&per_page=20&league_id=1',
+      'page=1&per_page=20&search=estrela&league_id=1',
+      'page=1&per_page=20&search=estrela&sort=nickname&order=asc&league_id=1',
+    ])
+
+    await expect(page.getByRole('link', { name: 'Ver time Estrela do Vale' })).toHaveAttribute(
+      'href',
+      '/admin/liga/1/times/3',
+    )
   })
 
   test('detalhe do time com elenco, comissão e estatísticas', async ({ page }) => {
@@ -167,9 +198,17 @@ test.describe('Telas da liga', () => {
     expect(calls).toContain('GET /event-types')
   })
 
-  test('usuários', async ({ page }) => {
+  test('usuários paginados e com busca no servidor', async ({ page }) => {
+    const queries = listQueries(page, '/users')
     await page.goto('/admin/liga/1/usuarios')
+    const rows = page.locator('[data-test=users-table] tbody tr')
+    await expect(rows).toHaveCount(4)
     await expect(page.locator('[data-test=users-table]')).toContainText('Carla Técnica')
+
+    await page.locator('[data-test=users-search] input').fill('carla')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toContainText('Carla Técnica')
+    expect(queries).toEqual(['page=1&per_page=20', 'page=1&per_page=20&search=carla'])
   })
 
   test('tabela', async ({ page }) => {

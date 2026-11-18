@@ -1,3 +1,5 @@
+import type { ServerTableParams } from './api'
+
 export type UserRole = 'master' | 'admin' | 'coach' | 'player'
 
 export interface UserTeam {
@@ -34,6 +36,10 @@ export interface UserPayload {
   team_id?: number | null
   player_id?: number | null
 }
+
+export type UserSortField = 'id' | 'name' | 'email' | 'created_at'
+
+export type UserListParams = Partial<ServerTableParams<UserSortField>> & { league_id?: number }
 
 export const USER_ROLE_OPTIONS: { value: UserRole; title: string; color: string }[] = [
   { value: 'master', title: 'Master', color: 'secondary' },

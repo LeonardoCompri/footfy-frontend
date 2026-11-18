@@ -1,40 +1,57 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { useCrud } from '@/composables/useCrud'
+import { SERVER_TABLE_PER_PAGE_OPTIONS, useServerTable } from '@/composables/useServerTable'
 import { useAuthStore } from '@/stores/auth'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { teamsService } from '@/services/api/teams.service'
-import type { Team, TeamPayload } from '@/types/team'
+import type { Team, TeamPayload, TeamSortField } from '@/types/team'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TeamFormDialog from '@/components/teams/TeamFormDialog.vue'
 
 const authStore = useAuthStore()
 const leagueContext = useLeagueContextStore()
 const router = useRouter()
-const { items, loading, errorMessage, fetchAll } = useCrud<Team, TeamPayload>(teamsService)
+const { xs } = useDisplay()
+const { items, meta, loading, errorMessage, fetchPage } = useCrud<Team, TeamPayload>(teamsService)
 
 const leagueId = leagueContext.activeLeagueId as number
-const search = ref('')
 const formDialog = ref(false)
 
-const filteredTeams = computed(() => {
-  const term = search.value.trim().toLocaleLowerCase('pt-BR')
-  if (!term) return items.value
-  return items.value.filter((team) =>
-    [team.name, team.nickname ?? ''].some((text) => text.toLocaleLowerCase('pt-BR').includes(term)),
-  )
-})
+const { search, appliedSearch, page, perPage, sortBy } = useServerTable<TeamSortField>((params) =>
+  fetchPage({ ...params, league_id: leagueId }),
+)
+
+const headers = computed(() => [
+  { title: 'Time', key: 'name' },
+  ...(xs.value ? [] : [{ title: 'Apelido', key: 'nickname' }]),
+  {
+    title: '',
+    key: 'actions',
+    sortable: false,
+    align: 'end' as const,
+    headerProps: { class: 'px-2' },
+    cellProps: { class: 'px-2' },
+  },
+])
 
 function initials(team: Team): string {
   return (team.nickname || team.name).slice(0, 2).toUpperCase()
 }
 
-function openTeam(team: Team) {
-  router.push({ name: 'admin-teams-detail', params: { teamId: team.id } })
+function teamRoute(team: Team) {
+  return { name: 'admin-teams-detail', params: { leagueId, teamId: team.id } }
 }
 
-onMounted(() => fetchAll({ league_id: leagueId }))
+function openTeam(team: Team) {
+  router.push(teamRoute(team))
+}
+
+function onRowClick(_event: Event, row: { item: Team }) {
+  openTeam(row.item)
+}
 </script>
 
 <template>
@@ -56,46 +73,66 @@ onMounted(() => fetchAll({ league_id: leagueId }))
 
     <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</v-alert>
 
-    <v-text-field
-      v-model="search"
-      prepend-inner-icon="mdi-magnify"
-      label="Buscar time"
-      single-line
-      hide-details
-      clearable
-      class="mb-4"
-    />
-
-    <div v-if="loading" class="d-flex justify-center py-8">
-      <v-progress-circular indeterminate color="primary" />
-    </div>
-
-    <v-alert v-else-if="filteredTeams.length === 0" type="info" variant="tonal" data-test="teams-empty">
-      {{ search ? 'Nenhum time encontrado para a busca.' : 'Nenhum time vinculado a esta liga ainda.' }}
-    </v-alert>
-
-    <v-row v-else>
-      <v-col v-for="team in filteredTeams" :key="team.id" cols="12" sm="6" md="4" xl="3">
-        <v-card
-          :to="{ name: 'admin-teams-detail', params: { leagueId, teamId: team.id } }"
-          data-test="team-card"
+    <v-card>
+      <v-card-text>
+        <v-text-field
+          v-model="search"
+          prepend-inner-icon="mdi-magnify"
+          label="Buscar time"
+          single-line
+          hide-details
+          clearable
+          class="mb-4"
+          data-test="teams-search"
+        />
+        <v-data-table-server
+          v-model:page="page"
+          v-model:items-per-page="perPage"
+          v-model:sort-by="sortBy"
+          :headers="headers"
+          :items="items"
+          :items-length="meta?.total ?? 0"
+          :items-per-page-options="SERVER_TABLE_PER_PAGE_OPTIONS"
+          :loading="loading"
+          item-value="id"
+          :no-data-text="
+            appliedSearch
+              ? 'Nenhum time encontrado para a busca.'
+              : 'Nenhum time vinculado a esta liga ainda.'
+          "
+          hover
+          data-test="teams-table"
+          @click:row="onRowClick"
         >
-          <v-card-item>
-            <template #prepend>
-              <v-avatar size="48" rounded="lg" color="primary" variant="tonal">
-                <v-img v-if="team.logo" :src="team.logo" cover data-test="team-logo" />
-                <span v-else class="font-weight-bold">{{ initials(team) }}</span>
+          <template v-slot:[`item.name`]="{ item }">
+            <div class="d-flex align-center ga-3 py-2">
+              <v-avatar size="40" rounded="lg" color="primary" variant="tonal">
+                <v-img v-if="item.logo" :src="item.logo" cover data-test="team-logo" />
+                <span v-else class="font-weight-bold">{{ initials(item) }}</span>
               </v-avatar>
-            </template>
-            <v-card-title>{{ team.name }}</v-card-title>
-            <v-card-subtitle>{{ team.nickname ?? '—' }}</v-card-subtitle>
-            <template #append>
-              <v-icon icon="mdi-chevron-right" class="text-medium-emphasis" />
-            </template>
-          </v-card-item>
-        </v-card>
-      </v-col>
-    </v-row>
+              <div>
+                <div class="font-weight-medium" data-test="team-name">{{ item.name }}</div>
+                <div v-if="xs && item.nickname" class="text-caption text-medium-emphasis">
+                  {{ item.nickname }}
+                </div>
+              </div>
+            </div>
+          </template>
+          <template v-slot:[`item.nickname`]="{ item }">{{ item.nickname ?? '—' }}</template>
+          <template v-slot:[`item.actions`]="{ item }">
+            <v-btn
+              icon="mdi-eye-outline"
+              variant="text"
+              size="small"
+              :to="teamRoute(item)"
+              :aria-label="`Ver time ${item.name}`"
+              data-test="team-view"
+              @click.stop
+            />
+          </template>
+        </v-data-table-server>
+      </v-card-text>
+    </v-card>
 
     <TeamFormDialog v-model="formDialog" :league-id="leagueId" @saved="openTeam" />
   </div>
