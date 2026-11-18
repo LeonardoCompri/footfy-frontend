@@ -1,12 +1,16 @@
 import http from './http'
 import type { AxiosResponse } from 'axios'
-import type { PageResponse } from '@/types/api'
+import type { PageResponse, Paginated } from '@/types/api'
 
 export interface Envelope<T> {
   data: T
 }
 
 export const unwrap = <D>(p: Promise<AxiosResponse<Envelope<D>>>) => p.then((res) => res.data.data)
+
+export function paginatedList<T, Params extends object>(baseUrl: string) {
+  return (params: Params) => http.get<Paginated<T>>(baseUrl, { params }).then((res) => res.data)
+}
 
 const MAX_PER_PAGE = 100
 const MAX_PAGES = 50

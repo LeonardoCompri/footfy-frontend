@@ -1,3 +1,4 @@
+import type { ServerTableParams } from './api'
 import type { Player } from './player'
 import type { TechnicalCommitteeMember } from './technicalCommitteeMember'
 
@@ -24,3 +25,7 @@ export interface TeamPayload {
   logo: File | null
   league_ids?: number[]
 }
+
+export type TeamSortField = 'id' | 'name' | 'nickname' | 'created_at'
+
+export type TeamListParams = Partial<ServerTableParams<TeamSortField>> & { league_id?: number }

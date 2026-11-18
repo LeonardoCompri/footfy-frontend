@@ -34,3 +34,13 @@ export interface PageResponse<T> {
   data: T[]
   meta?: PaginationMeta
 }
+
+export type SortOrder = 'asc' | 'desc'
+
+export type ServerTableParams<S extends string> = {
+  page: number
+  per_page: number
+  search?: string
+  sort?: S
+  order?: SortOrder
+}

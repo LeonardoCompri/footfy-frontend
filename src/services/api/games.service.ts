@@ -1,13 +1,10 @@
 import http from './http'
-import { createResourceService, fetchAllPages, unwrap } from './resource'
-import type { Paginated } from '@/types/api'
+import { createResourceService, fetchAllPages, paginatedList, unwrap } from './resource'
 import type { Game, GameListParams, GamePayload, PenaltyKickPayload } from '@/types/game'
 
 const baseUrl = '/games'
 
-function listPaginated(params: GameListParams): Promise<Paginated<Game>> {
-  return http.get<Paginated<Game>>(baseUrl, { params }).then((res) => res.data)
-}
+const listPaginated = paginatedList<Game, GameListParams>(baseUrl)
 
 function listAll(params: Omit<GameListParams, 'page' | 'per_page'>): Promise<Game[]> {
   return fetchAllPages((page, per_page) => listPaginated({ ...params, page, per_page }))

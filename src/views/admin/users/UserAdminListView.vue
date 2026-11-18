@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useCrud } from '@/composables/useCrud'
+import { SERVER_TABLE_PER_PAGE_OPTIONS, useServerTable } from '@/composables/useServerTable'
 import { useSnackbar } from '@/composables/useSnackbar'
 import { useAuthStore } from '@/stores/auth'
 import { usersService } from '@/services/api/users.service'
 import { userRoleOption } from '@/types/user'
-import { cpfDigits, formatCpf } from '@/components/common/format'
-import type { User, UserPayload } from '@/types/user'
+import { formatCpf } from '@/components/common/format'
+import type { User, UserPayload, UserSortField } from '@/types/user'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import RowActions, { type RowAction } from '@/components/common/RowActions.vue'
@@ -18,7 +19,9 @@ import UserLeaguesDialog from '@/components/users/UserLeaguesDialog.vue'
 const authStore = useAuthStore()
 const snackbar = useSnackbar()
 const { xs, smAndDown } = useDisplay()
-const { items, loading, errorMessage, fetchAll, destroy } = useCrud<User, UserPayload>(usersService)
+const { items, meta, loading, errorMessage, fetchPage, destroy } = useCrud<User, UserPayload>(
+  usersService,
+)
 
 const isMaster = authStore.hasRole('master')
 const currentUserId = authStore.user?.id
@@ -37,27 +40,15 @@ const can = {
   delete: (user: User) => isMaster && user.id !== currentUserId,
 }
 
-const search = ref('')
 const formDialog = ref(false)
 const userToEdit = ref<User | null>(null)
 const leaguesDialog = ref(false)
 const leaguesUser = ref<User | null>(null)
 const { open: confirmOpen, target: userToDelete, ask: askDelete } = useConfirmDialog<User>()
 
-const CPF_LIKE = /^[\d.\-\s]+$/
-
-const filteredUsers = computed(() => {
-  const term = search.value?.trim().toLocaleLowerCase('pt-BR') ?? ''
-  if (!term) return items.value
-  const digits = CPF_LIKE.test(term) ? cpfDigits(term) : ''
-  return items.value.filter(
-    (user) =>
-      [user.name, user.email ?? ''].some((text) =>
-        text.toLocaleLowerCase('pt-BR').includes(term),
-      ) ||
-      (digits !== '' && cpfDigits(user.document).includes(digits)),
-  )
-})
+const { search, appliedSearch, page, perPage, sortBy, reload } = useServerTable<UserSortField>(
+  (params) => fetchPage(params),
+)
 
 const headers = computed(() => [
   { title: 'Nome', key: 'name' },
@@ -125,7 +116,7 @@ function rowActions(user: User): RowAction[] {
 
 function replaceUser(user: User) {
   const index = items.value.findIndex((item) => item.id === user.id)
-  if (index === -1) items.value.push(user)
+  if (index === -1) reload()
   else items.value[index] = user
   if (leaguesUser.value?.id === user.id) leaguesUser.value = user
 }
@@ -144,14 +135,13 @@ async function handleDelete() {
   if (!userToDelete.value) return
   if (await destroy(userToDelete.value.id)) {
     snackbar.success('Usuário excluído com sucesso.')
+    reload()
   } else {
     snackbar.error(errorMessage.value ?? 'Não foi possível excluir o usuário.')
     errorMessage.value = null
   }
   userToDelete.value = null
 }
-
-onMounted(() => fetchAll())
 </script>
 
 <template>
@@ -179,12 +169,19 @@ onMounted(() => fetchAll())
           class="mb-4"
           data-test="users-search"
         />
-        <v-data-table
+        <v-data-table-server
+          v-model:page="page"
+          v-model:items-per-page="perPage"
+          v-model:sort-by="sortBy"
           :headers="headers"
-          :items="filteredUsers"
+          :items="items"
+          :items-length="meta?.total ?? 0"
+          :items-per-page-options="SERVER_TABLE_PER_PAGE_OPTIONS"
           :loading="loading"
           item-value="id"
-          no-data-text="Nenhum usuário encontrado."
+          :no-data-text="
+            appliedSearch ? 'Nenhum usuário encontrado para a busca.' : 'Nenhum usuário encontrado.'
+          "
           data-test="users-table"
         >
           <template v-slot:[`item.name`]="{ item }">
@@ -224,7 +221,7 @@ onMounted(() => fetchAll())
           <template v-slot:[`item.actions`]="{ item }">
             <RowActions :actions="rowActions(item)" :menu-label="`Ações de ${item.name}`" />
           </template>
-        </v-data-table>
+        </v-data-table-server>
       </v-card-text>
     </v-card>
 
