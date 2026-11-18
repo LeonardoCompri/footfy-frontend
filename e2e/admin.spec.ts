@@ -1864,3 +1864,124 @@ test.describe('Mata-mata gerado pela classificação', () => {
     })
   }
 })
+
+test.describe('Auditoria (master)', () => {
+  function auditQueries(page: Page) {
+    const queries: Record<string, string>[] = []
+    page.on('request', (request) => {
+      const url = new URL(request.url())
+      if (request.method() === 'GET' && url.pathname.endsWith('/audit-logs')) {
+        queries.push(Object.fromEntries(url.searchParams))
+      }
+    })
+    return queries
+  }
+
+  test('master abre pelo menu, filtra e pagina com os filtros na chamada', async ({ page }) => {
+    await signIn(page)
+    const queries = auditQueries(page)
+    await page.goto('/admin/liga/1')
+    await page.locator('.v-navigation-drawer').getByRole('link', { name: 'Auditoria' }).click()
+
+    await expect(page).toHaveURL(/\/admin\/auditoria$/)
+    const table = page.locator('[data-test=audit-table]')
+    const firstRow = table.locator('tbody tr').first()
+    await expect(firstRow).toContainText('17/11/2026 20:55:07')
+    await expect(firstRow).toContainText('Evento de partida editado')
+    await expect(table.locator('tbody tr').nth(1)).toContainText('Usuário #9 (excluído)')
+    await expect(table.locator('tbody tr').nth(2)).toContainText('Sistema')
+    await expect(table.locator('tbody tr').nth(2)).toContainText('Liga #7 (excluída)')
+    expect(queries).toEqual([{ page: '1', per_page: '20' }])
+
+    await page.locator('[data-test=audit-from] input').fill('2026-11-01')
+    await page.locator('[data-test=audit-to] input').fill('2026-11-17')
+    await page.locator('[data-test=audit-action]').click()
+    await pickOption(page, 'Rodada desfeita')
+    await page.locator('[data-test=audit-type]').click()
+    await pickOption(page, 'Liga')
+    await page.locator('[data-test=audit-entity-id] input').fill('7')
+    await page.locator('[data-test=audit-search]').click()
+
+    const filtered = {
+      from: '2026-11-01',
+      to: '2026-11-17',
+      action: 'draw.round_undone',
+      auditable_type: 'league',
+      auditable_id: '7',
+    }
+    await expect.poll(() => queries.at(-1)).toEqual({ ...filtered, page: '1', per_page: '20' })
+
+    await table.getByRole('button', { name: 'Próxima página' }).click()
+    await expect.poll(() => queries.at(-1)).toEqual({ ...filtered, page: '2', per_page: '20' })
+  })
+
+  test('detalhe mostra o diff, a meta e copia o request_id', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await signIn(page)
+    await page.goto('/admin/auditoria')
+
+    await page.locator('[data-test=audit-table] tbody tr').first().click()
+    const dialog = openDialog(page)
+    await expect(dialog).toContainText('Evento de partida editado')
+    await expect(dialog.locator('[data-test=audit-diff-field]')).toHaveText([
+      'game_id',
+      'minute',
+      'player_id',
+    ])
+    await expect(dialog.locator('[data-test=audit-diff-before]')).toHaveText(['1', '30', '4'])
+    await expect(dialog.locator('[data-test=audit-diff-after]')).toHaveText(['1', '32', '4'])
+    await expect(dialog.locator('[data-test=audit-meta]')).toContainText('"home_score": 2')
+    await expect(dialog.locator('[data-test=audit-ip]')).toHaveText('177.10.20.30')
+
+    await dialog.getByRole('button', { name: 'Copiar ID da requisição' }).click()
+    await expect(page.locator('.v-snackbar')).toContainText('ID da requisição copiado.')
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      '9f1c2d3e-4b5a-6789-abcd-ef0123456789',
+    )
+  })
+
+  test('admin não vê o item no menu e é redirecionado ao abrir pela URL', async ({ page }) => {
+    await signIn(page, { role: 'admin' })
+    const queries = auditQueries(page)
+    await page.goto('/admin/liga/1')
+    await expect(page.locator('[data-test=dashboard-header]')).toBeVisible()
+    await expect(
+      page.locator('.v-navigation-drawer').getByRole('link', { name: 'Auditoria' }),
+    ).toHaveCount(0)
+
+    await page.goto('/admin/auditoria')
+    await expect(page).toHaveURL(/\/admin\/liga\/1$/)
+    await expect(page.locator('[data-test=dashboard-header]')).toBeVisible()
+    expect(queries).toEqual([])
+  })
+
+  for (const viewport of [MOBILE, { width: 360, height: 800 }]) {
+    test(`${viewport.width}px: filtros, tabela e detalhe sem rolagem horizontal`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      await page.goto('/admin/auditoria')
+      await expect(page.locator('[data-test=audit-table] tbody tr').first()).toContainText(
+        'Evento de partida editado',
+      )
+      const overflow = () =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+      expect(await overflow()).toBeLessThanOrEqual(0)
+
+      await page.locator('[data-test=audit-view]').first().click()
+      const dialog = openDialog(page)
+      await expect(dialog.locator('[data-test=audit-diff-row]')).toHaveCount(3)
+      await expect
+        .poll(async () => (await dialog.locator('[data-test=audit-detail]').boundingBox())!.width)
+        .toBe(viewport.width)
+      const inner = await dialog
+        .locator('[data-test=audit-detail] > .v-card-text')
+        .evaluate((el) => el.scrollWidth - el.clientWidth)
+      expect(inner, 'conteúdo do diálogo sem rolagem horizontal').toBeLessThanOrEqual(0)
+      expect(await overflow()).toBeLessThanOrEqual(0)
+    })
+  }
+})

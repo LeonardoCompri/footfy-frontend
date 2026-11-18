@@ -86,6 +86,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/profile/ProfileView.vue'),
       },
       {
+        path: 'auditoria',
+        name: 'admin-audit-logs',
+        component: () => import('@/views/admin/audit/AuditLogListView.vue'),
+        meta: { roles: ['master'] },
+      },
+      {
         path: 'campeonatos',
         name: 'admin-championships-list',
         component: () => import('@/views/admin/championships/ChampionshipAdminListView.vue'),

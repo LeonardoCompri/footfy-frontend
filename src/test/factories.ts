@@ -1,4 +1,5 @@
 import type { Paginated, PaginationMeta } from '@/types/api'
+import type { AuditLog } from '@/types/auditLog'
 import type { Game } from '@/types/game'
 import type { EventTypeMeta, GameEvent } from '@/types/gameEvent'
 import type { LeagueKnockoutState } from '@/types/leagueKnockout'
@@ -171,6 +172,25 @@ export function makeKnockoutState(extra: Partial<LeagueKnockoutState> = {}): Lea
     manual_phase_games: { total: 0, with_results: 0 },
     awaiting_penalties: [],
     cancelled_group_games: 0,
+    ...extra,
+  }
+}
+
+export function makeAuditLog(id: number, extra: Partial<AuditLog> = {}): AuditLog {
+  return {
+    id,
+    action: 'league.updated',
+    user: { id: 1, name: 'Ana Master' },
+    auditable: { type: 'league', id: 1 },
+    championship: { id: 1, name: 'Copa Footfy' },
+    league: { id: 1, name: 'Série A' },
+    old_values: { name: 'Série A' },
+    new_values: { name: 'Série A 2026' },
+    meta: null,
+    ip: '127.0.0.1',
+    user_agent: 'Mozilla/5.0',
+    request_id: 'req-123',
+    created_at: '2026-11-17T15:00:00.000000Z',
     ...extra,
   }
 }

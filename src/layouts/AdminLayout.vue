@@ -39,6 +39,7 @@ interface NavItem {
   activeOn?: string[]
   myTeam?: boolean
   drawOnly?: boolean
+  global?: boolean
 }
 
 const TEAM_PAGES = [
@@ -92,13 +93,25 @@ const navItems: NavItem[] = [
     routeName: 'admin-users-list',
     roles: ['master', 'admin'],
   },
+  {
+    title: 'Auditoria',
+    icon: 'mdi-history',
+    routeName: 'admin-audit-logs',
+    roles: ['master'],
+    global: true,
+  },
 ]
+
+const PAGES_WITH_LEAGUE_MENU = ['admin-profile', 'admin-audit-logs']
 
 const leagueId = computed(() => (route.meta.requiresLeague ? route.params.leagueId : undefined))
 
 const navLeagueId = computed(
   () =>
-    leagueId.value ?? (route.name === 'admin-profile' ? leagueContext.activeLeagueId : undefined),
+    leagueId.value ??
+    (PAGES_WITH_LEAGUE_MENU.includes(String(route.name))
+      ? leagueContext.activeLeagueId
+      : undefined),
 )
 const inLeague = computed(() => !!navLeagueId.value && !!leagueContext.activeLeague)
 
@@ -116,10 +129,15 @@ const visibleNavItems = computed(() =>
     .filter((item) => !item.drawOnly || leagueContext.activeLeague?.fixture_mode === 'draw')
     .map((item) => ({
       ...item,
-      to: {
-        name: item.routeName,
-        params: { leagueId: navLeagueId.value, ...(item.myTeam ? { teamId: myTeamId.value } : {}) },
-      },
+      to: item.global
+        ? { name: item.routeName }
+        : {
+            name: item.routeName,
+            params: {
+              leagueId: navLeagueId.value,
+              ...(item.myTeam ? { teamId: myTeamId.value } : {}),
+            },
+          },
     })),
 )
 
@@ -241,6 +259,13 @@ async function handleLogout() {
             title="Meu perfil"
             :to="{ name: 'admin-profile' }"
             data-test="profile-link"
+          />
+          <v-list-item
+            v-if="authStore.hasRole('master')"
+            prepend-icon="mdi-history"
+            title="Auditoria"
+            :to="{ name: 'admin-audit-logs' }"
+            data-test="audit-link"
           />
           <v-list-item
             prepend-icon="mdi-logout"
