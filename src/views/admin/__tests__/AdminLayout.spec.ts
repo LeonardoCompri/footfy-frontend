@@ -47,6 +47,7 @@ function createLayoutRouter() {
           },
           { path: 'selecionar', name: 'admin-select-championship', component: Stub },
           { path: 'perfil', name: 'admin-profile', component: Stub },
+          { path: 'auditoria', name: 'admin-audit-logs', component: Stub },
           {
             path: 'liga/:leagueId',
             meta: { requiresLeague: true },
@@ -345,6 +346,53 @@ describe('AdminLayout — nav rail e pill de contexto', () => {
     await vi.waitFor(() =>
       expect(wrapper.router.currentRoute.value.name).toBe('admin-select-championship'),
     )
+  })
+
+  it('"Auditoria" aparece só para o master, por último no menu e no menu da conta', async () => {
+    for (const role of ['admin', 'coach', 'player']) {
+      setActivePinia(createPinia())
+      const wrapper = await mountAt('/admin/liga/1', role, ['game:read', 'tournament:update'])
+      expect(navTitles(wrapper)).not.toContain('Auditoria')
+      await openAccountMenu(wrapper)
+      expect(document.querySelector('[data-test="audit-link"]')).toBeNull()
+      wrapper.unmount()
+      document.body.innerHTML = ''
+    }
+
+    setActivePinia(createPinia())
+    const master = await mountAt('/admin/liga/1', 'master', [])
+    const titles = navTitles(master)
+    expect(titles.slice(-2)).toEqual(['Auditoria', 'Recolher'])
+    const item = master
+      .findAll('.v-navigation-drawer .v-list-item')
+      .find((i) => i.text() === 'Auditoria')
+    expect(item?.attributes('href')).toBe('/admin/auditoria')
+
+    await openAccountMenu(master)
+    const link = document.querySelector('[data-test="audit-link"]')
+    expect(link?.getAttribute('href')).toBe('/admin/auditoria')
+  })
+
+  it('na Auditoria com liga ativa mantém o menu da liga com "Auditoria" destacado', async () => {
+    const wrapper = await mountAt('/admin/auditoria', 'master', [])
+
+    expect(wrapper.find('.v-navigation-drawer').classes()).toContain('v-navigation-drawer--active')
+    expect(activeItems(wrapper)).toEqual(['Auditoria'])
+    expect(wrapper.text()).toContain('Série A')
+    const hrefs = wrapper
+      .findAll('.v-navigation-drawer .v-list-item[href]')
+      .map((i) => [i.text(), i.attributes('href')])
+    expect(hrefs).toContainEqual(['Dashboard', '/admin/liga/1'])
+  })
+
+  it('na Auditoria sem liga ativa não mostra o menu lateral', async () => {
+    useAuthStore().token = 'token'
+    useAuthStore().user = makeUser('master', [])
+
+    const wrapper = await mountLayout('/admin/auditoria')
+
+    expect(wrapper.find('.v-navigation-drawer').exists()).toBe(false)
+    expect(wrapper.find('[data-test="home-link"]').exists()).toBe(true)
   })
 
   it('"Meu perfil" não entra no menu lateral da liga', async () => {

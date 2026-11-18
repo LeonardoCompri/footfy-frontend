@@ -32,6 +32,7 @@ export function createTestRouter(history: RouterHistory = createMemoryHistory())
       { path: '/admin/campeonatos/novo', name: 'admin-championships-create', component: Stub },
       { path: '/admin/campeonatos/:id/editar', name: 'admin-championships-edit', component: Stub },
       { path: '/admin/perfil', name: 'admin-profile', component: Stub },
+      { path: '/admin/auditoria', name: 'admin-audit-logs', component: Stub },
       { path: '/admin/liga/:leagueId', name: 'admin-dashboard', component: Stub },
       { path: '/admin/liga/:leagueId/tabela', name: 'admin-league-table', component: Stub },
       { path: '/admin/liga/:leagueId/regulamento', name: 'admin-league-rules', component: Stub },

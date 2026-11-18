@@ -175,6 +175,7 @@ const MOBILE_SCREENS: MobileScreen[] = [
   { path: '/admin/liga/1/tabela', ready: '[data-test=standings-row]', role: 'master' },
   { path: '/admin/liga/1/estatisticas', ready: '[data-test=top-scorers]', role: 'master' },
   { path: '/admin/perfil', ready: '[data-test=account-card]', role: 'master' },
+  { path: '/admin/auditoria', ready: '[data-test=audit-table] tbody tr', role: 'master' },
   { path: '/admin/campeonatos/1/editar', ready: '[data-test=league-panel]', role: 'master' },
   {
     path: '/admin/campeonatos/novo',
