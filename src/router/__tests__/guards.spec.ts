@@ -95,6 +95,24 @@ describe('adminGuard — contexto de Liga ativa', () => {
     expect(await adminGuard(leagueRoute(1, usersMeta))).toBeUndefined()
   })
 
+  it('Auditoria é só do master e fica fora da liga (rota real)', async () => {
+    const audit = adminRoutes[0].children?.find((r) => r.name === 'admin-audit-logs')
+    expect(audit?.path).toBe('auditoria')
+    const auditRoute = route({
+      fullPath: '/admin/auditoria',
+      meta: { requiresAuth: true, ...audit?.meta },
+    })
+
+    for (const role of ['admin', 'coach', 'player']) {
+      login(role, ['game:read', 'tournament:update'])
+      expect(await adminGuard(auditRoute)).toEqual({ name: 'admin-home' })
+    }
+
+    login('master')
+    expect(await adminGuard(auditRoute)).toBeUndefined()
+    expect(listLeagues).not.toHaveBeenCalled()
+  })
+
   it('Partidas exige game:read (meta.permission das rotas reais)', async () => {
     const leagueChildren = adminRoutes[0].children?.find((r) => r.path === 'liga/:leagueId')?.children ?? []
     for (const name of ['admin-games-list', 'admin-games-detail']) {
