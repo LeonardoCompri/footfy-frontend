@@ -434,10 +434,21 @@ test.describe('Formulários de criação e edição', () => {
   })
 
   test('novo e editar usuário', async ({ page }) => {
+    const playerQueries = listQueries(page, '/players')
     await page.goto('/admin/liga/1/usuarios')
 
     await page.locator('[data-test=user-create]').click()
     await expect(openDialog(page)).toContainText('Novo usuário')
+    await openDialog(page).locator('[data-test=user-role]').click()
+    await pickOption(page, 'Jogador')
+    await openDialog(page).locator('[data-test=user-player] input').fill('Diego')
+    await expect(openMenu(page).getByRole('option')).toHaveText([
+      'Diego Martins (Atlético Serrano)',
+    ])
+    expect(playerQueries).toContain(
+      'league_id=1&search=Diego&sort=name&order=asc&page=1&per_page=20',
+    )
+    await pickOption(page, 'Diego Martins (Atlético Serrano)')
     await page.keyboard.press('Escape')
     await expect(openDialog(page)).toHaveCount(0)
 
@@ -449,6 +460,9 @@ test.describe('Formulários de criação e edição', () => {
     await expect(openDialog(page).locator('[data-test=user-name] input')).toHaveValue(
       'Carla Técnica',
     )
+    await expect(
+      openDialog(page).locator('[data-test=user-team] .v-autocomplete__selection'),
+    ).toHaveText('Atlético Serrano')
   })
 })
 
