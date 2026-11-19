@@ -1942,6 +1942,50 @@ test.describe('Auditoria (master)', () => {
     })
   }
 
+  for (const viewport of [
+    { width: 1366, height: 768 },
+    { width: 360, height: 800 },
+  ]) {
+    test(`${viewport.width}px: Enter na ação fecha o menu e busca (BUG-057)`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await signIn(page)
+      const queries = auditQueries(page)
+      await page.goto('/admin/auditoria')
+      await expect(page.locator('[data-test=audit-table] tbody tr').first()).toBeVisible()
+
+      const action = page.locator('[data-test=audit-action] input')
+      await action.fill('acao.inexistente')
+      await page.keyboard.press('Enter')
+      const expected = { action: 'acao.inexistente', page: '1', per_page: '20' }
+      await expect.poll(() => queries.at(-1)).toEqual(expected)
+      await expect(page.locator('.v-menu.v-overlay--active')).toHaveCount(0)
+
+      const button = (await page.locator('[data-test=audit-search]').boundingBox())!
+      await page.mouse.click(button.x + button.width / 2, button.y + button.height / 2)
+
+      await expect.poll(() => queries.length).toBe(3)
+      expect(queries.at(-1)).toEqual(expected)
+      await expect(action).toHaveValue('acao.inexistente')
+    })
+  }
+
+  test('seta para baixo + Enter na ação escolhe a opção sem buscar', async ({ page }) => {
+    await signIn(page)
+    const queries = auditQueries(page)
+    await page.goto('/admin/auditoria')
+    await expect(page.locator('[data-test=audit-table] tbody tr').first()).toBeVisible()
+
+    const action = page.locator('[data-test=audit-action] input')
+    await action.fill('Rodada')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    await expect(action).toHaveValue('Rodada desfeita')
+    await expect(page.locator('.v-menu.v-overlay--active')).toHaveCount(0)
+    await page.waitForTimeout(300)
+    expect(queries).toHaveLength(1)
+  })
+
   test('detalhe mostra o diff, a meta e copia o request_id', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await signIn(page)
