@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useLeagueContextStore } from '@/stores/leagueContext'
 import { AUDIT_ACTION_OPTIONS, AUDITABLE_TYPE_OPTIONS, auditActionCode } from '@/types/auditLog'
@@ -42,6 +42,7 @@ const emptyForm = (): FilterForm => ({
 const form = ref<FilterForm>(emptyForm())
 const periodError = ref<string | null>(null)
 const idError = ref<string | null>(null)
+const actionMenu = ref(false)
 
 const championshipOptions = computed(() =>
   leagueContext.championships.map(({ championship }) => ({
@@ -114,6 +115,12 @@ function search() {
   if (validate()) emit('search', toFilters())
 }
 
+async function onActionEnter() {
+  await nextTick()
+  actionMenu.value = false
+  search()
+}
+
 function clear() {
   form.value = emptyForm()
   periodError.value = null
@@ -154,12 +161,14 @@ onMounted(() => {
     <v-col cols="12" sm="6" md="3">
       <v-combobox
         v-model="form.action"
+        v-model:menu="actionMenu"
         :items="AUDIT_ACTION_OPTIONS"
         :return-object="false"
         label="Ação"
         hide-details
         clearable
         data-test="audit-action"
+        @keydown.enter="onActionEnter"
       />
     </v-col>
     <v-col cols="12" sm="6" md="3">

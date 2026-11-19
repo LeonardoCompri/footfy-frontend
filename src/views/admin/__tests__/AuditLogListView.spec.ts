@@ -262,6 +262,52 @@ describe('AuditLogListView', () => {
     })
   })
 
+  describe('Enter na ação fecha o menu e busca (BUG-057)', () => {
+    async function typeAction(wrapper: VueWrapper, text: string) {
+      const input = field(wrapper, 'VCombobox', 'audit-action').find('input')
+      await input.trigger('focus')
+      await input.setValue(text)
+      await flushPromises()
+      expect(activeMenu()).not.toBeNull()
+      return input
+    }
+
+    function activeMenu() {
+      return document.querySelector('.v-menu.v-overlay--active')
+    }
+
+    it.each([
+      ['acao.inexistente', 'acao.inexistente'],
+      ['  rODADA DESFEITA  ', 'draw.round_undone'],
+    ])('"%s" + Enter busca por %s', async (text, action) => {
+      const wrapper = await mountView()
+      const input = await typeAction(wrapper, text)
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+
+      expect(activeMenu()).toBeNull()
+      expect(calls()).toEqual([BASE, { ...BASE, action }])
+      expect((input.element as HTMLInputElement).value).toBe(text)
+    })
+
+    it('seta para baixo + Enter na opção escolhe sem buscar', async () => {
+      const wrapper = await mountView()
+      const input = await typeAction(wrapper, 'Rodada')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await flushPromises()
+      const option = [...activeMenu()!.querySelectorAll<HTMLElement>('[role="option"]')].find(
+        (el) => el.textContent?.trim() === 'Rodada desfeita',
+      )!
+      option.focus()
+      option.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flushPromises()
+
+      expect(activeMenu()).toBeNull()
+      expect((input.element as HTMLInputElement).value).toBe('Rodada desfeita')
+      expect(calls()).toEqual([BASE])
+    })
+  })
+
   it('período com a data final antes da inicial mostra erro e não busca', async () => {
     const wrapper = await mountView()
     await choose(wrapper, 'VTextField', 'audit-from', '2026-11-17')
