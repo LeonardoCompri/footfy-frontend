@@ -1,0 +1,35 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 12m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # API, arquivos enviados e health check -> Laravel
+    location ~ ^/(api|storage|up)(/|$) {
+        proxy_pass http://backend:80;
+        # O Laravel bloqueia rotas publicas se o host nao for o PUBLIC_ORIGIN
+        proxy_set_header Host ${PUBLIC_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 60s;
+    }
+
+    # Arquivos do build com hash no nome podem ficar em cache por muito tempo
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA: qualquer outra rota cai no index.html (vue-router)
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri $uri/ /index.html;
+    }
+}

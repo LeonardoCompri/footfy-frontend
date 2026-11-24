@@ -29,6 +29,15 @@ jobs:
         env:
           VITE_API_BASE_URL: /api
 
+  docker:
+    name: Imagem Docker do web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build da imagem (sem push)
+        run: docker build -f infra/docker/web/Dockerfile --build-arg BASE_PATH=/footfy/ -t footfy/web:ci .
+
   deploy:
     name: Deploy no servidor
     needs: test
