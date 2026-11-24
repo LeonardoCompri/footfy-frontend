@@ -41,3 +41,12 @@ Object.defineProperty(HTMLImageElement.prototype, 'naturalHeight', {
   configurable: true,
   get: () => 1,
 })
+
+Blob.prototype.text ??= function (this: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(this)
+  })
+}

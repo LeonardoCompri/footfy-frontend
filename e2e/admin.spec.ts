@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { API_BASE_URL } from './support/env'
 import { samplePng, sampleImageUrl } from './support/images'
@@ -1984,6 +1985,50 @@ test.describe('Auditoria (master)', () => {
     await expect(page.locator('.v-menu.v-overlay--active')).toHaveCount(0)
     await page.waitForTimeout(300)
     expect(queries).toHaveLength(1)
+  })
+
+  test('Exportar CSV baixa a busca aplicada com o nome enviado pelo backend', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/admin/auditoria')
+    await expect(page.locator('[data-test=audit-table] tbody tr').first()).toBeVisible()
+    await page.locator('[data-test=audit-action]').click()
+    await pickOption(page, 'Rodada desfeita')
+    await page.locator('[data-test=audit-search]').click()
+    const exportButton = page.locator('[data-test=audit-export]')
+    await expect(exportButton).toBeEnabled()
+
+    const [request, download] = await Promise.all([
+      page.waitForRequest((req) => new URL(req.url()).pathname.endsWith('/audit-logs/export')),
+      page.waitForEvent('download'),
+      exportButton.click(),
+    ])
+
+    expect(Object.fromEntries(new URL(request.url()).searchParams)).toEqual({
+      action: 'draw.round_undone',
+    })
+    expect(download.suggestedFilename()).toBe('auditoria-2026-11-20.csv')
+    const content = readFileSync((await download.path())!, 'utf8')
+    expect(content).toContain('Evento de partida editado')
+    await expect(exportButton).toBeEnabled()
+  })
+
+  test('Exportar CSV acima do limite mostra a mensagem do backend', async ({ page, api }) => {
+    const message =
+      'A busca tem 60000 registros; o limite da exportação é 50000. Refine os filtros.'
+    api
+      .allowConsoleError(/status of 422/)
+      .on('GET', '/audit-logs/export', { status: 422, body: { message } })
+    let downloads = 0
+    page.on('download', () => downloads++)
+    await signIn(page)
+    await page.goto('/admin/auditoria')
+    await expect(page.locator('[data-test=audit-table] tbody tr').first()).toBeVisible()
+
+    await page.locator('[data-test=audit-export]').click()
+
+    await expect(page.locator('.v-snackbar')).toContainText(message)
+    await expect(page.locator('[data-test=audit-error]')).toHaveCount(0)
+    expect(downloads).toBe(0)
   })
 
   test('detalhe mostra o diff, a meta e copia o request_id', async ({ page, context }) => {

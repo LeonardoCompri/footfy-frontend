@@ -48,6 +48,11 @@ export function registerDefaultRoutes(api: MockApi) {
       body.meta.per_page = Number(url.searchParams.get('per_page') ?? 20)
       return { body }
     })
+    .on('GET', '/audit-logs/export', () => ({
+      contentType: 'text/csv; charset=UTF-8',
+      headers: { 'content-disposition': 'attachment; filename=auditoria-2026-11-20.csv' },
+      body: '\uFEFFData;Ação\n17/11/2026 20:55:07;Evento de partida editado\n',
+    }))
 
     .on('GET', '/leagues/1', json('league-1'))
     .on('GET', '/leagues/1/groups', json('league-1-groups'))
