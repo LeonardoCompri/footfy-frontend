@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useCrud } from '@/composables/useCrud'
+import type { AxiosError } from 'axios'
+import { extractErrorMessage, useCrud } from '@/composables/useCrud'
+import { useSnackbar } from '@/composables/useSnackbar'
 import { auditLogsService } from '@/services/api/auditLogs.service'
 import { formatDateTime } from '@/components/common/format'
+import { saveBlob } from '@/components/common/saveBlob'
 import {
   auditActionLabel,
   auditChampionshipLabel,
@@ -18,7 +21,7 @@ import AuditLogFiltersForm from '@/components/audit/AuditLogFilters.vue'
 
 const PER_PAGE_OPTIONS = [10, 20, 50, 100]
 
-const { smAndDown } = useDisplay()
+const { smAndDown, xs } = useDisplay()
 const { items, meta, loading, errorMessage, fetchPage } = useCrud<AuditLog, never>(auditLogsService)
 
 const filters = ref<AuditLogFilters>({})
@@ -26,6 +29,8 @@ const page = ref(1)
 const perPage = ref(20)
 const detailOpen = ref(false)
 const selectedLog = ref<AuditLog | null>(null)
+const exporting = ref(false)
+const snackbar = useSnackbar()
 
 const query = computed<AuditLogListParams>(() => ({
   ...filters.value,
@@ -48,6 +53,22 @@ function applyFilters(next: AuditLogFilters) {
   }
   filters.value = next
   page.value = 1
+}
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const { blob, filename } = await auditLogsService.exportCsv(filters.value)
+    saveBlob(blob, filename)
+  } catch (err) {
+    snackbar.error(
+      (err as AxiosError).response?.status === 429
+        ? 'Muitas exportações seguidas. Aguarde um minuto.'
+        : extractErrorMessage(err),
+    )
+  } finally {
+    exporting.value = false
+  }
 }
 
 const rows = computed(() =>
@@ -108,7 +129,21 @@ function contextLabel(row: AuditRow): string {
 
     <v-card>
       <v-card-text>
-        <AuditLogFiltersForm :loading="loading" @search="applyFilters" />
+        <AuditLogFiltersForm :loading="loading" @search="applyFilters">
+          <template #actions>
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-download"
+              :block="xs"
+              :disabled="loading || !meta?.total"
+              :loading="exporting"
+              data-test="audit-export"
+              @click="exportCsv"
+            >
+              Exportar CSV
+            </v-btn>
+          </template>
+        </AuditLogFiltersForm>
         <v-data-table-server
           v-model:page="page"
           v-model:items-per-page="perPage"

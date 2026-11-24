@@ -7,6 +7,8 @@ type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 export interface MockReply {
   status?: number
   body?: unknown
+  contentType?: string
+  headers?: Record<string, string>
 }
 
 interface MockContext {
@@ -30,6 +32,7 @@ const CORS_HEADERS = {
   'access-control-allow-origin': new URL(APP_URL).origin,
   'access-control-allow-headers': '*',
   'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'access-control-expose-headers': 'X-Request-Id, Content-Disposition',
 }
 
 export function fixture<T = unknown>(name: string): T {
@@ -90,9 +93,9 @@ export class MockApi {
             : handler.resolve
         return route.fulfill({
           status: reply.status ?? 200,
-          headers: CORS_HEADERS,
-          contentType: 'application/json',
-          body: JSON.stringify(reply.body ?? {}),
+          headers: { ...CORS_HEADERS, ...reply.headers },
+          contentType: reply.contentType ?? 'application/json',
+          body: reply.contentType ? String(reply.body ?? '') : JSON.stringify(reply.body ?? {}),
         })
       } catch (error) {
         this.unmocked.push(`${method} ${path}${url.search} (${String(error)})`)
