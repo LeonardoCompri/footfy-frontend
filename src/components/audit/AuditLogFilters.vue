@@ -218,6 +218,7 @@ onMounted(() => {
       />
     </v-col>
     <v-col cols="12" class="d-flex flex-wrap justify-end ga-2">
+      <slot name="actions" />
       <v-btn variant="text" :block="xs" data-test="audit-clear" @click="clear">Limpar</v-btn>
       <v-btn
         color="primary"
