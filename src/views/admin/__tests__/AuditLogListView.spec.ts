@@ -7,6 +7,7 @@ import { championshipsService } from '@/services/api/championships.service'
 import { leaguesService } from '@/services/api/leagues.service'
 import { usersService } from '@/services/api/users.service'
 import { useAuthStore } from '@/stores/auth'
+import { useSnackbar } from '@/composables/useSnackbar'
 import { formatDateTime } from '@/components/common/format'
 import {
   championshipA,
@@ -24,6 +25,7 @@ vi.mock('@/services/api/auditLogs.service', () => ({
   auditLogsService: {
     list: vi.fn(),
     listPaginated: vi.fn(),
+    exportCsv: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -119,6 +121,7 @@ describe('AuditLogListView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('no mount busca a 1ª página uma vez, sem filtros, e mostra os registros com rótulos', async () => {
@@ -466,5 +469,113 @@ describe('AuditLogListView', () => {
     const [first] = tableRows(wrapper)
     expect(first).toContain('Usuário #9 (excluído)')
     expect(first).toContain('Liga #1 · Série A')
+  })
+
+  describe('Exportar CSV', () => {
+    const csv = new Blob(['data;acao\n'], { type: 'text/csv' })
+    let downloads: { href: string; download: string; attached: boolean }[]
+
+    beforeEach(() => {
+      const snackbar = useSnackbar()
+      snackbar.visible.value = false
+      snackbar.message.value = ''
+      downloads = []
+      URL.createObjectURL = vi.fn(() => 'blob:auditoria')
+      URL.revokeObjectURL = vi.fn()
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        downloads.push({
+          href: this.href,
+          download: this.download,
+          attached: document.body.contains(this),
+        })
+      })
+    })
+
+    function exportButton(wrapper: VueWrapper) {
+      return wrapper
+        .findAllComponents({ name: 'VBtn' })
+        .find((b) => b.attributes('data-test') === 'audit-export')!
+    }
+
+    it('baixa a busca aplicada, sem paginação, com o nome enviado pelo backend', async () => {
+      vi.mocked(auditLogsService.exportCsv).mockResolvedValue({
+        blob: csv,
+        filename: 'auditoria-2026-11-24.csv',
+      })
+      const wrapper = await mountView()
+      await choose(wrapper, 'VCombobox', 'audit-action', 'draw.reset')
+      await click(wrapper, 'audit-search')
+      await choose(wrapper, 'VSelect', 'audit-type', 'league')
+
+      await click(wrapper, 'audit-export')
+
+      expect(auditLogsService.exportCsv).toHaveBeenCalledWith({ action: 'draw.reset' })
+      expect(URL.createObjectURL).toHaveBeenCalledWith(csv)
+      expect(downloads).toEqual([
+        { href: 'blob:auditoria', download: 'auditoria-2026-11-24.csv', attached: true },
+      ])
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:auditoria')
+      expect(document.querySelector('a[download]')).toBeNull()
+    })
+
+    it('fica desabilitado com 0 resultados', async () => {
+      vi.mocked(auditLogsService.listPaginated).mockResolvedValue(makePage([], { total: 0 }))
+      const wrapper = await mountView()
+      expect(exportButton(wrapper).props('disabled')).toBe(true)
+      await click(wrapper, 'audit-export')
+      expect(auditLogsService.exportCsv).not.toHaveBeenCalled()
+    })
+
+    it('fica desabilitado enquanto a busca carrega', async () => {
+      const wrapper = await mountView()
+      expect(exportButton(wrapper).props('disabled')).toBe(false)
+      vi.mocked(auditLogsService.listPaginated).mockReturnValueOnce(new Promise(() => {}))
+      await click(wrapper, 'audit-search')
+      expect(exportButton(wrapper).props('disabled')).toBe(true)
+    })
+
+    it('mostra o loading durante o download', async () => {
+      let resolve!: (value: { blob: Blob; filename: string }) => void
+      vi.mocked(auditLogsService.exportCsv).mockReturnValue(new Promise((r) => (resolve = r)))
+      const wrapper = await mountView()
+
+      await click(wrapper, 'audit-export')
+      expect(exportButton(wrapper).props('loading')).toBe(true)
+      expect(downloads).toEqual([])
+
+      resolve({ blob: csv, filename: 'auditoria-2026-11-24.csv' })
+      await flushPromises()
+      expect(exportButton(wrapper).props('loading')).toBe(false)
+      expect(downloads).toHaveLength(1)
+    })
+
+    it.each([
+      [
+        422,
+        'A busca tem 60000 registros; o limite da exportação é 50000. Refine os filtros.',
+        'A busca tem 60000 registros; o limite da exportação é 50000. Refine os filtros.',
+      ],
+      [
+        500,
+        'Houve um erro no servidor, tente novamente!',
+        'Houve um erro no servidor, tente novamente!',
+      ],
+      [429, 'Too Many Attempts.', 'Muitas exportações seguidas. Aguarde um minuto.'],
+    ])('erro %s mostra a mensagem no snackbar', async (status, message, shown) => {
+      vi.mocked(auditLogsService.exportCsv).mockRejectedValue(apiError(status, message))
+      const wrapper = await mountView()
+
+      await click(wrapper, 'audit-export')
+
+      const snackbar = useSnackbar()
+      expect(snackbar.visible.value).toBe(true)
+      expect(snackbar.color.value).toBe('error')
+      expect(snackbar.message.value).toBe(shown)
+      expect(exportButton(wrapper).props('loading')).toBe(false)
+      expect(wrapper.find('[data-test="audit-error"]').exists()).toBe(false)
+      expect(downloads).toEqual([])
+    })
   })
 })

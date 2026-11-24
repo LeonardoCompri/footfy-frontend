@@ -95,6 +95,7 @@ export const AUDIT_ACTION_OPTIONS: { value: string; title: string }[] = [
   { value: 'game_event_type.created', title: 'Tipo de evento criado' },
   { value: 'game_event_type.updated', title: 'Tipo de evento editado' },
   { value: 'game_event_type.deleted', title: 'Tipo de evento excluído' },
+  { value: 'audit_logs.exported', title: 'Auditoria exportada' },
 ]
 
 export function auditActionLabel(action: string): string {
