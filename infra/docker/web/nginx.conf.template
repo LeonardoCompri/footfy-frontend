@@ -6,12 +6,19 @@ server {
     index index.html;
     client_max_body_size 12m;
 
+    # DNS do Docker: o IP do backend muda quando o container e recriado
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    resolver_timeout 5s;
+
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
     # API, arquivos enviados, health check e Telescope -> Laravel
     location ~ ^/(api|storage|up|telescope)(/|$) {
-        proxy_pass http://backend:80;
+        # Com variavel o nome e resolvido a cada requisicao, nao so no start.
+        # Sem barra no fim: o Nginx repassa a URI original com a query
+        set $backend_upstream http://backend:80;
+        proxy_pass $backend_upstream;
         # O Laravel bloqueia rotas publicas se o host nao for o PUBLIC_ORIGIN
         proxy_set_header Host ${PUBLIC_HOST};
         proxy_set_header X-Real-IP $remote_addr;
