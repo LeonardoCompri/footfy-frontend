@@ -9,8 +9,8 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
-    # API, arquivos enviados e health check -> Laravel
-    location ~ ^/(api|storage|up)(/|$) {
+    # API, arquivos enviados, health check e Telescope -> Laravel
+    location ~ ^/(api|storage|up|telescope)(/|$) {
         proxy_pass http://backend:80;
         # O Laravel bloqueia rotas publicas se o host nao for o PUBLIC_ORIGIN
         proxy_set_header Host ${PUBLIC_HOST};
