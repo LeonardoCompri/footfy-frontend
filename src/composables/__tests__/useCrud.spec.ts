@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useCrud } from '@/composables/useCrud'
+import { extractErrorMessage, useCrud } from '@/composables/useCrud'
 import type { Paginated } from '@/types/api'
 import type { Game, GamePayload } from '@/types/game'
 import { apiError, makeGame, makePage } from '@/test/factories'
@@ -13,6 +13,11 @@ function makeService() {
     remove: vi.fn(),
     listPaginated: vi.fn(),
   }
+}
+
+function withRequestId(status: number, message: string, requestId: string) {
+  const err = apiError(status, message)
+  return { response: { ...err.response, headers: { 'x-request-id': requestId } } }
 }
 
 function deferred<T>() {
@@ -86,5 +91,37 @@ describe('useCrud', () => {
     expect(service.listPaginated).not.toHaveBeenCalled()
     expect(crud.items.value.map((game) => game.id)).toEqual([1])
     expect(crud.meta.value).toBeNull()
+  })
+
+  describe('extractErrorMessage', () => {
+    it('erro 500 com x-request-id mostra o código do erro', () => {
+      const err = withRequestId(500, 'Server Error', 'a1b2c3')
+
+      expect(extractErrorMessage(err)).toBe('Server Error Código do erro: a1b2c3')
+    })
+
+    it('erro 500 sem o header mantém a mensagem', () => {
+      expect(extractErrorMessage(apiError(500, 'Server Error'))).toBe('Server Error')
+    })
+
+    it.each([422, 404])('erro %i com x-request-id mantém a mensagem', (status) => {
+      expect(extractErrorMessage(withRequestId(status, 'Falhou.', 'a1b2c3'))).toBe('Falhou.')
+    })
+
+    it('erro 500 sem mensagem usa a genérica com o código', () => {
+      const err = { response: { status: 500, data: {}, headers: { 'x-request-id': 'a1b2c3' } } }
+
+      expect(extractErrorMessage(err)).toBe('Ocorreu um erro inesperado. Código do erro: a1b2c3')
+    })
+  })
+
+  it('save com erro 500 leva o código do erro ao errorMessage', async () => {
+    const service = makeService()
+    service.create.mockRejectedValue(withRequestId(500, 'Server Error', 'a1b2c3'))
+    const crud = useCrud<Game, GamePayload>(service)
+
+    await crud.save({} as GamePayload)
+
+    expect(crud.errorMessage.value).toBe('Server Error Código do erro: a1b2c3')
   })
 })

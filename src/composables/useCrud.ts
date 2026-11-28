@@ -14,7 +14,10 @@ interface CrudService<T, P> {
 
 export function extractErrorMessage(err: unknown): string {
   const axiosErr = err as AxiosError<ApiErrorResponse>
-  return axiosErr.response?.data?.message ?? 'Ocorreu um erro inesperado.'
+  const message = axiosErr.response?.data?.message ?? 'Ocorreu um erro inesperado.'
+  const requestId = axiosErr.response?.headers?.['x-request-id']
+  if (axiosErr.response?.status !== 500 || !requestId) return message
+  return `${message} Código do erro: ${requestId}`
 }
 
 export function useCrud<T extends { id: number }, P>(service: CrudService<T, P>) {
